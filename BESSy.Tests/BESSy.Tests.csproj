@@ -162,6 +162,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CryptoTests\RC2Tests.cs" />
     <Compile Include="FileManagerTests\BatchFileManagerTests.cs" />
     <Compile Include="CatalogTests\CatalogCapacityTests.cs" />
     <Compile Include="CatalogTests\CatalogCRUDTests.cs" />
@@ -170,6 +171,8 @@
     <Compile Include="Mocks\MockClassB.cs" />
     <Compile Include="Mocks\MockClassC.cs" />
     <Compile Include="Mocks\MockClassD.cs" />
+    <Compile Include="RepositoryTests\RepositoryCryptoTests.cs" />
+    <Compile Include="SynchronizationTests\RowSynchronizerTests.cs" />
     <Compile Include="TestResourceFactory.cs" />
     <Compile Include="Mocks\MockStruct.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -182,6 +185,10 @@
     <ProjectReference Include="..\BESSy\BESSy.csproj">
       <Project>{B4BC5256-DB79-4085-B70D-7C1FB586AB43}</Project>
       <Name>BESSy</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\SevenZip\SevenZip.csproj">
+      <Project>{FB4299E9-2F4F-494E-AAEB-44779E930F07}</Project>
+      <Name>SevenZip</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

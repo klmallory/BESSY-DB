@@ -16,10 +16,10 @@ using NUnit.Framework;
 namespace BESSy.Tests.RepositoryTests
 {
     [TestFixture]
-    public class RepositoryCRUDTests
+    public class RepositoryCryptoTests
     {
         ISafeFormatter _bsonFormatter;
-        IBatchFileManager<MockClassA> _zipManager;
+        IBatchFileManager<MockClassA> _cryptoFormatter;
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexedEntityMapManager<MockClassA, int> _mapManager;
         IIndexedEntityMapManager<MockClassA, string> _stringMapManager;
@@ -30,7 +30,7 @@ namespace BESSy.Tests.RepositoryTests
         public void FixtureSetup()
         {
             _bsonFormatter = TestResourceFactory.CreateBsonFormatter();
-            _zipManager = TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter());
+            _cryptoFormatter = TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateCryptoFormatter());
             _bsonManager = TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateBsonFormatter());
             _mapManager = TestResourceFactory.CreateIndexedMapManager<MockClassA, int>(_bsonFormatter, new BinConverter32());
             _stringMapManager = TestResourceFactory.CreateIndexedMapManager<MockClassA, string>(_bsonFormatter, new BinConverterString());
@@ -45,57 +45,6 @@ namespace BESSy.Tests.RepositoryTests
         }
 
         [Test]
-        public void TestLoadsContentToMappingFile()
-        {
-            var repo = new Repository<MockClassA, int>
-                ("testTypeRepository.scenario"
-                , (m => m.Id)
-               , ((m, i) => m.Id = i));
-
-            repo.Load();
-
-            foreach (var e in _testEntities)
-                repo.Add(e);
-
-            repo.Flush();
-
-            while (repo.FileFlushQueueActive)
-                Thread.Sleep(100);
-
-            Assert.AreEqual(3, repo.Count());
-
-            repo.Dispose();
-        }
-
-        [Test]
-        public void TestTypeRepositoryGeneratesSequentialKeysAbove1000()
-        {
-            var repo = new Repository<MockClassA, int>
-                (-1
-                , "testTypeRepository.scenario"
-                , true
-                , new Seed32(999)
-                , new BinConverter32()
-                , _zipManager
-                , _mapManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i));
-
-            repo.Load();
-
-            var testEntity1 = TestResourceFactory.CreateRandom();
-            var testEntity2 = TestResourceFactory.CreateRandom();
-
-            repo.Add(testEntity1);
-            repo.Add(testEntity2);
-
-            Assert.AreEqual(1000, testEntity1.Id);
-            Assert.AreEqual(1001, testEntity2.Id);
-
-            repo.Dispose();
-        }
-
-        [Test]
         public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletes()
         {
             var repo = new Repository<MockClassA, int>
@@ -104,7 +53,7 @@ namespace BESSy.Tests.RepositoryTests
                 , true
                 , new Seed32(999)
                 , new BinConverter32()
-                , _zipManager
+                , _cryptoFormatter
                 , _mapManager
                 , (m => m != null ? m.Id : 0)
                , ((m, i) => m.Id = i));
@@ -125,7 +74,7 @@ namespace BESSy.Tests.RepositoryTests
             Assert.IsNotNull(repo.GetFromCache(1002));
             Assert.IsNotNull(repo.GetFromCache(1003));
             Assert.IsNotNull(repo.GetFromCache(1004));
-            
+
             repo.Flush();
 
             repo.Dispose();
@@ -136,7 +85,7 @@ namespace BESSy.Tests.RepositoryTests
                 , true
                 , new Seed32(999)
                 , new BinConverter32()
-                , _zipManager
+                , _cryptoFormatter
                 , _mapManager
                 , (m => m != null ? m.Id : 0)
                , ((m, i) => m.Id = i));
@@ -194,7 +143,7 @@ namespace BESSy.Tests.RepositoryTests
                 , true
                 , new SeedString()
                 , new BinConverterString()
-                , _zipManager
+                , _cryptoFormatter
                 , _stringMapManager
                 , (m => m != null ? m.Name : null)
                , ((m, id) => m.Name = id));
@@ -224,7 +173,7 @@ namespace BESSy.Tests.RepositoryTests
                 , true
                 , new SeedString()
                 , new BinConverterString()
-                , _zipManager
+                , _cryptoFormatter
                 , _stringMapManager
                 , (m => m != null ? m.Name : null)
                , ((m, id) => m.Name = id));

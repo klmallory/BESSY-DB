@@ -33,6 +33,8 @@ namespace BESSy.Serialization.Converters
             throw new InvalidOperationException(String.Format("values {0} and {1} could not be compared.", v1, v2));
         }
 
+        public int Min { get { return int.MinValue; } }
+        public int Max { get { return int.MaxValue; } }
 
         public int Length
         {

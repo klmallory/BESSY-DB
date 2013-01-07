@@ -11,6 +11,8 @@ namespace BESSy.Serialization.Converters
 {
     public class BinConverterGuid : IBinConverter<Guid>
     {
+        static readonly Guid _maxGuid = new Guid(new byte[16] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 });
+
         public byte[] ToBytes(Guid item)
         {
             return item.ToByteArray();
@@ -20,6 +22,9 @@ namespace BESSy.Serialization.Converters
         {
             return new Guid(bytes);
         }
+
+        public Guid Min { get { return Guid.Empty; } }
+        public Guid Max { get { return _maxGuid; } }
 
         public int Length
         {

@@ -4,15 +4,16 @@ All rights reserved.
 */
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using BESSy.Crypto;
 using BESSy.Files;
+using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
 using Newtonsoft.Json;
-using BESSy.Seeding;
-using System.IO;
 
 namespace BESSy.Tests
 {
@@ -26,9 +27,22 @@ namespace BESSy.Tests
             return new BSONFormatter(settings);
         }
 
+        internal static ICrypto CreateCrypto()
+        {
+            byte[] vector = new byte[8];
+            random.NextBytes(vector);
+
+            return new RC2Crypto(vector);
+        }
+
         internal static ISafeFormatter CreateZipFormatter()
         {
-            return new QuickZipFormatter(CreateBsonFormatter());
+            return new QuickZipFormatter(CreateBsonFormatter(), QuickZipFormatter.DefaultProperties);
+        }
+
+        internal static ISafeFormatter CreateCryptoFormatter()
+        {
+            return new CryptoFormatter(CreateCrypto(), CreateZipFormatter(), QuickZipFormatter.DefaultProperties.Values.ToArray());
         }
 
         internal static IBatchFileManager<EntityType> CreateBatchFileManager<EntityType>(ISafeFormatter formatter)

@@ -19,20 +19,35 @@ namespace BESSy.Crypto
     /// </summary>
     [SecurityCritical()]
     [SECP.KeyContainerPermission(SECP.SecurityAction.Demand)]
+    [SECP.ReflectionPermission(SECP.SecurityAction.Demand)]
+    [SECP.EnvironmentPermission(SECP.SecurityAction.Demand)]
     public class RC2Crypto : ICrypto
     {
-        byte[] simpleVector = new byte[8] { 124, 53, 89, 243, 163, 62, 47, 191 };
+        byte[] _simpleVector = new byte[8] { 124, 53, 89, 243, 163, 62, 47, 191 };
+        Encoding _encoding;
 
         public RC2Crypto()
         {
+
         }
 
-        public RC2Crypto(byte[] vector)
+        public RC2Crypto(byte[] vector) : this(vector, Encoding.ASCII)
         {
-            simpleVector = vector;
+            
         }
 
-        #region ICypressCrypto Members
+        /// <summary>
+        /// What's your Vector, Victor?
+        /// </summary>
+        /// <param name="vector"></param>
+        /// <param name="?"></param>
+        public RC2Crypto(byte[] vector, Encoding encoding)
+        {
+            _simpleVector = vector;
+            _encoding = encoding;
+        }
+
+        #region ICrypto Members
 
         /// <summary>
         /// The Length of the key
@@ -59,7 +74,11 @@ namespace BESSy.Crypto
             byte[] buf = new byte[keySize];
 
             for (int i = 0; i < keySize; i++)
-                buf[i] = Convert.ToByte((key[i % key.Length].GetHashCode() * i) % 256);
+            {
+                long hash = key[i % key.Length].GetHashCode();
+                var bit = (hash * 11).Clamp(0, long.MaxValue) % 256;
+                buf[i] = Convert.ToByte(bit);
+            }
             
             return buf;
         }
@@ -71,13 +90,13 @@ namespace BESSy.Crypto
         /// <param name="key">The key.</param>
         /// <param name="encoding">The encoding.</param>
         /// <returns></returns>
-        public string Encrypt(string value, byte[] key, Encoding encoding)
+        public string Encrypt(string value, byte[] key)
         {
-            byte[] raw = encoding.GetBytes(value);
+            byte[] raw = _encoding.GetBytes(value);
 
-            byte[] buffer = (this as ICrypto).Encrypt(raw, key);
+            byte[] buffer = Encrypt(raw, key);
 
-            return Convert.ToBase64String(buffer, 0, buffer.Length);
+            return Convert.ToBase64String(buffer);
         }
 
         /// <summary>
@@ -88,17 +107,51 @@ namespace BESSy.Crypto
         /// <returns></returns>
         public byte[] Encrypt(byte[] value, byte[] key)
         {
-            byte[] retVal = new byte[0];
-
             RC2 rc2 = RC2.Create();
 
-            ICryptoTransform transform = rc2.CreateEncryptor(key, simpleVector);
+            ICryptoTransform transform = rc2.CreateEncryptor(key, _simpleVector);
 
             rc2.Padding = PaddingMode.PKCS7;
 
-            retVal = transform.TransformFinalBlock(value, 0, value.Length);
+            var encrypted = transform.TransformFinalBlock(value, 0, value.Length);
 
-            return retVal;
+            return encrypted;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="inStream"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public Stream Encrypt(Stream inStream, byte[] key)
+        {
+            if (inStream.Length < 1)
+                return new MemoryStream();
+
+            RC2 rc2 = RC2.Create();
+            ICryptoTransform transform = rc2.CreateEncryptor(key, _simpleVector);
+            rc2.Padding = PaddingMode.PKCS7;
+
+            var encryptedStream = new MemoryStream();
+            byte[] buffer = new byte[Environment.SystemPageSize];
+
+            var cryptoStream = new CryptoStream(encryptedStream, transform, CryptoStreamMode.Write);
+            var read = inStream.Read(buffer, 0, buffer.Length);
+
+            while (read > 0)
+            {
+                Array.Resize(ref buffer, read);
+                cryptoStream.Write(buffer, 0, buffer.Length);
+
+                read = inStream.Read(buffer, 0, buffer.Length);
+            }
+
+            cryptoStream.FlushFinalBlock();
+
+            encryptedStream.Position = 0;
+
+            return encryptedStream;
         }
 
         /// <summary>
@@ -108,13 +161,13 @@ namespace BESSy.Crypto
         /// <param name="key">The key.</param>
         /// <param name="encoding">The encoding.</param>
         /// <returns></returns>
-        public string Decrypt(string value, byte[] key, Encoding encoding)
+        public string Decrypt(string value, byte[] key)
         {
             byte[] raw = Convert.FromBase64String(value);
 
-            byte[] buffer = (this as ICrypto).Decrypt(raw, key);
+            byte[] buffer = Decrypt(raw, key);
 
-            return encoding.GetString(buffer);
+            return _encoding.GetString(buffer);
         }
 
         /// <summary>
@@ -125,15 +178,32 @@ namespace BESSy.Crypto
         /// <returns></returns>
         public byte[] Decrypt(byte[] value, byte[] key)
         {
-            RC2 rc2 = RC2.Create();
+            var decrypted = new byte[0];
+            byte[] buffer = new byte[Environment.SystemPageSize];
 
-            ICryptoTransform transform = rc2.CreateDecryptor(key, simpleVector);
+            using (var inStream = new MemoryStream(value))
+            {
+                RC2 rc2 = RC2.Create();
+                ICryptoTransform transform = rc2.CreateDecryptor(key, _simpleVector);
+                rc2.Padding = PaddingMode.PKCS7;
 
-            rc2.Padding = PaddingMode.PKCS7;
+                using (var cryptoStream = new CryptoStream(inStream, transform, CryptoStreamMode.Read))
+                {
+                    inStream.Position = 0;
+                    var read = cryptoStream.Read(buffer, 0, buffer.Length);
 
-            var retVal = transform.TransformFinalBlock(value, 0, value.Length);
+                    while (read > 0)
+                    {
+                        Array.Resize(ref buffer, read);
+                        Array.Resize(ref decrypted, decrypted.Length + buffer.Length);
+                        Array.Copy(buffer, 0, decrypted, decrypted.Length - buffer.Length, buffer.Length);
 
-            return retVal;
+                        read = cryptoStream.Read(buffer, 0, buffer.Length);
+                    }
+                }
+            }
+
+            return decrypted;
         }
 
         /// <summary>
@@ -145,18 +215,27 @@ namespace BESSy.Crypto
         public Stream Decrypt(Stream inStream, byte[] key)
         {
             RC2 rc2 = RC2.Create();
-
-            ICryptoTransform transform = rc2.CreateDecryptor(key, simpleVector);
-
+            ICryptoTransform transform = rc2.CreateDecryptor(key, _simpleVector);
             rc2.Padding = PaddingMode.PKCS7;
 
-            var buffer = new byte[inStream.Length];
-            inStream.Position = 0;
-            inStream.Read(buffer, 0, buffer.Length);
+            var outStream = new MemoryStream();
 
-            var raw = transform.TransformFinalBlock(buffer, 0, buffer.Length);
+            using (var cryptoStream = new CryptoStream(inStream, transform, CryptoStreamMode.Read))
+            {
+                byte[] buffer = new byte[Environment.SystemPageSize];
+                
+                var read = cryptoStream.Read(buffer, 0, buffer.Length);
 
-            var outStream = new MemoryStream(raw);
+                while (read > 0)
+                {
+                    outStream.Write(buffer, 0, read);
+ 
+                    read = cryptoStream.Read(buffer, 0, buffer.Length);
+                }
+            }
+
+            outStream.Flush();
+            outStream.Position = 0;
 
             return outStream;
         }

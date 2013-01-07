@@ -60,19 +60,22 @@ namespace BESSy
 
         protected virtual void UpdateCache(PropertyType catId, IMappedRepository<EntityType, IdType> catalog)
         {
-            if (_catalogCache.ContainsKey(catId))
-                _catalogCache[catId] = catalog;
-
-            else if (_catalogDeferredCache.Contains(catId))
-                _catalogCache.Add(catId, catalog);
-
-            else if (AutoCache)
+            lock (_syncCache)
             {
-                _catalogDeferredCache.Add(catId);
-                _catalogCache.Add(catId, catalog);
+                if (_catalogCache.ContainsKey(catId))
+                    _catalogCache[catId] = catalog;
 
-                if (_catalogCache.Count > CacheSize)
-                    Sweep();
+                else if (_catalogDeferredCache.Contains(catId))
+                    _catalogCache.Add(catId, catalog);
+
+                else if (AutoCache)
+                {
+                    _catalogDeferredCache.Add(catId);
+                    _catalogCache.Add(catId, catalog);
+
+                    if (_catalogCache.Count > CacheSize)
+                        Sweep();
+                }
             }
         }
 
@@ -322,16 +325,19 @@ namespace BESSy
             if (_propertyConverter.Compare(catId, default(PropertyType)) == 0)
                 throw new ArgumentNullException("Catalog property can not be null.");
 
-            var cat = GetCatalog(catId);
-
-            var id = cat.Add(item);
-
-            _index.Add(new IndexPropertyPair<IdType, PropertyType>(id, catId));
-
             lock (_syncCache)
+            {
+                var cat = GetCatalog(catId);
+
+                var id = cat.Add(item);
+
+                _index.Add(new IndexPropertyPair<IdType, PropertyType>(id, catId));
+
                 UpdateCache(catId, cat);
 
-            return id;
+                return id;
+            }
+            
         }
 
         public void AddOrUpdate(EntityType item, IdType id)

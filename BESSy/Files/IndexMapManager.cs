@@ -17,6 +17,7 @@ using Newtonsoft.Json;
 using BESSy.Parallelization;
 using BESSy.Serialization.Converters;
 using BESSy.Extensions;
+using BESSy.Synchronization;
 
 namespace BESSy.Files
 {
@@ -57,6 +58,8 @@ namespace BESSy.Files
             _idConverter = idConverter;
             _propertyConverter = propertyConverter;
 
+            Synchronizer = new RowSynchronizer<int>(new BinConverter32());
+
             Stride = _idConverter.Length + _propertyConverter.Length;
             InitBlockSize();
         }
@@ -66,9 +69,9 @@ namespace BESSy.Files
 
         object _syncCache = new object();
         object _syncHints = new object();
-        object _syncIndex = new object();
         object _syncQueue = new object();
         object _syncFlush = new object();
+        object _syncFile = new object();
 
         bool _inFlush = false;
 
@@ -110,6 +113,8 @@ namespace BESSy.Files
             }
         }
 
+        public IRowSynchronizer<int> Synchronizer { get; private set; }
+
         public int Stride { get; protected set; }
 
         public int Length { get; protected set; }
@@ -130,31 +135,34 @@ namespace BESSy.Files
 
         public void OpenOrCreate(string fileName, int length, int stride)
         {
-            lock (_syncIndex)
+            lock (_syncFile)
             {
-                Trace.TraceInformation("_syncIndex entered.");
+                using (var lck = Synchronizer.LockAll())
+                {
+                    Trace.TraceInformation("_syncIndex entered.");
 
-                Length = length;
+                    Length = length;
 
-                var len = length.Clamp(1, int.MaxValue);
+                    var len = length.Clamp(1, int.MaxValue);
 
-                Stride = _idConverter.Length + _propertyConverter.Length;
+                    Stride = _idConverter.Length + _propertyConverter.Length;
 
-                _fileName = fileName + "." + _name + ".index";
+                    _fileName = fileName + "." + _name + ".index";
 
-                _indexFile = MemoryMappedFile.CreateOrOpen
-                    (@"Global\" + Guid.NewGuid().ToString()
-                    , Stride * len
-                    , MemoryMappedFileAccess.ReadWriteExecute
-                    , MemoryMappedFileOptions.None
-                    , new MemoryMappedFileSecurity()
-                    , HandleInheritability.Inheritable);
+                    _indexFile = MemoryMappedFile.CreateOrOpen
+                        (@"Global\" + Guid.NewGuid().ToString()
+                        , Stride * len
+                        , MemoryMappedFileAccess.ReadWriteExecute
+                        , MemoryMappedFileOptions.None
+                        , new MemoryMappedFileSecurity()
+                        , HandleInheritability.Inheritable);
 
-                _segmentsPerHint = ((len * Stride) / 10000).Clamp(Environment.SystemPageSize, int.MaxValue);
+                    _segmentsPerHint = ((len * Stride) / 10000).Clamp(Environment.SystemPageSize, int.MaxValue);
 
-                _lookupGroups = GetCPUGroupsForLookup();
+                    _lookupGroups = GetCPUGroupsForLookup();
 
-                Trace.TraceInformation("_syncIndex exited.");
+                    Trace.TraceInformation("_syncIndex exited.");
+                }
             }
 
             ClearCache();
@@ -168,14 +176,20 @@ namespace BESSy.Files
             {
                 _flushQueue.Clear();
                 _flushQueue.Enqueue(items);
-            }
 
-            ThreadPool.QueueUserWorkItem(new WaitCallback(BeginFlushNew));
+                ThreadPool.QueueUserWorkItem(new WaitCallback(BeginFlushNew));
+            }
         }
 
         protected virtual void BeginFlushNew(object state)
         {
             IDictionary<IdType, PropertyType> items = null;
+
+            lock (_syncQueue)
+                if (_flushQueue.Count > 0)
+                    items = _flushQueue.Dequeue();
+                else
+                    return;
 
             Monitor.Enter(_syncFlush);
 
@@ -185,14 +199,8 @@ namespace BESSy.Files
 
                 _inFlush = true;
 
-                if (_flushQueue.Count < 1)
-                    return;
-
-                lock (_syncQueue)
-                    items = _flushQueue.Dequeue();
-
 #if DEBUG
-                if (items == null)
+                if (items == null || items.Count < 1)
                     throw new ArgumentNullException("Cached items list to flush was null.");
 #endif
 
@@ -232,9 +240,9 @@ namespace BESSy.Files
                     newIndexView.Close();
                 }
 
-                lock (_syncIndex)
+                lock (_syncFile)
                 {
-                    //Trace.TraceInformation("_syncIndex entered.");
+                    Trace.TraceInformation("_syncIndex entered.");
 
                     _indexFile.Dispose();
 
@@ -242,7 +250,7 @@ namespace BESSy.Files
 
                     _lookupGroups = GetCPUGroupsForLookup();
 
-                    //Trace.TraceInformation("_syncIndex exited.");
+                    Trace.TraceInformation("_syncIndex exited.");
                 }
             }
             catch (Exception ex)
@@ -262,6 +270,14 @@ namespace BESSy.Files
 
                 InvokeOnFlushCompleted(items);
             }
+
+            //Launch a new flush call in case we were blocking another thread with updated information.
+            int queueCount = 0;
+            lock (_syncQueue)
+                queueCount = _flushQueue.Count;
+
+            if (queueCount > 0)
+                BeginFlush(state);
         }
 
         public void Flush(IDictionary<IdType, PropertyType> items)
@@ -271,6 +287,16 @@ namespace BESSy.Files
                 this.FlushNew(items);
 
                 return;
+            }
+            else
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+
+                while (Length == 0 && FlushQueueActive && sw.Elapsed.Milliseconds < 50000)
+                    Thread.Sleep(100);
+
+                sw.Stop();
             }
 
             lock (_flushQueue)
@@ -312,148 +338,151 @@ namespace BESSy.Files
                             int segment = group.StartSegment;
                             int newSegment = segment;
 
-                            using (var indexView = _indexFile.CreateViewStream
-                                (group.StartSegment * Stride
-                                , ((group.EndSegment - group.StartSegment) + 1) * Stride
-                                , MemoryMappedFileAccess.Read))
+                            using (var rows = Synchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
                             {
-                                foreach (var subset in group.Inserts)
+                                using (var indexView = _indexFile.CreateViewStream
+                                    (group.StartSegment * Stride
+                                    , ((group.EndSegment - group.StartSegment) + 1) * Stride
+                                    , MemoryMappedFileAccess.Read))
                                 {
-                                    using (var newIndexView = newIndexMap.CreateViewStream
-                                        (subset.StartNewSegment * Stride
-                                        , ((subset.EndNewSegment - subset.StartNewSegment) + 1) * Stride
-                                        , MemoryMappedFileAccess.ReadWriteExecute))
+                                    foreach (var subset in group.Inserts)
                                     {
-                                        byte[] idReadBuffer = new byte[_idConverter.Length];
-                                        byte[] propReadBuffer = new byte[_propertyConverter.Length];
-
-                                        //read id
-                                        var read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
-                                        var id = _idConverter.FromBytes(idReadBuffer);
-                                        var nextId = default(IdType);
-
-                                        //read property
-                                        read = indexView.Read(propReadBuffer, 0, propReadBuffer.Length);
-                                        var prop = _propertyConverter.FromBytes(propReadBuffer);
-
-                                        byte[] copyBuffer = new byte[Stride];
-
-                                        List<IdType> toWriteFromCache = new List<IdType>();
-                                        List<IdType> updates = new List<IdType>();
-
-                                        while (newSegment <= subset.EndNewSegment)
+                                        using (var newIndexView = newIndexMap.CreateViewStream
+                                            (subset.StartNewSegment * Stride
+                                            , ((subset.EndNewSegment - subset.StartNewSegment) + 1) * Stride
+                                            , MemoryMappedFileAccess.ReadWriteExecute))
                                         {
-                                            if (segment == group.StartSegment)
+                                            byte[] idReadBuffer = new byte[_idConverter.Length];
+                                            byte[] propReadBuffer = new byte[_propertyConverter.Length];
+
+                                            //read id
+                                            var read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
+                                            var id = _idConverter.FromBytes(idReadBuffer);
+                                            var nextId = default(IdType);
+
+                                            //read property
+                                            read = indexView.Read(propReadBuffer, 0, propReadBuffer.Length);
+                                            var prop = _propertyConverter.FromBytes(propReadBuffer);
+
+                                            byte[] copyBuffer = new byte[Stride];
+
+                                            List<IdType> toWriteFromCache = new List<IdType>();
+                                            List<IdType> updates = new List<IdType>();
+
+                                            while (newSegment <= subset.EndNewSegment)
                                             {
-                                                toWriteFromCache = subset.IdsToAdd.Where
-                                                    (a => _idConverter.Compare(a, id) < 0
-                                                    && !updates.Contains(a)).ToList();
-
-                                                if (toWriteFromCache.Count > 0)
+                                                if (segment == group.StartSegment)
                                                 {
-                                                    lock (hintSync)
-                                                        WriteInsertHints(toWriteFromCache, newHints, newSegment);
+                                                    toWriteFromCache = subset.IdsToAdd.Where
+                                                        (a => _idConverter.Compare(a, id) < 0
+                                                        && !updates.Contains(a)).ToList();
 
-                                                    newSegment = WriteInserts(toWriteFromCache, newSegment, idReadBuffer, propReadBuffer, subset, newIndexView, items);
-                                                }
-                                            }
+                                                    if (toWriteFromCache.Count > 0)
+                                                    {
+                                                        lock (hintSync)
+                                                            WriteInsertHints(toWriteFromCache, newHints, newSegment);
 
-                                            if (segment <= group.EndSegment)
-                                            {
-                                                if (items.ContainsKey(id))
-                                                {
-                                                    //update
-                                                    WriteUpdate(id, items[id], idReadBuffer, propReadBuffer, indexView, newIndexView);
-
-                                                    updates.Add(id);
-
-                                                    lock (hintSync)
-                                                        if (newSegment % _segmentsPerHint == 0 && !newHints.ContainsKey(id))
-                                                            newHints.Add(id, newSegment);
-
-                                                    segment++;
-                                                    newSegment++;
-                                                }
-                                                else
-                                                {
-                                                    //copy
-                                                    WriteOld(id, idReadBuffer, propReadBuffer, indexView, newIndexView);
-
-                                                    lock (hintSync)
-                                                        if (newSegment % _segmentsPerHint == 0 && !newHints.ContainsKey(id))
-                                                            newHints.Add(id, newSegment);
-
-                                                    segment++;
-                                                    newSegment++;
+                                                        newSegment = WriteInserts(toWriteFromCache, newSegment, idReadBuffer, propReadBuffer, subset, newIndexView, items);
+                                                    }
                                                 }
 
                                                 if (segment <= group.EndSegment)
                                                 {
-                                                    //read nextId
-                                                    read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
-                                                    //skip property
-                                                    indexView.Position += _propertyConverter.Length;
-
-                                                    nextId = _idConverter.FromBytes(idReadBuffer);
-
-                                                    //read nextId until valid Id is found.
-                                                    while (read > 0 && _idConverter.Compare(nextId, default(IdType)) == 0 && segment <= group.EndSegment)
+                                                    if (items.ContainsKey(id))
                                                     {
+                                                        //update
+                                                        WriteUpdate(id, items[id], idReadBuffer, propReadBuffer, indexView, newIndexView);
+
+                                                        updates.Add(id);
+
+                                                        lock (hintSync)
+                                                            if (newSegment % _segmentsPerHint == 0 && !newHints.ContainsKey(id))
+                                                                newHints.Add(id, newSegment);
+
+                                                        segment++;
+                                                        newSegment++;
+                                                    }
+                                                    else
+                                                    {
+                                                        //copy
+                                                        WriteOld(id, idReadBuffer, propReadBuffer, indexView, newIndexView);
+
+                                                        lock (hintSync)
+                                                            if (newSegment % _segmentsPerHint == 0 && !newHints.ContainsKey(id))
+                                                                newHints.Add(id, newSegment);
+
+                                                        segment++;
+                                                        newSegment++;
+                                                    }
+
+                                                    if (segment <= group.EndSegment)
+                                                    {
+                                                        //read nextId
                                                         read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
                                                         //skip property
                                                         indexView.Position += _propertyConverter.Length;
 
                                                         nextId = _idConverter.FromBytes(idReadBuffer);
 
-                                                        segment++;
-                                                        newSegment++;
+                                                        //read nextId until valid Id is found.
+                                                        while (read > 0 && _idConverter.Compare(nextId, default(IdType)) == 0 && segment <= group.EndSegment)
+                                                        {
+                                                            read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
+                                                            //skip property
+                                                            indexView.Position += _propertyConverter.Length;
+
+                                                            nextId = _idConverter.FromBytes(idReadBuffer);
+
+                                                            segment++;
+                                                            newSegment++;
+                                                        }
+
+                                                        //insert between.
+                                                        if (subset.IdsToAdd.Count - updates.Count > 0 &&
+                                                            _idConverter.Compare(nextId, default(IdType)) != 0)
+                                                        {
+                                                            toWriteFromCache = subset.IdsToAdd.Where
+                                                                (a => _idConverter.Compare(a, id) > 0
+                                                                    && (_idConverter.Compare(a, nextId) < 0)
+                                                                    && !updates.Contains(a)).ToList();
+
+                                                            if (toWriteFromCache.Count > 0)
+                                                            {
+                                                                lock (hintSync)
+                                                                    WriteInsertHints(toWriteFromCache, newHints, newSegment);
+
+                                                                newSegment = WriteInserts(toWriteFromCache, newSegment, idReadBuffer, propReadBuffer, subset, newIndexView, items);
+                                                            }
+                                                        }
                                                     }
 
-                                                    //insert between.
-                                                    if (subset.IdsToAdd.Count - updates.Count > 0 &&
-                                                        _idConverter.Compare(nextId, default(IdType)) != 0)
+                                                    id = nextId;
+                                                }
+                                                else
+                                                {
+                                                    if (subset.IdsToAdd.Count > 0)
                                                     {
                                                         toWriteFromCache = subset.IdsToAdd.Where
                                                             (a => _idConverter.Compare(a, id) > 0
-                                                                && (_idConverter.Compare(a, nextId) < 0)
-                                                                && !updates.Contains(a)).ToList();
-
-                                                        if (toWriteFromCache.Count > 0)
-                                                        {
-                                                            lock (hintSync)
-                                                                WriteInsertHints(toWriteFromCache, newHints, newSegment);
-
-                                                            newSegment = WriteInserts(toWriteFromCache, newSegment, idReadBuffer, propReadBuffer, subset, newIndexView, items);
-                                                        }
+                                                           && !updates.Contains(a)).ToList();
                                                     }
-                                                }
 
-                                                id = nextId;
+                                                    if (toWriteFromCache.Count > 0)
+                                                    {
+                                                        lock (hintSync)
+                                                            WriteInsertHints(toWriteFromCache, newHints, newSegment);
+
+                                                        newSegment = WriteInserts(toWriteFromCache, newSegment, idReadBuffer, propReadBuffer, subset, newIndexView, items);
+                                                    }
+
+                                                    //we're done with this subset
+                                                    break;
+                                                }
                                             }
-                                            else
-                                            {
-                                                if (subset.IdsToAdd.Count > 0)
-                                                {
-                                                    toWriteFromCache = subset.IdsToAdd.Where
-                                                        (a => _idConverter.Compare(a, id) > 0
-                                                       && !updates.Contains(a)).ToList();
-                                                }
 
-                                                if (toWriteFromCache.Count > 0)
-                                                {
-                                                    lock (hintSync)
-                                                        WriteInsertHints(toWriteFromCache, newHints, newSegment);
-
-                                                    newSegment = WriteInserts(toWriteFromCache, newSegment, idReadBuffer, propReadBuffer, subset, newIndexView, items);
-                                                }
-
-                                                //we're done with this subset
-                                                break;
-                                            }
+                                            newIndexView.Flush();
+                                            newIndexView.Close();
                                         }
-
-                                        newIndexView.Flush();
-                                        newIndexView.Close();
                                     }
                                 }
                             }
@@ -465,10 +494,8 @@ namespace BESSy.Files
                         }
                     });
 
-                    lock (_syncIndex)
+                    using (var lck = Synchronizer.LockAll())
                     {
-                        Trace.TraceInformation("_syncIndex entered.");
-
                         _indexFile.Dispose();
                         _indexFile = newIndexMap;
 
@@ -480,8 +507,6 @@ namespace BESSy.Files
 
                         lock (_syncHints)
                             _hints = newHints;
-
-                        Trace.TraceInformation("_syncIndex exited.");
                     }
                 }
                 catch (Exception ex)
@@ -716,10 +741,8 @@ namespace BESSy.Files
 
                 var offset = segment * Stride;
 
-                lock (_syncIndex)
+                using (var rows = Synchronizer.Lock(segment))
                 {
-                    //Trace.TraceInformation("_syncIndex entered.");
-
                     using (var view = _indexFile.CreateViewStream
                         (offset, Stride, MemoryMappedFileAccess.Read))
                     {
@@ -730,8 +753,6 @@ namespace BESSy.Files
 
                         indicies.Add(segment, rid);
                     }
-
-                    //Trace.TraceInformation("_syncIndex exited.");
                 }
             });
 
@@ -799,13 +820,13 @@ namespace BESSy.Files
 
             var ids = new List<IdType>();
 
-            lock (_syncIndex)
-            {
-                Trace.TraceInformation("_syncIndex entered.");
+            Trace.TraceInformation("_syncIndex entered.");
 
-                Parallel.ForEach(_lookupGroups, delegate(IndexingCPUGroup<IdType> group)
+            Parallel.ForEach(_lookupGroups, delegate(IndexingCPUGroup<IdType> group)
+            {
+                try
                 {
-                    try
+                    using (var lck = Synchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
                     {
                         using (var view = _indexFile.CreateViewStream
                             (group.StartSegment * Stride,
@@ -839,15 +860,15 @@ namespace BESSy.Files
                             }
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Trace.TraceError(ex.ToString());
-                        throw ex;
-                    }
-                });
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError(ex.ToString());
+                    throw ex;
+                }
+            });
 
-                Trace.TraceInformation("_syncIndex exited.");
-            }
+            Trace.TraceInformation("_syncIndex exited.");
 
             return ids;
         }
@@ -897,7 +918,7 @@ namespace BESSy.Files
                 throw new ArgumentException("segment out of bounds of the file.", "segment");
 #endif
 
-            lock (_syncIndex)
+            using (var lck = Synchronizer.Lock(segment))
             {
                 using (var view = _indexFile.CreateViewStream(
                     (segment * Stride) + _idConverter.Length
@@ -922,7 +943,7 @@ namespace BESSy.Files
                 throw new ArgumentException("segment out of bounds of the file.", "segment");
 #endif
 
-            lock (_syncIndex)
+            using (var lck = Synchronizer.Lock(segment))
             {
                 using (var view = _indexFile.CreateViewStream(
                     (segment * Stride)
@@ -931,7 +952,6 @@ namespace BESSy.Files
                 {
                     byte[] idBuf = new byte[_idConverter.Length];
                     byte[] propBuf = new byte[_propertyConverter.Length];
-
 
                     var read = view.Read(idBuf, 0, idBuf.Length);
                     read += view.Read(propBuf, 0, propBuf.Length);
@@ -948,24 +968,23 @@ namespace BESSy.Files
         {
             int segmentFound = -1;
 
-            lock (_syncIndex)
+            Parallel.For(0, 2, delegate(int segMod)
             {
-                //Trace.TraceInformation("_syncIndex entered.");
+                segMod = segMod - 1;
 
-                Parallel.For(0, 2, delegate(int segMod)
+                var segStart = segMod * _segmentsPerBlock;
+
+                if (segStart > Length)
+                    return;
+
+                if (segStart < 0)
+                    return;
+
+                var count = (Length - segMod);
+                var size = _blockSize.Clamp(Stride, count * Stride);
+
+                using (var lck = Synchronizer.Lock(new Range<int>(segStart, segStart + count)))
                 {
-                    segMod = segMod - 1;
-
-                    var segStart = segMod * _segmentsPerBlock;
-
-                    if (segStart > Length)
-                        return;
-
-                    if (segStart < 0)
-                        return;
-
-                    var size = _blockSize.Clamp(Stride, (Length - segMod) * Stride);
-
                     using (var view = _indexFile.CreateViewStream
                         (segStart * Stride
                         , size, MemoryMappedFileAccess.Read))
@@ -997,10 +1016,8 @@ namespace BESSy.Files
                             seg++;
                         }
                     }
-                });
-
-                //Trace.TraceInformation("_syncIndex exited.");
-            }
+                }
+            });
 
             if (segmentFound > -1)
             {
@@ -1019,67 +1036,64 @@ namespace BESSy.Files
             var segmentFound = -1;
             CancellationTokenSource source = new CancellationTokenSource();
 
-            if (!Monitor.TryEnter(_syncIndex, 5000))
-                return segmentFound;
-
-            //Trace.TraceInformation("_syncIndex entered.");
-
             try
             {
                 Parallel.ForEach(_lookupGroups, new ParallelOptions() { CancellationToken = source.Token }, delegate(IndexingCPUGroup<IdType> group)
                 {
                     try
                     {
-                        using (var view = _indexFile.CreateViewStream
-                            (group.StartSegment * Stride
-                            , group.EndSegment * Stride - group.StartSegment * Stride
-                            , MemoryMappedFileAccess.Read))
+                        using (var lck = Synchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
                         {
-                            if (segmentFound > -1)
-                                return;
-
-                            byte[] idBuf = new byte[_idConverter.Length];
-                            byte[] propBuf = new byte[_propertyConverter.Length];
-
-                            var read = view.Read(idBuf, 0, idBuf.Length);
-                            var rid = _idConverter.FromBytes(idBuf);
-                            var seg = group.StartSegment;
-
-                            while (read > 0)
+                            using (var view = _indexFile.CreateViewStream
+                                (group.StartSegment * Stride
+                                , group.EndSegment * Stride - group.StartSegment * Stride
+                                , MemoryMappedFileAccess.Read))
                             {
-                                if (segmentFound > 0)
-                                    break;
+                                if (segmentFound > -1)
+                                    return;
 
-                                //read = view.Read(propBuf, 0, propBuf.Length);
-                                //prop = _propertyConverter.FromBytes(propBuf);
+                                byte[] idBuf = new byte[_idConverter.Length];
+                                byte[] propBuf = new byte[_propertyConverter.Length];
 
-                                if (_idConverter.Compare(rid, id) == 0)
+                                var read = view.Read(idBuf, 0, idBuf.Length);
+                                var rid = _idConverter.FromBytes(idBuf);
+                                var seg = group.StartSegment;
+
+                                while (read > 0)
                                 {
-                                    segmentFound = seg;
+                                    if (segmentFound > 0)
+                                        break;
 
-                                    if (!_hints.ContainsKey(id))
-                                        lock (_syncHints)
-                                            _hints.Add(rid, seg);
+                                    if (_idConverter.Compare(rid, id) == 0)
+                                    {
+                                        segmentFound = seg;
 
-                                    System.Threading.ThreadPool.QueueUserWorkItem
-                                        (new WaitCallback(StartCachingBlock), segmentFound);
+                                        if (!_hints.ContainsKey(id))
+                                            lock (_syncHints)
+                                                _hints.Add(rid, seg);
 
-                                    source.Cancel();
+                                        System.Threading.ThreadPool.QueueUserWorkItem
+                                            (new WaitCallback(StartCachingBlock), segmentFound);
 
-                                    break;
+                                        source.Cancel();
+
+                                        break;
+                                    }
+
+                                    view.Position += _propertyConverter.Length;
+
+                                    read = view.Read(idBuf, 0, idBuf.Length);
+                                    rid = _idConverter.FromBytes(idBuf);
+
+                                    seg++;
                                 }
-
-                                view.Position += _propertyConverter.Length;
-
-                                read = view.Read(idBuf, 0, idBuf.Length);
-                                rid = _idConverter.FromBytes(idBuf);
-
-                                seg++;
                             }
                         }
                     }
                     catch (Exception ex)
                     {
+                        //.NET does not throw up this exception to the calling thread, 
+                        // so we need to log this before the parallel operation exits.
                         Trace.TraceError(ex.ToString());
                         throw;
                     }
@@ -1087,17 +1101,6 @@ namespace BESSy.Files
             }
             //This is expected behavior, not sure why .NET throws an exception.
             catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                Trace.TraceError(ex.ToString());
-                throw;
-            }
-            finally
-            {
-                Monitor.Exit(_syncIndex);
-
-                //Trace.TraceInformation("_syncIndex exited.");
-            }
 
             return segmentFound;
         }
@@ -1108,13 +1111,9 @@ namespace BESSy.Files
             if (segment < 0 || segment > Length)
                 throw new ArgumentException("segment out of bounds of the file.", "segment");
 #endif
-            if (!Monitor.TryEnter(_syncIndex, 5000))
-                return default(IdType);
 
-            try
+            using (var lck = Synchronizer.Lock(segment))
             {
-                //Trace.TraceInformation("_syncIndex entered.");
-
                 using (var view = _indexFile.CreateViewStream
                     (segment * Stride
                     , Stride
@@ -1128,12 +1127,6 @@ namespace BESSy.Files
 
                     return rid;
                 }
-            }
-            finally
-            {
-                Monitor.Exit(_syncIndex);
-
-                //Trace.TraceInformation("_syncIndex exited.");
             }
         }
 
@@ -1184,10 +1177,8 @@ namespace BESSy.Files
             {
                 Trace.TraceInformation("_syncFlush entered.");
 
-                lock (_syncIndex)
+                using (var lck = Synchronizer.Lock(segment))
                 {
-                    Trace.TraceInformation("_syncIndex entered.");
-
                     using (var view = _indexFile.CreateViewStream
                         (segment * Stride, Stride
                         , MemoryMappedFileAccess.ReadWriteExecute))
@@ -1204,8 +1195,6 @@ namespace BESSy.Files
 
                     if (segment > Length)
                         Length = segment;
-
-                    Trace.TraceInformation("_syncIndex exited.");
                 }
 
                 Trace.TraceInformation("_syncFlush exited.");
@@ -1230,15 +1219,15 @@ namespace BESSy.Files
 
             var cache = new Dictionary<IdType, int>();
 
-            var size = _blockSize.Clamp(Stride, (Length - segmentKey) * Stride);
+            var count = (Length - segmentKey);
+
+            var size = _blockSize.Clamp(Stride, count * Stride);
 
             if (size < Stride)
                 return;
 
-            lock (_syncIndex)
+            using (var lck = Synchronizer.Lock(new Range<int>(segmentKey, segmentKey + count)))
             {
-                //Trace.TraceInformation("_syncIndex entered.");
-
                 using (var view = _indexFile.CreateViewStream
                     (segmentKey * Stride
                     , size, MemoryMappedFileAccess.Read))
@@ -1261,8 +1250,6 @@ namespace BESSy.Files
                         rid = _idConverter.FromBytes(tmp);
                     }
                 }
-
-                //Trace.TraceInformation("_syncIndex exited.");
             }
 
             lock (_syncCache)
@@ -1285,20 +1272,18 @@ namespace BESSy.Files
                 {
                     Trace.TraceInformation("_syncFlush entered.");
 
-                    lock (_syncIndex)
+                    _inFlush = true;
+
+                    var seg = segmentStart;
+
+                    var key = items.First().Key;
+
+                    if (!_hints.ContainsKey(key))
+                        lock (_syncHints)
+                            _hints.Add(key, seg);
+
+                    using (var lck = Synchronizer.Lock(new Range<int>(seg, seg + items.Count)))
                     {
-                        Trace.TraceInformation("_syncIndex entered.");
-
-                        _inFlush = true;
-
-                        var seg = segmentStart;
-
-                        var key = items.First().Key;
-
-                        if (!_hints.ContainsKey(key))
-                            lock (_syncHints)
-                                _hints.Add(key, seg);
-
                         using (var view = _indexFile.CreateViewStream
                             (seg * Stride, items.Count * Stride
                             , MemoryMappedFileAccess.ReadWriteExecute))
@@ -1313,8 +1298,6 @@ namespace BESSy.Files
 
                             view.Flush();
                         }
-
-                        Trace.TraceInformation("_syncIndex exited.");
 
                         return seg;
                     }
@@ -1353,10 +1336,8 @@ namespace BESSy.Files
             {
                 Trace.TraceInformation("_syncFlush entered.");
 
-                lock (_syncIndex)
+                using (var lck = Synchronizer.Lock(new Range<int>(segmentStart, segmentStart + items.Count)))
                 {
-                    Trace.TraceInformation("_syncIndex entered.");
-
                     using (var view = _indexFile.CreateViewStream(Stride * segmentStart, items.Count * Stride, MemoryMappedFileAccess.ReadWriteExecute))
                     {
                         foreach (var item in items)
@@ -1368,8 +1349,6 @@ namespace BESSy.Files
                         view.Flush();
                         view.Close();
                     }
-
-                    Trace.TraceInformation("_syncIndex exited.");
                 }
 
                 Trace.TraceInformation("_syncFlush exited.");
@@ -1380,7 +1359,7 @@ namespace BESSy.Files
 
         public IEnumerator<IndexPropertyPair<IdType, PropertyType>> GetEnumerator()
         {
-            return new IndexEnumerator<IdType, PropertyType>(this, _syncIndex, _idConverter);
+            return new IndexEnumerator<IdType, PropertyType>(this, _idConverter);
         }
 
         IEnumerator IEnumerable.GetEnumerator()

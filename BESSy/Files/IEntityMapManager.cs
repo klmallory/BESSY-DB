@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using BESSy.Synchronization;
 
 namespace BESSy.Files
 {
-    public interface IEntityMapManager<EntityType>  : IMapManager
+    public interface IEntityMapManager<EntityType>  : IMapManager, ISynchronize<int>
     {
         EntityType LoadFromSegment(int segment);
         bool TryLoadFromSegment(int segment, out EntityType entity);

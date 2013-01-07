@@ -10,10 +10,10 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security;
 using BESSy.Crypto;
+using Newtonsoft.Json;
 using SevenZip;
 using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
-using Newtonsoft.Json;
 
 namespace BESSy.Serialization
 {
@@ -22,7 +22,7 @@ namespace BESSy.Serialization
     //[SECP.ReflectionPermission(SECP.SecurityAction.Demand)]
     public class QuickZipFormatter : ISafeFormatter
     {
-        static IDictionary<CoderPropID, object> _defaultProperties = new Dictionary<CoderPropID, object>()
+        public static IDictionary<CoderPropID, object> DefaultProperties = new Dictionary<CoderPropID, object>()
         {
             {CoderPropID.DictionarySize, 16},
             {CoderPropID.PosStateBits, 2},
@@ -34,16 +34,12 @@ namespace BESSy.Serialization
             {CoderPropID.EndMarker, false}
         };
 
-        public QuickZipFormatter(IFormatter serializer) : this(serializer, null)
+        public QuickZipFormatter(IFormatter serializer) : this(serializer, DefaultProperties)
         {        }
 
-        public QuickZipFormatter(IFormatter serializer, ICrypto crypto) : this(serializer, crypto, _defaultProperties)
-        {        }
-
-        public QuickZipFormatter(IFormatter serializer, ICrypto crypto, IDictionary<CoderPropID, object> properties)
+        public QuickZipFormatter(IFormatter serializer, IDictionary<CoderPropID, object> properties)
         {
             _serializer = serializer;
-            _crypto = crypto;
             _properties = properties;
         }
 
@@ -51,7 +47,6 @@ namespace BESSy.Serialization
         Decoder _quickDecoder = new Decoder();
         IDictionary<CoderPropID, object> _properties;
         IFormatter _serializer;
-        ICrypto _crypto;
 
         protected Stream Unzip(Stream inStream)
         {
@@ -105,9 +100,6 @@ namespace BESSy.Serialization
         /// <returns>the encrypted and / or compressed data</returns>
         public Byte[] Format(Byte[] buffer)
         {
-            if (_crypto != null)
-                buffer = _crypto.Encrypt(buffer, _crypto.GetKey(_properties.Values.ToArray(), _crypto.KeySize));
-
             using (var inStream = new MemoryStream(buffer, false))
             {
                 using (var stream = Format(inStream))
@@ -131,7 +123,7 @@ namespace BESSy.Serialization
         public Stream Format(Stream inStream)
         {
             var stream = new MemoryStream();
-
+            
             _quickEncoder.SetCoderProperties(_properties.Keys.ToArray(), _properties.Values.ToArray());
 
             //write header
@@ -145,6 +137,7 @@ namespace BESSy.Serialization
                 stream.WriteByte(bit);
             }
 
+            inStream.Position = 0;
             _quickEncoder.Code(inStream, stream, -1, -1, null);
 
             stream.Flush();
@@ -155,9 +148,6 @@ namespace BESSy.Serialization
         public T UnformatObj<T>(Byte[] buffer)
         {
             byte[] raw = buffer;
-
-            if (_crypto != null)
-                raw = _crypto.Decrypt(buffer, _crypto.GetKey(_properties.Values.ToArray(), _crypto.KeySize));
 
             using (var inStream = new MemoryStream(raw, false))
             {
@@ -176,34 +166,21 @@ namespace BESSy.Serialization
 
         public T UnformatObj<T>(Stream inStream)
         {
-            var stream = inStream;
-
-            try
+            using (var outStream = Unzip(inStream))
             {
-                if (_crypto != null)
-                    stream = _crypto.Decrypt(inStream, _crypto.GetKey(_properties.Values.ToArray(), _crypto.KeySize));
-
-                using (var outStream = Unzip(stream))
+                var stream = outStream;
+                try
                 {
-                    return _serializer.UnformatObj<T>(outStream);
+                    return _serializer.UnformatObj<T>(stream);
                 }
-            }
-            finally
-            {
-                if (stream != null)
-                    stream.Dispose();
+                finally { stream.Dispose(); }
             }
         }
 
         public byte[] Unformat(Byte[] buffer)
         {
-            Stream inStream = new MemoryStream(buffer, false);
-
-            try
+            using (var inStream = new MemoryStream(buffer, false))
             {
-                if (_crypto != null)
-                    inStream = _crypto.Decrypt(inStream, _crypto.GetKey(_properties.Values.ToArray(), _crypto.KeySize));
-
                 using (var stream = Unzip(inStream))
                 {
                     var bytes = new Byte[stream.Length];
@@ -215,27 +192,13 @@ namespace BESSy.Serialization
                     return bytes;
                 }
             }
-            finally
-            {
-                if (inStream != null)
-                    inStream.Dispose();
-            }
         }
 
         public Stream Unformat(Stream inStream)
         {
-            try
-            {
-                if (_crypto != null)
-                    inStream = _crypto.Decrypt(inStream, _crypto.GetKey(_properties.Values.ToArray(), _crypto.KeySize));
+            var stream = Unzip(inStream);
 
-                return Unzip(inStream);
-            }
-            finally
-            {
-                if (inStream != null)
-                    inStream.Dispose();
-            }
+            return stream;
         }
 
         #region ISafeFormatter Members

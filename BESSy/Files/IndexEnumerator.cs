@@ -13,20 +13,12 @@ namespace BESSy.Files
     {
         public IndexEnumerator
             (IIndexMapManager<IdType, PropertyType> index
-            , object syncRoot
             ,IBinConverter<IdType> idConverter)
         {
-            _syncRoot = syncRoot;
             _index = index;
             _idconverter = idConverter;
-
-            if (!Monitor.TryEnter(_syncRoot, 50000))
-                throw new ThreadStateException("IndexEnumerator could not get a lock on syncRoot parameter.");
-
-            Trace.TraceInformation("IndexEnumerator syncRoot entered.");
         }
 
-        object _syncRoot;
         IIndexMapManager<IdType, PropertyType> _index;
         IBinConverter<IdType> _idconverter;
 
@@ -77,10 +69,6 @@ namespace BESSy.Files
 
             _currentSegment = -1;
 
-            Monitor.Exit(_syncRoot);
-
-            Trace.TraceInformation("IndexEnumerator syncRoot exited.");
-
             return false;
         }
 
@@ -91,20 +79,8 @@ namespace BESSy.Files
 
         #endregion
 
-        #region IDisposable Members
-
         public void Dispose()
         {
-            if (_syncRoot != null)
-                try
-                {
-                    Monitor.Exit(_syncRoot);
-                    Trace.TraceInformation("IndexEnumerator syncRoot exited.");
-                }
-                catch (SynchronizationLockException)
-                { Trace.TraceWarning("syncLock did not exit."); }
         }
-
-        #endregion
     }
 }

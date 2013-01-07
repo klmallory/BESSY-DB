@@ -15,6 +15,8 @@ using System.Diagnostics;
 using System.Security.AccessControl;
 using BESSy.Serialization;
 using BESSy.Extensions;
+using BESSy.Synchronization;
+using BESSy.Serialization.Converters;
 
 namespace BESSy.Files
 {
@@ -23,10 +25,14 @@ namespace BESSy.Files
         public MapManager(ISafeFormatter formatter)
         {
             _formatter = formatter;
+
+            Synchronizer = new RowSynchronizer<int>(new BinConverter32());
         }
 
-        protected bool _inFlush = false;
+        protected object _syncFlush = new object();
         protected object _syncMap = new object();
+
+        protected bool _inFlush = false;
         protected ISafeFormatter _formatter { get; set; }
         protected MemoryMappedFile _file { get; set; }
 
@@ -37,6 +43,7 @@ namespace BESSy.Files
 
         public int Stride { get; protected set; }
         public int Length { get; protected set; }
+        public IRowSynchronizer<int> Synchronizer { get; protected set; }
 
         public virtual bool FlushQueueActive
         {
@@ -86,7 +93,7 @@ namespace BESSy.Files
 
             Array.Resize(ref buffer, Stride);
 
-            lock (_syncMap)
+            using (var lck = Synchronizer.Lock(segment))
             {
                 using (var view = _file.CreateViewStream(Stride * segment, Stride, MemoryMappedFileAccess.ReadWriteExecute))
                 {
@@ -107,47 +114,55 @@ namespace BESSy.Files
 
             byte[] buffer;
 
-            using (var view = _file.CreateViewStream(Stride * segmentStart
-                , objs.Count * Stride
-                , MemoryMappedFileAccess.ReadWriteExecute))
+            lock (_syncFlush)
             {
-                foreach (var obj in objs)
+                using (var lck = Synchronizer.Lock(new Range<int>(segmentStart, segmentStart + objs.Count)))
                 {
-                    if (!_formatter.TryFormatObj(obj, out buffer))
-                        buffer = new byte[Stride];
+                    using (var view = _file.CreateViewStream(Stride * segmentStart
+                        , objs.Count * Stride
+                        , MemoryMappedFileAccess.ReadWriteExecute))
+                    {
+                        foreach (var obj in objs)
+                        {
+                            if (!_formatter.TryFormatObj(obj, out buffer))
+                                buffer = new byte[Stride];
 
-                    Array.Resize(ref buffer, Stride);
+                            Array.Resize(ref buffer, Stride);
 
 #if DEBUG
-                    if (buffer.Length > Stride)
-                        throw new InvalidDataException("this object is too large for this file format.");
+                            if (buffer.Length > Stride)
+                                throw new InvalidDataException("this object is too large for this file format.");
 #endif
-                    view.Write(buffer, 0, buffer.Length);
+                            view.Write(buffer, 0, buffer.Length);
+                        }
+
+                        view.Flush();
+                        view.Close();
+                    }
                 }
-
-                view.Flush();
-                view.Close();
             }
-
             return segmentStart + objs.Count;
         }
 
         public virtual EntityType LoadFromSegment(int segment)
         {
-            using (var view = _file.CreateViewStream(Stride * segment, Stride, MemoryMappedFileAccess.Read))
+            using (var lck = Synchronizer.Lock(segment))
             {
-                EntityType retVal;
-
-                if (_formatter.TryUnformatObj<EntityType>(view, out retVal))
+                using (var view = _file.CreateViewStream(Stride * segment, Stride, MemoryMappedFileAccess.Read))
                 {
+                    EntityType retVal;
+
+                    if (_formatter.TryUnformatObj<EntityType>(view, out retVal))
+                    {
+                        view.Close();
+
+                        return retVal;
+                    }
+
                     view.Close();
 
-                    return retVal;
+                    return default(EntityType);
                 }
-
-                view.Close();
-
-                return default(EntityType);
             }
         }
 
@@ -155,18 +170,21 @@ namespace BESSy.Files
         {
             entity = default(EntityType);
 
-            using (var view = _file.CreateViewStream(Stride * segment, Stride, MemoryMappedFileAccess.Read))
+            using (var lck = Synchronizer.Lock(segment))
             {
-                if (_formatter.TryUnformatObj<EntityType>(view, out entity))
+                using (var view = _file.CreateViewStream(Stride * segment, Stride, MemoryMappedFileAccess.Read))
                 {
+                    if (_formatter.TryUnformatObj<EntityType>(view, out entity))
+                    {
+                        view.Close();
+
+                        return true;
+                    }
+
                     view.Close();
 
-                    return true;
+                    return false;
                 }
-
-                view.Close();
-
-                return false;
             }
         }
 

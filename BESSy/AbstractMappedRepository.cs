@@ -14,6 +14,7 @@ using BESSy.Seeding;
 using BESSy.Files;
 using BESSy.Extensions;
 using BESSy.Serialization.Converters;
+using BESSy.Synchronization;
 
 namespace BESSy
 {
@@ -65,8 +66,8 @@ namespace BESSy
 
             _mapFileManager.OnFlushCompleted += new FlushCompleted<EntityType, IdType>(HandleOnFlushCompleted);
         }
-        
 
+        
         List<IdType> _cacheQueue = new List<IdType>();
         IDictionary<IdType, EntityType> _cache = new Dictionary<IdType, EntityType>();
         List<IDictionary<IdType, EntityType>> _stagingCache = new List<IDictionary<IdType, EntityType>>();

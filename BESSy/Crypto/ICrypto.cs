@@ -33,24 +33,31 @@ namespace BESSy.Crypto
         /// <param name="key">The key.</param>
         /// <param name="encoding">The encoding.</param>
         /// <returns></returns>
-        string Encrypt(string value, byte[] key, Encoding encoding);
+        string Encrypt(string value, byte[] key);
 
         /// <summary>
-        /// Encrypts the specified value.
+        /// Encrypts the specified byte array.
         /// </summary>
-        /// <param name="value">The value.</param>
+        /// <param name="value">The byte array to encrypt.</param>
         /// <param name="key">The key.</param>
         /// <returns></returns>
         byte[] Encrypt(byte[] value, byte[] key);
+
+        /// <summary>
+        /// Encrypts the specified stream.
+        /// </summary>
+        /// <param name="stream"><typeparamref name="System.IO.Stream"/> to encrypt.</param>
+        /// <param name="key">The key.</param>
+        /// <returns></returns>
+        Stream Encrypt(Stream stream, byte[] key);
 
         /// <summary>
         /// Decrypts the specified value.
         /// </summary>
         /// <param name="value">The value.</param>
         /// <param name="key">The key.</param>
-        /// <param name="encoding">The encoding.</param>
         /// <returns></returns>
-        string Decrypt(string value, byte[] key, Encoding encoding);
+        string Decrypt(string value, byte[] key);
 
         /// <summary>
         /// Decrypts the specified value.

@@ -48,6 +48,9 @@ namespace BESSy.Serialization.Converters
             return Encoding.ASCII.GetString(bytes).TrimEnd(trimChararcters);
         }
 
+        public string Min { get { return String.Empty; } }
+        public string Max { get { return new string(char.MaxValue, maxLen); } }
+
         public int Length {get; private set;}
 
         /// <summary>

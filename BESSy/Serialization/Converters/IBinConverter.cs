@@ -11,6 +11,8 @@ namespace BESSy.Serialization.Converters
 {
     public interface IBinConverter<T> : IComparer<T>
     {
+        T Min { get; }
+        T Max { get; }
         byte[] ToBytes(T item);
         T FromBytes(byte[] bytes);
         int Length { get; }

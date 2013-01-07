@@ -135,9 +135,6 @@ namespace BESSy.Files
                             index = Array.FindIndex(buffer, index + 1, n => n == match);
                         }
 
-                        //Array.Resize(ref buffers, buffers.Length + _bufferSize);
-                        //Array.Copy(buffer.Take(_bufferSize).ToArray(), 0, buffers, buffers.Length - _bufferSize, _bufferSize);
-                        //stream.Position -= delLength;
                         Array.Resize(ref buffers, buffers.Length + buffer.Length);
                         Array.Copy(buffer, 0, buffers, buffers.Length - buffer.Length, buffer.Length);
                         stream.Position -= delLength;
@@ -334,15 +331,16 @@ namespace BESSy.Files
 
                     stream.Write(_batchConverter.ToBytes(1), 0, _batchConverter.Length);
                     stream.Write(formatted, 0, formatted.Length);
+
+                    if (stream.Position < seed.MinimumSeedStride)
+                        stream.Position = seed.MinimumSeedStride;
+
                     stream.Write(SegmentDelimeter.Array, 0, SegmentDelimeter.Array.Length);
 
                     var position = stream.Position;
                     
                     stream.Flush();
-
-                    if (position < seed.MinimumSeedStride)
-                        position = seed.MinimumSeedStride;
-
+                    
                     return position;
                 }
             }
