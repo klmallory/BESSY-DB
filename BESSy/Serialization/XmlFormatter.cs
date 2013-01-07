@@ -30,12 +30,9 @@ namespace BESSy.Serialization
 
         public XmlFormatter() : this(Encoding.UTF8) { }
 
-        public XmlFormatter(Encoding encoding) : this(encoding, _defaultSettings)
-        {
-            
-        }
+        public XmlFormatter(Encoding encoding) : this(encoding, _defaultSettings) { }
 
-        public XmlFormatter(Encoder encoding, XmlSerializerSettings settings)
+        public XmlFormatter(Encoding encoding, XmlSerializerSettings settings)
         {
             _encoding = encoding;
             _settings = settings;
@@ -43,7 +40,7 @@ namespace BESSy.Serialization
 
         public bool TryFormatObj<T>(T obj, out byte[] buffer)
         {
-            output = string.Empty;
+            buffer = new byte[0];
 
             if (obj == null)
                 return false;
@@ -51,17 +48,38 @@ namespace BESSy.Serialization
             if (!obj.GetType().IsSerializable)
                 return false;
 
-
+            try
+            {
+                buffer = FormatObj<T>(obj);
+                return true;
+            }
+            catch (SystemException) { return false; }
         }
 
         public bool TryUnformatObj<T>(byte[] buffer, out T obj)
         {
-            throw new NotImplementedException();
+            try
+            {
+                obj = UnformatObj<T>(buffer);
+                return true;
+            }
+            catch (SystemException) { }
+
+            obj = default(T);
+            return false; 
         }
 
-        public bool TryUnformatObj<T>(System.IO.Stream stream, out T obj)
+        public bool TryUnformatObj<T>(Stream stream, out T obj)
         {
-            throw new NotImplementedException();
+            try
+            {
+                obj = UnformatObj<T>(stream);
+                return true;
+            }
+            catch (SystemException) { }
+
+            obj = default(T);
+            return false; 
         }
         
         public byte[] FormatObj<T>(T obj)
@@ -87,11 +105,14 @@ namespace BESSy.Serialization
 
         public T UnformatObj<T>(byte[] buffer)
         {
-            using (var xmlReader = new XmlTextReader(inStream))
+            using (var ms = new MemoryStream(buffer))
             {
-                XmlSerializer xsl = new XmlSerializer(typeof(T));
+                using (var xmlReader = new XmlTextReader(ms))
+                {
+                    XmlSerializer xsl = new XmlSerializer(typeof(T));
 
-                return xsl.Deserialize(xmlReader, _encoding.EncodingName) as T;
+                    return (T)xsl.Deserialize(xmlReader, _encoding.EncodingName);
+                }
             }
         }
 
@@ -101,7 +122,7 @@ namespace BESSy.Serialization
             {
                 XmlSerializer xsl = new XmlSerializer(typeof(T));
 
-                return xsl.Deserialize(xmlReader) as T;
+                return (T)xsl.Deserialize(xmlReader);
             }
         }
         
