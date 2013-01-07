@@ -1,0 +1,6 @@
+C:\Source\Projects\BESSy\SevenZip\bin\Debug\SevenZip.dll.config
+C:\Source\Projects\BESSy\SevenZip\bin\Debug\SevenZip.dll
+C:\Source\Projects\BESSy\SevenZip\bin\Debug\SevenZip.pdb
+C:\Source\Projects\BESSy\SevenZip\obj\Debug\ResolveAssemblyReference.cache
+C:\Source\Projects\BESSy\SevenZip\obj\Debug\SevenZip.dll
+C:\Source\Projects\BESSy\SevenZip\obj\Debug\SevenZip.pdb

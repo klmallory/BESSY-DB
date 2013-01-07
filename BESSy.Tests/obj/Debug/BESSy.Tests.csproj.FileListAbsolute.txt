@@ -1,0 +1,16 @@
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\BESSy.Tests.dll
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\BESSy.Tests.pdb
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\BESSy.dll
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\Newtonsoft.Json.dll
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\nunit.framework.dll
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\nunit.mocks.dll
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\pnunit.framework.dll
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\SevenZip.dll
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\BESSy.pdb
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\Newtonsoft.Json.pdb
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\Newtonsoft.Json.xml
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\nunit.framework.xml
+C:\Source\Projects\BESSy\BESSy.Tests\bin\Debug\SevenZip.pdb
+C:\Source\Projects\BESSy\BESSy.Tests\obj\Debug\ResolveAssemblyReference.cache
+C:\Source\Projects\BESSy\BESSy.Tests\obj\Debug\BESSy.Tests.dll
+C:\Source\Projects\BESSy\BESSy.Tests\obj\Debug\BESSy.Tests.pdb

@@ -1,0 +1,10 @@
+C:\Source\Projects\BESSy\SevenZip.Tests\bin\Debug\7z.dll
+C:\Source\Projects\BESSy\SevenZip.Tests\bin\Debug\SevenZip.Tests.dll
+C:\Source\Projects\BESSy\SevenZip.Tests\bin\Debug\SevenZip.Tests.pdb
+C:\Source\Projects\BESSy\SevenZip.Tests\bin\Debug\nunit.framework.dll
+C:\Source\Projects\BESSy\SevenZip.Tests\bin\Debug\SevenZip.dll
+C:\Source\Projects\BESSy\SevenZip.Tests\bin\Debug\SevenZip.pdb
+C:\Source\Projects\BESSy\SevenZip.Tests\bin\Debug\nunit.framework.xml
+C:\Source\Projects\BESSy\SevenZip.Tests\obj\Debug\ResolveAssemblyReference.cache
+C:\Source\Projects\BESSy\SevenZip.Tests\obj\Debug\SevenZip.Tests.dll
+C:\Source\Projects\BESSy\SevenZip.Tests\obj\Debug\SevenZip.Tests.pdb

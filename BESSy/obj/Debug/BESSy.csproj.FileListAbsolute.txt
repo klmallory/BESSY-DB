@@ -1,0 +1,10 @@
+C:\Source\Projects\BESSy\BESSy\bin\Debug\BESSy.dll
+C:\Source\Projects\BESSy\BESSy\bin\Debug\BESSy.pdb
+C:\Source\Projects\BESSy\BESSy\bin\Debug\Newtonsoft.Json.dll
+C:\Source\Projects\BESSy\BESSy\bin\Debug\SevenZip.dll
+C:\Source\Projects\BESSy\BESSy\bin\Debug\SevenZip.pdb
+C:\Source\Projects\BESSy\BESSy\bin\Debug\Newtonsoft.Json.pdb
+C:\Source\Projects\BESSy\BESSy\bin\Debug\Newtonsoft.Json.xml
+C:\Source\Projects\BESSy\BESSy\obj\Debug\ResolveAssemblyReference.cache
+C:\Source\Projects\BESSy\BESSy\obj\Debug\BESSy.dll
+C:\Source\Projects\BESSy\BESSy\obj\Debug\BESSy.pdb
