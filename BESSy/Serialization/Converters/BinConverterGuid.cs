@@ -6,9 +6,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 
 namespace BESSy.Serialization.Converters
 {
+    [Serializable]
     public class BinConverterGuid : IBinConverter<Guid>
     {
         static readonly Guid _maxGuid = new Guid(new byte[16] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 });
@@ -21,6 +23,15 @@ namespace BESSy.Serialization.Converters
         public Guid FromBytes(byte[] bytes)
         {
             return new Guid(bytes);
+        }
+
+        public Guid FromStream(Stream inStream)
+        {
+            var bytes = new byte[Length];
+
+            inStream.Read(bytes, 0, bytes.Length);
+
+            return FromBytes(bytes);
         }
 
         public Guid Min { get { return Guid.Empty; } }

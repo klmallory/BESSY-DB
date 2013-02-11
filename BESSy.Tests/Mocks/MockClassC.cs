@@ -9,7 +9,7 @@ using System.Text;
 
 namespace BESSy.Tests.Mocks
 {
-    internal class MockClassC : MockClassB
+    public class MockClassC : MockClassB
     {
         public string ReferenceCode { get; set; }
         public MockStruct Location { get; set; }

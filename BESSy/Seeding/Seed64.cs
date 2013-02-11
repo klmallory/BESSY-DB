@@ -11,11 +11,10 @@ namespace BESSy.Seeding
 {
     public sealed class Seed64 : Seed<Int64>
     {
-        public Seed64() : this(0) { }
+        public Seed64() : base() { }
 
-        public Seed64(long startingSeed)
+        public Seed64(long startingSeed) : base(startingSeed)
         {
-            LastSeed = startingSeed;
         }
 
         public override long Increment()

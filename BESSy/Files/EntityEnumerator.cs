@@ -21,8 +21,6 @@ namespace BESSy.Files
         {
             _map = map;
             _idconverter = idConverter;
-
-            Trace.TraceInformation("EntityEnumerator syncRoot entered.");
         }
 
         IIndexedEntityMapManager<EntityType, IdType> _map;

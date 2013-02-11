@@ -6,9 +6,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 
 namespace BESSy.Serialization.Converters
 {
+    [Serializable]
     public class BinConverterString : IBinConverter<String>
     {
         public BinConverterString() : this(50)
@@ -46,6 +48,15 @@ namespace BESSy.Serialization.Converters
         public string FromBytes(byte[] bytes)
         {
             return Encoding.ASCII.GetString(bytes).TrimEnd(trimChararcters);
+        }
+
+        public string FromStream(Stream inStream)
+        {
+            var bytes = new byte[Length];
+
+            inStream.Read(bytes, 0, bytes.Length);
+
+            return FromBytes(bytes);
         }
 
         public string Min { get { return String.Empty; } }

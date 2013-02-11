@@ -39,8 +39,6 @@ namespace BESSy.Files
         protected string _handle;
         protected string _fileName;
 
-        protected int _currentEnumeratorSegment = -1;
-
         public int Stride { get; protected set; }
         public int Length { get; protected set; }
         public IRowSynchronizer<int> Synchronizer { get; protected set; }
@@ -75,29 +73,26 @@ namespace BESSy.Files
 
                 _fileName = fileName;
 
-                _currentEnumeratorSegment = 0;
-
                 Length = length;
             }
         }
 
         public virtual bool SaveToFile(EntityType obj, int segment)
         {
-            byte[] buffer;
+            Stream stream;
 
-            if (!_formatter.TryFormatObj(obj, out buffer))
-                buffer = new byte[Stride];
+            if (!_formatter.TryFormatObj(obj, out stream))
+                stream = new MemoryStream(new Byte[Stride]);
 
-            if (buffer.Length > Stride)
+            if (stream.Length > Stride)
                 throw new InvalidDataException("this object is too large for this file format.");
-
-            Array.Resize(ref buffer, Stride);
 
             using (var lck = Synchronizer.Lock(segment))
             {
                 using (var view = _file.CreateViewStream(Stride * segment, Stride, MemoryMappedFileAccess.ReadWriteExecute))
                 {
-                    view.Write(buffer, 0, buffer.Length);
+                    stream.Position = 0;
+                    stream.WriteAllTo(view);
 
                     view.Flush();
                     view.Close();
@@ -112,8 +107,6 @@ namespace BESSy.Files
             if (objs.IsNullOrEmpty())
                 return 0;
 
-            byte[] buffer;
-
             lock (_syncFlush)
             {
                 using (var lck = Synchronizer.Lock(new Range<int>(segmentStart, segmentStart + objs.Count)))
@@ -124,16 +117,18 @@ namespace BESSy.Files
                     {
                         foreach (var obj in objs)
                         {
-                            if (!_formatter.TryFormatObj(obj, out buffer))
-                                buffer = new byte[Stride];
-
-                            Array.Resize(ref buffer, Stride);
-
+                            Stream stream;
+                            if (!_formatter.TryFormatObj(obj, out stream))
+                                stream = new MemoryStream();
 #if DEBUG
-                            if (buffer.Length > Stride)
+                            if (stream.Length > Stride)
                                 throw new InvalidDataException("this object is too large for this file format.");
 #endif
-                            view.Write(buffer, 0, buffer.Length);
+
+                            stream.SetLength(Stride);
+
+                            stream.Position = 0;
+                            stream.WriteAllTo(view);
                         }
 
                         view.Flush();
@@ -190,13 +185,10 @@ namespace BESSy.Files
 
         public virtual void Dispose()
         {
-            if (_file != null)
-            {
-                if (_file.SafeMemoryMappedFileHandle != null)
-                    _file.SafeMemoryMappedFileHandle.Close();
-
-                _file.Dispose();
-            };
+            lock (_syncFlush)
+                lock (_syncMap)
+                    if (_file != null)
+                        _file.Dispose();
 
             GC.Collect();
         }

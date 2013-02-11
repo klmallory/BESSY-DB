@@ -6,34 +6,22 @@ using BESSy.Serialization.Converters;
 
 namespace BESSy.Seeding
 {
-    internal static class TypeFactory
+    public static class TypeFactory
     {
-        internal static void GetTypesFor<IdType>(out ISeed<IdType> seed, out IBinConverter<IdType> binConverter)
+        public static ISeed<IdType> GetSeedFor<IdType>()
         {
             if (typeof(IdType).Equals(typeof(Int32)))
-            {
-                seed = (ISeed<IdType>)((object)new Seed32());
-                binConverter = (IBinConverter<IdType>)((object)new BinConverter32());
-            }
+                return (ISeed<IdType>)((object)new Seed32());
             else if (typeof(IdType).Equals(typeof(Int64)))
-            {
-                seed = (ISeed<IdType>)((object)new Seed64());
-                binConverter = (IBinConverter<IdType>)((object)new BinConverter64());
-            }
+                return (ISeed<IdType>)((object)new Seed64());
             else if (typeof(IdType).Equals(typeof(Guid)))
-            {
-                seed = (ISeed<IdType>)((object)new SeedGuid());
-                binConverter = (IBinConverter<IdType>)((object)new BinConverterGuid());
-            }
+                return (ISeed<IdType>)((object)new SeedGuid());
             else if (typeof(IdType).Equals(typeof(String)))
-            {
-                seed = (ISeed<IdType>)((object)new SeedString());
-                binConverter = (IBinConverter<IdType>)((object)new BinConverterString());
-            }
+                return (ISeed<IdType>)((object)new SeedString());
             else throw new ArgumentException(string.Format("{0} is not a known type, use overloaded constructor.", typeof(IdType)));
         }
 
-        internal static IBinConverter<PropertyType> GetBinConverterFor<PropertyType>()
+        public static IBinConverter<PropertyType> GetBinConverterFor<PropertyType>()
         {
             if (typeof(PropertyType).Equals(typeof(Int32)))
                 return (IBinConverter<PropertyType>)((object)new BinConverter32());

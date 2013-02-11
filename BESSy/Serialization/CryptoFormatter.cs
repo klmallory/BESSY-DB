@@ -37,6 +37,20 @@ namespace BESSy.Serialization
 
         #region ISafeFormatter Members
 
+        public bool TryFormatObj<T>(T obj, out Stream outStream)
+        {
+            try
+            {
+                outStream = FormatObjStream(obj);
+
+                return true;
+            }
+            catch (SystemException) { }
+
+            outStream = null;
+            return false;
+        }
+
         public bool TryFormatObj<T>(T obj, out byte[] buffer)
         {
             try
@@ -83,6 +97,18 @@ namespace BESSy.Serialization
 
         #region IFormatter Members
 
+        public Stream FormatObjStream<T>(T obj)
+        {
+            using (var stream = _serializer.FormatObjStream(obj))
+            {
+                stream.Position = 0;
+                var outStream = _crypto.Encrypt(stream, _crypto.GetKey(_hash, _crypto.KeySize));
+
+                outStream.Position = 0;
+                return outStream;
+            }
+        }
+
         public byte[] FormatObj<T>(T obj)
         {
             var buffer = _serializer.FormatObj(obj);
@@ -101,6 +127,8 @@ namespace BESSy.Serialization
 
         public T UnformatObj<T>(System.IO.Stream inStream)
         {
+            inStream.Position = 0;
+
             var stream = _crypto.Decrypt(inStream, _crypto.GetKey(_hash, _crypto.KeySize));
 
             return _serializer.UnformatObj<T>(stream);
@@ -115,8 +143,10 @@ namespace BESSy.Serialization
             return _crypto.Encrypt(buffer, _crypto.GetKey(_hash, _crypto.KeySize));
         }
 
-        public System.IO.Stream Format(Stream inStream)
+        public Stream Format(Stream inStream)
         {
+            inStream.Position = 0;
+
             return _crypto.Encrypt(inStream, _crypto.GetKey(_hash, _crypto.KeySize));
         }
 
@@ -125,11 +155,14 @@ namespace BESSy.Serialization
             return _crypto.Decrypt(buffer, _crypto.GetKey(_hash, _crypto.KeySize));
         }
 
-        public System.IO.Stream Unformat(Stream inStream)
+        public Stream Unformat(Stream inStream)
         {
+            inStream.Position = 0;
+
             return _crypto.Decrypt(inStream, _crypto.GetKey(_hash, _crypto.KeySize));
         }
 
         #endregion
+
     }
 }

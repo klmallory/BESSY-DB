@@ -4,13 +4,15 @@ All rights reserved.
 */
 using System;
 using System.IO;
+using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 
 namespace BESSy.Files
 {
     public interface IFileManager : IDisposable
     {
         string WorkingPath { get; set; }
-        FileStream GetWritableFileStream(string fileNamePath);
-        FileStream GetReadableFileStream(string fileNamePath);
+        Stream GetWritableFileStream(string fileNamePath);
+        Stream GetReadableFileStream(string fileNamePath);
     }
 }

@@ -29,21 +29,15 @@ namespace BESSy.Tests.CatalogTests
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexMapManager<int, string> _mapManager;
         IIndexMapManager<string, string> _stringMapManager;
-        IIndexRepository<int, string> _index;
-
         IList<MockClassA> _testEntities;
 
         IList<string> Names = new List<string>() { "Hello World", "Sneakers", "0Submarine", "Angel", "Farside", "Pumpkin Eater", "Turd Biscuit", "Bunny Pants", "Crap on a stick", "Zork", "_Sneaky", "Dork", "Nark" };
 
+        string _testName;
+
         [SetUp]
         public void Setup()
         {
-            if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, "Catalogs")))
-                Directory.Delete(Path.Combine(Environment.CurrentDirectory, "Catalogs"), true);
-
-            if (File.Exists("testTypeRepository.catalog.index"))
-                File.Delete("testTypeRepository.catalog.index");
-
             _seed = new Seed32(999);
             _idConverter = new BinConverter32();
             _propertyConverter = new BinConverterString(1);
@@ -53,21 +47,33 @@ namespace BESSy.Tests.CatalogTests
             _mapManager = TestResourceFactory.CreateIndexMapManager<int, string>("testTypeRepository.catalog.index", _idConverter, _propertyConverter);
             _stringMapManager = TestResourceFactory.CreateIndexMapManager<string, string>("testTypeRepository.catalog.index", new BinConverterString(), _propertyConverter);
             _testEntities = TestResourceFactory.GetMockClassAObjects(3);
+        }
 
-            _index = TestResourceFactory.CreateIndexRepository<int, string>("Catalogs", "testTypeRepository.catalog.index", _seed, _idConverter, _indexBatchManager, _mapManager);
+        void Cleanup()
+        {
+            if (File.Exists(_testName + ".catalog.index"))
+                File.Delete(_testName + ".catalog.index");
+
+            if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)))
+                Directory.Delete(Path.Combine(Environment.CurrentDirectory, _testName), true);
         }
 
         [Test]
+        [Category("Performance")]
         public void CatalogAddOneHundredThousandRecords()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var rnd = new Random();
 
             var catalog = new Catalog<MockClassA, int, string>
-                ("testTypeRepository.catalog.index"
+                (_testName + ".catalog.index"
                 , Path.Combine(Environment.CurrentDirectory, "Catalogs")
-                , (m => m.Id)
-               , ((m, id) => m.Id = id)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                ,_propertyConverter
+                , "GetId"
+               , "SetId"
+               , "GetCatalogId");
 
             catalog.Load();
 

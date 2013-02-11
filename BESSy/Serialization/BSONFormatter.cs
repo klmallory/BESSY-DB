@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections.Generic;
@@ -12,16 +23,15 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Security;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Bson;
+using Newtonsoft.Json.Serialization;
 using SevenZip;
 using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
+using Newtonsoft.Json.Linq;
 
 namespace BESSy.Serialization
 {
-    //[SecurityCritical()]
-    //[SECP.KeyContainerPermission(SECP.SecurityAction.Demand)]
-    //[SECP.ReflectionPermission(SECP.SecurityAction.Demand)]
-    public class BSONFormatter : ISafeFormatter
+    public class BSONFormatter : IQueryableFormatter
     {
         JsonSerializer _serializer;
 
@@ -36,8 +46,8 @@ namespace BESSy.Serialization
 
             _serializer = JsonSerializer.Create(settings);
             
-            if (_serializer == null)
-                throw new InvalidOperationException("Serializer could not be created.");
+            //if (_serializer == null)
+            //    throw new InvalidOperationException("Serializer could not be created.");
         }
 
         /// <summary>
@@ -83,31 +93,55 @@ namespace BESSy.Serialization
                 throw new ArgumentNullException();
 #endif
 
-            using (var ms = new MemoryStream())
+            return ((MemoryStream)FormatObjStream(obj)).ToArray();
+        }
+
+        public Stream FormatObjStream<T>(T obj)
+        {
+#if DEBUG
+            if (object.Equals(obj, default(T)))
+                throw new ArgumentNullException();
+#endif
+
+            var ms = new MemoryStream();
+            var bw = new BsonWriter(ms);
+
+            _serializer.Serialize(bw, obj);
+
+            bw.Flush();
+
+            return ms;
+        }
+
+        public bool TryFormatObj<T>(T obj, out Stream outStream)
+        {
+            outStream = null;
+
+            if (object.Equals(obj, default(T)))
+                return false;
+
+            try
             {
-                using (var bw = new BsonWriter(ms))
-                {
-                    _serializer.Serialize(bw, obj);
+                outStream = FormatObjStream<T>(obj);
 
-                    bw.Flush();
-                }
-
-                return ms.ToArray();
+                return true;
             }
+            catch (JsonException) { }
+            catch (SystemException) { }
+
+            return false;
         }
 
         public bool TryFormatObj<T>(T obj, out byte[] buffer)
         {
             buffer = new byte[] { };
 
-#if DEBUG
             if (object.Equals(obj, default(T)))
                 return false;
-#endif
 
             try
             {
-                buffer = FormatObj<T>(obj);
+                buffer = ((MemoryStream)FormatObjStream<T>(obj)).ToArray();
 
                 return true;
             }
@@ -127,6 +161,7 @@ namespace BESSy.Serialization
 
         public T UnformatObj<T>(Stream inStream)
         {
+            inStream.Position = 0;
             using (var reader = new BsonReader(inStream))
             {
                 T retVal = _serializer.Deserialize<T>(reader);
@@ -173,6 +208,20 @@ namespace BESSy.Serialization
             return false;
         }
 
+        public JObject Parse(Stream inStream)
+        {
+            inStream.Position = 0;
+            using (var reader = new BsonReader(inStream))
+                return JObject.Load(reader);
+        }
+
+        public JArray ParseArray(Stream inStream)
+        {
+            inStream.Position = 0;
+            using (var reader = new BsonReader(inStream))
+                return JArray.Load(reader);
+        }
+
         static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()
         {
             NullValueHandling = NullValueHandling.Ignore,
@@ -180,6 +229,7 @@ namespace BESSy.Serialization
             DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate,
             DateFormatHandling = DateFormatHandling.IsoDateFormat,
             MissingMemberHandling = MissingMemberHandling.Ignore,
+            ContractResolver = new DefaultContractResolver() { IgnoreSerializableInterface = true },
             Formatting = Formatting.None,
             ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor,
             TypeNameHandling = TypeNameHandling.Objects | TypeNameHandling.Arrays,

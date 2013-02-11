@@ -49,7 +49,7 @@ namespace BESSy.Crypto
         /// <param name="stream"><typeparamref name="System.IO.Stream"/> to encrypt.</param>
         /// <param name="key">The key.</param>
         /// <returns></returns>
-        Stream Encrypt(Stream stream, byte[] key);
+        MemoryStream Encrypt(Stream stream, byte[] key);
 
         /// <summary>
         /// Decrypts the specified value.
@@ -73,6 +73,6 @@ namespace BESSy.Crypto
         /// <param name="inStream"><typeparamref name="System.IO.Stream"/> to decrypt</param>
         /// <param name="key">the hash key</param>
         /// <returns>the decrypted <typeparamref name="System.IO.Stream"/></returns>
-        Stream Decrypt(Stream inStream, byte[] key);
+        MemoryStream Decrypt(Stream inStream, byte[] key);
     }
 }

@@ -48,7 +48,7 @@ namespace BESSy.Serialization
         IDictionary<CoderPropID, object> _properties;
         IFormatter _serializer;
 
-        protected Stream Unzip(Stream inStream)
+        protected MemoryStream Unzip(Stream inStream)
         {
             byte[] zipProps = new byte[5];
 
@@ -68,7 +68,7 @@ namespace BESSy.Serialization
 
             long compressedSize = inStream.Length - inStream.Position;
 
-            Stream outStream = new MemoryStream();
+            var outStream = new MemoryStream();
 
             _quickDecoder.Code(inStream, outStream, compressedSize, outSize, null);
 
@@ -83,14 +83,25 @@ namespace BESSy.Serialization
         /// <typeparam name="T">Type of the object to format.</typeparam>
         /// <param name="obj">object to format.</param>
         /// <returns>raw compressed / encrypted data.</returns>
+        public Stream FormatObjStream<T>(T obj)
+        {
+            var steam = _serializer.FormatObjStream(obj);
+            
+            return Format(steam);
+        }
+
+
+        /// <summary>
+        /// Unzips the object of type <typeparamref name="T"/>
+        /// </summary>
+        /// <typeparam name="T">Type of the object to format.</typeparam>
+        /// <param name="obj">object to format.</param>
+        /// <returns>raw compressed / encrypted data.</returns>
         public Byte[] FormatObj<T>(T obj)
         {
-            if (obj == null)
-                return null;
-
-            var buffer = _serializer.FormatObj(obj);
+            var stream = _serializer.FormatObjStream<T>(obj);
             
-            return Format(buffer);
+            return Format(((MemoryStream)stream).ToArray());
         }
 
         /// <summary>
@@ -104,13 +115,7 @@ namespace BESSy.Serialization
             {
                 using (var stream = Format(inStream))
                 {
-                    byte[] outBuffer = new byte[stream.Length];
-
-                    stream.Position = 0;
-
-                    stream.Read(outBuffer, 0, outBuffer.Length);
-
-                    return outBuffer;
+                    return ((MemoryStream)stream).ToArray();
                 }
             }
         }
@@ -142,38 +147,29 @@ namespace BESSy.Serialization
 
             stream.Flush();
 
+            stream.Position = 0;
+
             return stream;
         }
 
         public T UnformatObj<T>(Byte[] buffer)
         {
-            byte[] raw = buffer;
-
-            using (var inStream = new MemoryStream(raw, false))
+            using (var inStream = new MemoryStream(buffer, false))
             {
                 using (var stream = Unzip(inStream))
                 {
-                    var bytes = new Byte[stream.Length];
-
-                    stream.Position = 0;
-
-                    stream.Read(bytes, 0, bytes.Length);
-
-                    return _serializer.UnformatObj<T>(bytes);
+                    return _serializer.UnformatObj<T>(stream);
                 }
             }
         }
 
         public T UnformatObj<T>(Stream inStream)
         {
+            inStream.Position = 0;
+
             using (var outStream = Unzip(inStream))
             {
-                var stream = outStream;
-                try
-                {
-                    return _serializer.UnformatObj<T>(stream);
-                }
-                finally { stream.Dispose(); }
+                return _serializer.UnformatObj<T>(outStream);
             }
         }
 
@@ -183,25 +179,32 @@ namespace BESSy.Serialization
             {
                 using (var stream = Unzip(inStream))
                 {
-                    var bytes = new Byte[stream.Length];
-
-                    stream.Position = 0;
-
-                    stream.Read(bytes, 0, bytes.Length);
-
-                    return bytes;
+                    return stream.ToArray();
                 }
             }
         }
 
         public Stream Unformat(Stream inStream)
         {
-            var stream = Unzip(inStream);
+            inStream.Position = 0;
 
-            return stream;
+            return Unzip(inStream);
         }
 
         #region ISafeFormatter Members
+        public bool TryFormatObj<T>(T obj, out Stream outStream)
+        {
+            outStream = null;
+
+            try
+            {
+                outStream = FormatObjStream(obj);
+
+                return true;
+            }
+            catch (JsonException) { return false; }
+            catch (SystemException) { return false; }
+        }
 
         public bool TryFormatObj<T>(T obj, out byte[] buffer)
         {
@@ -246,5 +249,6 @@ namespace BESSy.Serialization
         }
 
         #endregion
+
     }
 }

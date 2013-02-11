@@ -40,7 +40,7 @@ namespace BESSy.Files
         , IEnumerable<IndexPropertyPair<IdType, PropertyType>>
     {
         PropertyType LoadPropertyFromSegment(int segment);
-
+        List<IndexingCPUGroup<IdType>> GetCPUGroupsForLookup(int strideToUse);
         IList<IdType> RidLookup(PropertyType property);
     }
 
@@ -53,15 +53,12 @@ namespace BESSy.Files
             , IBinConverter<IdType> idConverter
             , IBinConverter<PropertyType> propertyConverter)
         {
-            _name = name;
+            _name = name + ".mapping";
 
             _idConverter = idConverter;
             _propertyConverter = propertyConverter;
 
             Synchronizer = new RowSynchronizer<int>(new BinConverter32());
-
-            Stride = _idConverter.Length + _propertyConverter.Length;
-            InitBlockSize();
         }
 
         string _name;
@@ -87,7 +84,7 @@ namespace BESSy.Files
         Dictionary<IdType, int> _hints = new Dictionary<IdType, int>();
         Dictionary<int, IDictionary<IdType, int>> _indexCache = new Dictionary<int, IDictionary<IdType, int>>();
 
-        MemoryMappedFile _indexFile;
+        MemoryMappedFile _mapFile;
 
         List<IndexingCPUGroup<IdType>> _lookupGroups;
 
@@ -147,9 +144,11 @@ namespace BESSy.Files
 
                     Stride = _idConverter.Length + _propertyConverter.Length;
 
+                    InitBlockSize();
+
                     _fileName = fileName + "." + _name + ".index";
 
-                    _indexFile = MemoryMappedFile.CreateOrOpen
+                    _mapFile = MemoryMappedFile.CreateOrOpen
                         (@"Global\" + Guid.NewGuid().ToString()
                         , Stride * len
                         , MemoryMappedFileAccess.ReadWriteExecute
@@ -159,7 +158,7 @@ namespace BESSy.Files
 
                     _segmentsPerHint = ((len * Stride) / 10000).Clamp(Environment.SystemPageSize, int.MaxValue);
 
-                    _lookupGroups = GetCPUGroupsForLookup();
+                    _lookupGroups = GetCPUGroupsForLookup(Stride);
 
                     Trace.TraceInformation("_syncIndex exited.");
                 }
@@ -244,11 +243,11 @@ namespace BESSy.Files
                 {
                     Trace.TraceInformation("_syncIndex entered.");
 
-                    _indexFile.Dispose();
+                    _mapFile.Dispose();
 
-                    _indexFile = newIndexMap;
+                    _mapFile = newIndexMap;
 
-                    _lookupGroups = GetCPUGroupsForLookup();
+                    _lookupGroups = GetCPUGroupsForLookup(Stride);
 
                     Trace.TraceInformation("_syncIndex exited.");
                 }
@@ -340,7 +339,7 @@ namespace BESSy.Files
 
                             using (var rows = Synchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
                             {
-                                using (var indexView = _indexFile.CreateViewStream
+                                using (var indexView = _mapFile.CreateViewStream
                                     (group.StartSegment * Stride
                                     , ((group.EndSegment - group.StartSegment) + 1) * Stride
                                     , MemoryMappedFileAccess.Read))
@@ -496,14 +495,14 @@ namespace BESSy.Files
 
                     using (var lck = Synchronizer.LockAll())
                     {
-                        _indexFile.Dispose();
-                        _indexFile = newIndexMap;
+                        _mapFile.Dispose();
+                        _mapFile = newIndexMap;
 
                         ClearCache();
 
                         Length = length;
 
-                        _lookupGroups = GetCPUGroupsForLookup();
+                        _lookupGroups = GetCPUGroupsForLookup(Stride);
 
                         lock (_syncHints)
                             _hints = newHints;
@@ -676,7 +675,7 @@ namespace BESSy.Files
             return newGroups;
         }
 
-        private List<IndexingCPUGroup<IdType>> GetCPUGroupsForLookup()
+        public List<IndexingCPUGroup<IdType>> GetCPUGroupsForLookup(int strideToUse)
         {
             var newGroups = new List<IndexingCPUGroup<IdType>>();
 
@@ -700,7 +699,7 @@ namespace BESSy.Files
                 return newGroups;
             }
 
-            var paras = TaskGrouping.GetSegmentedTaskGroups(Length, Stride);
+            var paras = TaskGrouping.GetSegmentedTaskGroups(Length, strideToUse);
 
             List<int> toRemove = new List<int>();
 
@@ -743,7 +742,7 @@ namespace BESSy.Files
 
                 using (var rows = Synchronizer.Lock(segment))
                 {
-                    using (var view = _indexFile.CreateViewStream
+                    using (var view = _mapFile.CreateViewStream
                         (offset, Stride, MemoryMappedFileAccess.Read))
                     {
                         byte[] idBuf = new byte[_idConverter.Length];
@@ -828,7 +827,7 @@ namespace BESSy.Files
                 {
                     using (var lck = Synchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
                     {
-                        using (var view = _indexFile.CreateViewStream
+                        using (var view = _mapFile.CreateViewStream
                             (group.StartSegment * Stride,
                             (group.EndSegment * Stride) - group.StartSegment * Stride,
                             MemoryMappedFileAccess.Read))
@@ -920,7 +919,7 @@ namespace BESSy.Files
 
             using (var lck = Synchronizer.Lock(segment))
             {
-                using (var view = _indexFile.CreateViewStream(
+                using (var view = _mapFile.CreateViewStream(
                     (segment * Stride) + _idConverter.Length
                     , Stride - _idConverter.Length
                     , MemoryMappedFileAccess.Read))
@@ -945,7 +944,7 @@ namespace BESSy.Files
 
             using (var lck = Synchronizer.Lock(segment))
             {
-                using (var view = _indexFile.CreateViewStream(
+                using (var view = _mapFile.CreateViewStream(
                     (segment * Stride)
                     , Stride
                     , MemoryMappedFileAccess.Read))
@@ -985,7 +984,7 @@ namespace BESSy.Files
 
                 using (var lck = Synchronizer.Lock(new Range<int>(segStart, segStart + count)))
                 {
-                    using (var view = _indexFile.CreateViewStream
+                    using (var view = _mapFile.CreateViewStream
                         (segStart * Stride
                         , size, MemoryMappedFileAccess.Read))
                     {
@@ -1044,7 +1043,7 @@ namespace BESSy.Files
                     {
                         using (var lck = Synchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
                         {
-                            using (var view = _indexFile.CreateViewStream
+                            using (var view = _mapFile.CreateViewStream
                                 (group.StartSegment * Stride
                                 , group.EndSegment * Stride - group.StartSegment * Stride
                                 , MemoryMappedFileAccess.Read))
@@ -1070,7 +1069,7 @@ namespace BESSy.Files
 
                                         if (!_hints.ContainsKey(id))
                                             lock (_syncHints)
-                                                _hints.Add(rid, seg);
+                                                _hints.Add(rid, segmentFound);
 
                                         System.Threading.ThreadPool.QueueUserWorkItem
                                             (new WaitCallback(StartCachingBlock), segmentFound);
@@ -1114,7 +1113,7 @@ namespace BESSy.Files
 
             using (var lck = Synchronizer.Lock(segment))
             {
-                using (var view = _indexFile.CreateViewStream
+                using (var view = _mapFile.CreateViewStream
                     (segment * Stride
                     , Stride
                     , MemoryMappedFileAccess.Read))
@@ -1179,7 +1178,7 @@ namespace BESSy.Files
 
                 using (var lck = Synchronizer.Lock(segment))
                 {
-                    using (var view = _indexFile.CreateViewStream
+                    using (var view = _mapFile.CreateViewStream
                         (segment * Stride, Stride
                         , MemoryMappedFileAccess.ReadWriteExecute))
                     {
@@ -1212,50 +1211,57 @@ namespace BESSy.Files
 
         protected void CacheBlock(int segmentStart)
         {
-            var segmentKey = segmentStart / _segmentsPerBlock;
-
-            if (_indexCache.ContainsKey(segmentKey))
+            if (_mapFile.SafeMemoryMappedFileHandle.IsClosed)
                 return;
 
-            var cache = new Dictionary<IdType, int>();
-
-            var count = (Length - segmentKey);
-
-            var size = _blockSize.Clamp(Stride, count * Stride);
-
-            if (size < Stride)
-                return;
-
-            using (var lck = Synchronizer.Lock(new Range<int>(segmentKey, segmentKey + count)))
+            lock (_syncFile)
             {
-                using (var view = _indexFile.CreateViewStream
-                    (segmentKey * Stride
-                    , size, MemoryMappedFileAccess.Read))
+                var segmentKey = segmentStart / _segmentsPerBlock;
+
+                if (_indexCache.ContainsKey(segmentKey))
+                    return;
+
+                var cache = new Dictionary<IdType, int>();
+
+                var count = (Length - segmentKey);
+
+                var size = _blockSize.Clamp(Stride, count * Stride);
+
+                if (size < Stride)
+                    return;
+
+                using (var lck = Synchronizer.Lock(new Range<int>(segmentKey, segmentKey + count)))
                 {
-                    byte[] tmp = new byte[_idConverter.Length];
-
-                    var read = view.Read(tmp, 0, tmp.Length);
-                    var rid = _idConverter.FromBytes(tmp);
-                    var seg = segmentKey;
-
-                    while (read > 0)
+                    using (var view = _mapFile.CreateViewStream
+                        (segmentKey * Stride
+                        , size, MemoryMappedFileAccess.Read))
                     {
-                        if (_idConverter.Compare(rid, (default(IdType))) != 0)
-                            if (!cache.ContainsKey(rid))
-                                cache.Add(rid, seg);
+                        byte[] tmp = new byte[_idConverter.Length];
 
-                        view.Position += _propertyConverter.Length;
+                        var read = view.Read(tmp, 0, tmp.Length);
+                        var rid = _idConverter.FromBytes(tmp);
+                        var seg = segmentKey;
 
-                        read = view.Read(tmp, 0, tmp.Length);
-                        rid = _idConverter.FromBytes(tmp);
+                        while (read > 0)
+                        {
+                            if (_idConverter.Compare(rid, (default(IdType))) != 0)
+                                if (!cache.ContainsKey(rid))
+                                    cache.Add(rid, seg);
+
+                            view.Position += _propertyConverter.Length;
+
+                            read = view.Read(tmp, 0, tmp.Length);
+                            rid = _idConverter.FromBytes(tmp);
+                            seg++;
+                        }
                     }
                 }
-            }
 
-            lock (_syncCache)
-            {
-                if (!_indexCache.ContainsKey(segmentKey))
-                    _indexCache.Add(segmentKey, cache);
+                lock (_syncCache)
+                {
+                    if (!_indexCache.ContainsKey(segmentKey))
+                        _indexCache.Add(segmentKey, cache);
+                }
             }
         }
 
@@ -1284,7 +1290,7 @@ namespace BESSy.Files
 
                     using (var lck = Synchronizer.Lock(new Range<int>(seg, seg + items.Count)))
                     {
-                        using (var view = _indexFile.CreateViewStream
+                        using (var view = _mapFile.CreateViewStream
                             (seg * Stride, items.Count * Stride
                             , MemoryMappedFileAccess.ReadWriteExecute))
                         {
@@ -1321,10 +1327,8 @@ namespace BESSy.Files
 
                 return true;
             }
-            catch (SystemException)
-            {
-                return false;
-            }
+            catch (JsonSerializationException) { return false; }
+            catch (SystemException) { return false; }
         }
 
         public int SaveBatchToFile(IList<IndexPropertyPair<IdType, PropertyType>> items, int segmentStart)
@@ -1338,7 +1342,7 @@ namespace BESSy.Files
 
                 using (var lck = Synchronizer.Lock(new Range<int>(segmentStart, segmentStart + items.Count)))
                 {
-                    using (var view = _indexFile.CreateViewStream(Stride * segmentStart, items.Count * Stride, MemoryMappedFileAccess.ReadWriteExecute))
+                    using (var view = _mapFile.CreateViewStream(Stride * segmentStart, items.Count * Stride, MemoryMappedFileAccess.ReadWriteExecute))
                     {
                         foreach (var item in items)
                         {
@@ -1380,8 +1384,9 @@ namespace BESSy.Files
             while (FlushQueueActive)
                 Thread.Sleep(100);
 
-            if (_indexFile != null)
-                _indexFile.Dispose();
+            lock (_syncFile)
+                if (_mapFile != null)
+                    _mapFile.Dispose();
         }
     }
 }

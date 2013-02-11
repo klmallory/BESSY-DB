@@ -56,6 +56,7 @@ namespace BESSy.Files
             InitBlockSize();
         }
 
+        protected static int _bufferSize = System.Environment.SystemPageSize;
         protected object _syncCache = new object();
         protected object _syncHints = new object();
         protected object _syncQueue = new object();
@@ -137,6 +138,12 @@ namespace BESSy.Files
             }
         }
 
+        protected int GetQueueCount()
+        {
+            lock (_syncQueue)
+                return _flushQueue.Count;
+        }
+
         public IRowSynchronizer<int> IndexSynchronizer { get; private set; }
 
         public List<IndexingCPUGroup<IdType>> LookupGroups { get; protected set; }
@@ -154,6 +161,7 @@ namespace BESSy.Files
                     using (var lck = IndexSynchronizer.LockAll())
                     {
                         base.OpenOrCreate(fileName, length, stride);
+                        InitBlockSize();
 
                         var len = length.Clamp(1, int.MaxValue);
 
@@ -168,6 +176,9 @@ namespace BESSy.Files
                         _segmentsPerHint = (len / 40000).Clamp(Environment.SystemPageSize, int.MaxValue);
 
                         LookupGroups = GetCPUGroupsForLookup();
+
+                        lock (_syncHints)
+                            _hints = new Dictionary<IdType, int>();
                     }
 
                     Trace.TraceInformation("_syncFile exited.");
@@ -285,9 +296,9 @@ namespace BESSy.Files
                     }
                 });
 
-                lock (_syncMap)
+                lock (_syncFile)
                 {
-                    lock (_syncFile)
+                    lock (_syncMap)
                     {
                         using (var mapLock = Synchronizer.LockAll())
                         {
@@ -358,33 +369,34 @@ namespace BESSy.Files
             return subsets;
         }
 
-        protected IDictionary<IdType, byte[]> GetFormattedFrom(List<KeyValuePair<int, int>> groups, IDictionary<IdType, EntityType> queue, out int rowSize)
+        protected IDictionary<IdType, Stream> GetFormattedFrom(List<KeyValuePair<int, int>> groups, IDictionary<IdType, EntityType> queue, out int rowSize)
         {
             var sync = new object();
             rowSize = Stride;
-            var buffers = new Dictionary<IdType, byte[]>();
+            var streams = new Dictionary<IdType, Stream>();
 
             var items = queue.OrderBy(q => q.Key, _idConverter).ToList();
 
             if (items.Count < 1)
-                return buffers;
+                return streams;
 
             Parallel.ForEach(groups, delegate(KeyValuePair<int, int> group)
             {
                 foreach (var item in items.Skip(group.Key).Take((group.Value - group.Key) + 1))
                 {
-                    var buffer = new byte[0];
+                    Stream stream;
 
-                    _formatter.TryFormatObj(item.Value, out buffer);
+                    if (!_formatter.TryFormatObj(item.Value, out stream))
+                        stream = new MemoryStream();
 
                     lock (sync)
-                        buffers.Add(item.Key, buffer);
+                        streams.Add(item.Key, stream);
                 }
             });
 
-            rowSize = ((buffers.Values.Max(v => v.Length) / 64) + 1) * 64;
+            rowSize = (int)(((streams.Values.Max(v => v.Length) / 256) + 1) * 256);
 
-            return buffers;
+            return streams;
         }
 
         public void Flush(IDictionary<IdType, EntityType> items)
@@ -406,13 +418,7 @@ namespace BESSy.Files
         {
             IDictionary<IdType, EntityType> queue = null;
 
-            lock (_syncQueue)
-            {
-                if (_flushQueue.Count > 0)
-                    queue = _flushQueue.Dequeue();
-            }
-
-            while (queue != null && queue.Count > 0)
+            while (GetQueueCount() > 0)
             {
                 if (!Monitor.TryEnter(_syncFlush, 500))
                     return;
@@ -423,10 +429,14 @@ namespace BESSy.Files
 
                     _inFlush = true;
 
-#if DEBUG
+                    lock (_syncQueue)
+                    {
+                        if (_flushQueue.Count > 0)
+                            queue = _flushQueue.Dequeue();
+                    }
+
                     if (queue == null)
-                        throw new ArgumentNullException("Cached items list to flush was null.");
-#endif
+                        return;
 
                     var subsets = GetInsertTaskGroups(queue.Count);
 
@@ -632,8 +642,6 @@ namespace BESSy.Files
                                                         newIndexView.Close();
                                                     }
                                                 }
-
-                                                GC.Collect();
                                             }
                                         }
                                     }
@@ -650,9 +658,9 @@ namespace BESSy.Files
                         }
                     });
 
-                    lock (_syncMap)
+                    lock (_syncFile)
                     {
-                        lock (_syncFile)
+                        lock (_syncMap)
                         {
                             using (var mapLock = Synchronizer.LockAll())
                             {
@@ -702,11 +710,7 @@ namespace BESSy.Files
                     InvokeFlushCompleted(queue);
                 }
 
-                lock (_syncQueue)
-                {
-                    if (_flushQueue.Count > 0)
-                        queue = _flushQueue.Dequeue();
-                }
+                queue = null;
             }
         }
 
@@ -736,15 +740,32 @@ namespace BESSy.Files
             newIndexView.Write(idReadBuffer, 0, idReadBuffer.Length);
             newIndexView.Write(newSegmentBuffer, 0, newSegmentBuffer.Length);
 
-            Array.Resize(ref copyBuffer, Stride);
-            view.Read(copyBuffer, 0, copyBuffer.Length);
+            using (var bufferStream = new MemoryStream())
+            {
+                int total = 0;
+                var len = Math.Min(Stride, _bufferSize);
+                var read = view.Read(copyBuffer, 0, len);
 
-            Array.Resize(ref copyBuffer, newStride);
-            newView.Write(copyBuffer, 0, copyBuffer.Length);
+                while (read > 0 && total < Stride)
+                {
+                    newView.Write(copyBuffer, 0, read);
+
+                    total += read;
+                    len = Math.Min(Stride - total, Stride);
+                    read = view.Read(copyBuffer, 0, len);
+                }
+
+                while (total < newStride)
+                {
+                    len = Math.Min(newStride - total, newStride);
+                    newView.Write(new byte[len], 0, len);
+                    total += len;
+                }
+            }
         }
 
         protected virtual void WriteUpdate(IdType id
-            , byte[] item
+            , Stream item
             , byte[] idReadBuffer
             , byte[] copyBuffer
             , byte[] newSegmentBuffer
@@ -759,8 +780,8 @@ namespace BESSy.Files
 
             view.Position += Stride;
 
-            Array.Resize(ref item, newStride);
-            newView.Write(item, 0, item.Length);
+            item.SetLength(newStride);
+            item.WriteAllTo(newView);
         }
 
         protected virtual int WriteInserts(List<IdType> toWriteFromCache
@@ -769,7 +790,7 @@ namespace BESSy.Files
             , byte[] newSegmentBuffer
             , Stream newIndexView
             , Stream newView
-            , IDictionary<IdType, byte[]> items
+            , IDictionary<IdType, Stream> items
             , int newStride)
         {   
             toWriteFromCache.ForEach(delegate(IdType id)
@@ -796,7 +817,7 @@ namespace BESSy.Files
         }
 
         protected virtual void WriteInsert(IdType id
-            , byte[] item
+            , Stream item
             , int newSegment
             , byte[] idReadBuffer
             , byte[] newSegmentBuffer
@@ -809,9 +830,9 @@ namespace BESSy.Files
 
             newIndexView.Write(idReadBuffer, 0, idReadBuffer.Length);
             newIndexView.Write(newSegmentBuffer, 0, newSegmentBuffer.Length);
-
-            Array.Resize(ref item, newStride);
-            newView.Write(item, 0, item.Length);
+            
+            item.SetLength(newStride);
+            item.WriteAllTo(newView);
         }
         
         protected virtual List<IndexingCPUGroup<IdType>> GetCPUGroupsForFlush(IDictionary<IdType, EntityType> items, int newStride)
@@ -891,6 +912,9 @@ namespace BESSy.Files
         {
             lock (_syncHints)
             {
+                if (_hints.Count < 1)
+                    return 0;
+
                 if (_hints.ContainsKey(id))
                     return _hints[id];
 
@@ -1025,52 +1049,62 @@ namespace BESSy.Files
 
         protected virtual void CacheBlock(int segmentStart)
         {
-            var segmentKey = segmentStart / _segmentsPerBlock;
-
-            lock (_syncCache)
-                if (_indexCache.ContainsKey(segmentKey))
+            lock (_syncFile)
+            {
+                if (_index.SafeMemoryMappedFileHandle.IsClosed)
                     return;
 
-            var cache = new Dictionary<IdType, int>();
+                Trace.TraceInformation("_syncFile entered.");
 
-            var count = (Length - segmentKey);
-            var size = _blockSize.Clamp(_segmentStride, count * _segmentStride);
+                var segmentKey = segmentStart / _segmentsPerBlock;
 
-            if (size < _segmentStride)
-                return;
+                lock (_syncCache)
+                    if (_indexCache.ContainsKey(segmentKey))
+                        return;
 
-            using (var lck = IndexSynchronizer.Lock(new Range<int>(segmentKey, segmentKey + count)))
-            {
-                using (var view = _index.CreateViewStream
-                    (segmentKey * _segmentStride
-                    , size, MemoryMappedFileAccess.Read))
+                var cache = new Dictionary<IdType, int>();
+
+                var count = (Length - segmentKey);
+                var size = _blockSize.Clamp(_segmentStride, count * _segmentStride);
+
+                if (size < _segmentStride)
+                    return;
+
+                using (var lck = IndexSynchronizer.Lock(new Range<int>(segmentKey, segmentKey + count)))
                 {
-                    byte[] tmp = new byte[_idConverter.Length];
-                    byte[] segBuf = new byte[_segConverter.Length];
-
-                    var read = view.Read(tmp, 0, tmp.Length);
-                    var rid = _idConverter.FromBytes(tmp);
-                    int seg = -1;
-
-                    while (read > 0)
+                    using (var view = _index.CreateViewStream
+                        (segmentKey * _segmentStride
+                        , size, MemoryMappedFileAccess.Read))
                     {
-                        read = view.Read(segBuf, 0, segBuf.Length);
-                        seg = _segConverter.FromBytes(segBuf);
+                        byte[] tmp = new byte[_idConverter.Length];
+                        byte[] segBuf = new byte[_segConverter.Length];
 
-                        if (_idConverter.Compare(rid, default(IdType)) != 0)
-                            if (!cache.ContainsKey(rid))
-                                cache.Add(rid, seg);
+                        var read = view.Read(tmp, 0, tmp.Length);
+                        var rid = _idConverter.FromBytes(tmp);
+                        int seg = -1;
 
-                        read = view.Read(tmp, 0, tmp.Length);
-                        rid = _idConverter.FromBytes(tmp);
+                        while (read > 0)
+                        {
+                            read = view.Read(segBuf, 0, segBuf.Length);
+                            seg = _segConverter.FromBytes(segBuf);
+
+                            if (_idConverter.Compare(rid, default(IdType)) != 0)
+                                if (!cache.ContainsKey(rid))
+                                    cache.Add(rid, seg);
+
+                            read = view.Read(tmp, 0, tmp.Length);
+                            rid = _idConverter.FromBytes(tmp);
+                        }
                     }
                 }
-            }
 
-            lock (_syncCache)
-            {
-                if (!_indexCache.ContainsKey(segmentKey))
-                    _indexCache.Add(segmentKey, cache);
+                lock (_syncCache)
+                {
+                    if (!_indexCache.ContainsKey(segmentKey))
+                        _indexCache.Add(segmentKey, cache);
+                }
+
+                Trace.TraceInformation("_syncFile exited.");
             }
         }
 
@@ -1141,7 +1175,7 @@ namespace BESSy.Files
         public virtual bool Save(EntityType obj, IdType id)
         {
             //Note the order of the locks matches the order in the flush method. 
-            //This is important, otherwise, threadlock will occur when flush is occuring.
+            //This is important, otherwise, race conditions will occur when flush is occuring.
             lock (_syncFlush)
             {
                 var segment = GetFromCache(id);
@@ -1174,7 +1208,7 @@ namespace BESSy.Files
         public virtual bool SaveToFile(EntityType obj, IdType id, int segment)
         {
             //Note the order of the locks matches the order in the flush method. 
-            //This is important, otherwise, threadlock will occur when flush is occuring.
+            //This is important, otherwise, race conditions will occur when flush is occuring.
             lock (_syncFlush)
             {
                 SaveIndex(id, segment);
@@ -1197,7 +1231,6 @@ namespace BESSy.Files
                     view.Flush();
                 }
             }
-
             
             lock (_syncHints)
                 if (segment % this._segmentsPerHint == 0 && !_hints.ContainsKey(id))
@@ -1214,7 +1247,7 @@ namespace BESSy.Files
                 return segmentStart;
 
             //Note the order of the locks matches the order in the flush method. 
-            //This is important, otherwise, threadlock will occur when flush is occuring.
+            //This is important, otherwise, race conditions will occur when flush is occuring.
             lock (_syncFlush)
             {
                 var seg = segmentStart;
@@ -1365,12 +1398,17 @@ namespace BESSy.Files
             while (FlushQueueActive)
                 Thread.Sleep(100);
 
-            base.Dispose();
+            lock (_syncFlush)
+            {
+                lock (_syncQueue)
+                    _flushQueue.Clear();
 
-            if (_index != null)
-                _index.Dispose();
+                lock (_syncFile)
+                    if (_index != null)
+                        _index.Dispose();
 
-            GC.Collect();
+                base.Dispose();
+            }
         }
     }
 }

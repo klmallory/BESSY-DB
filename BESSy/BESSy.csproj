@@ -23,7 +23,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>none</DebugType>
+    <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>
@@ -31,6 +31,8 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <BaseAddress>4466024</BaseAddress>
+    <DocumentationFile>bin\Release\BESSy.XML</DocumentationFile>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>BESSy.ico</ApplicationIcon>
@@ -142,7 +144,8 @@
     <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
+    <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Tools\Json.NET\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
@@ -154,11 +157,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AbstractAtomicQueryableRepository.cs" />
+    <Compile Include="AbstractTransactionalDatabase.cs" />
     <Compile Include="AbstractMappedCatalog.cs" />
     <Compile Include="AbstractMappedRepository.cs" />
     <Compile Include="AbstractResourceRepository.cs" />
     <Compile Include="AbstractFileRepository.cs" />
+    <Compile Include="Cache\Caching.cs" />
+    <Compile Include="Cache\DatabaseCache.cs" />
     <Compile Include="Catalog.cs" />
     <Compile Include="CatalogRepository.cs" />
     <Compile Include="ContentNotFoundException.cs" />
@@ -168,7 +173,23 @@
     <Compile Include="Extensions\ArrayExtensions.cs" />
     <Compile Include="Extensions\ClampExtensions.cs" />
     <Compile Include="Extensions\EmptyExtensions.cs" />
-    <Compile Include="Files\AtomicTransactionManager.cs" />
+    <Compile Include="Extensions\FileExtensions.cs" />
+    <Compile Include="Extensions\StreamExtensions.cs" />
+    <Compile Include="Factories\CatalogRepositoryFactory.cs" />
+    <Compile Include="Factories\DatabaseCacheFactory.cs" />
+    <Compile Include="Factories\IndexedEntityMapManangerFactory.cs" />
+    <Compile Include="Factories\IndexRepositoryFactory.cs" />
+    <Compile Include="Factories\TransactionFactory.cs" />
+    <Compile Include="Files\IQueryableFile.cs" />
+    <Compile Include="Files\QueryEnumerator.cs" />
+    <Compile Include="Files\SaveValidation.cs" />
+    <Compile Include="Queries\ExpressionCollections.cs" />
+    <Compile Include="Queries\ExpressionFactory.cs" />
+    <Compile Include="Queries\QueryExpressions.cs" />
+    <Compile Include="Seeding\IndexResolver.cs" />
+    <Compile Include="Serialization\JSONFormatter.cs" />
+    <Compile Include="Transactions\Transaction.cs" />
+    <Compile Include="Transactions\TransactionManager.cs" />
     <Compile Include="Files\BatchFileManager.cs" />
     <Compile Include="Files\EntityEnumerator.cs" />
     <Compile Include="Files\FileManager.cs" />
@@ -182,11 +203,9 @@
     <Compile Include="Files\IMapManager.cs" />
     <Compile Include="Files\IndexedEntityMapManager.cs" />
     <Compile Include="Files\IndexEnumerator.cs" />
-    <Compile Include="Files\IndexFileManager.cs" />
     <Compile Include="Files\IndexMapManager.cs" />
     <Compile Include="Files\MapManager.cs" />
-    <Compile Include="Files\QueryableMapManager.cs" />
-    <Compile Include="Files\SegmentedFileManager.cs" />
+    <Compile Include="Files\AtomicFileManager.cs" />
     <Compile Include="Files\XmlFileManager.cs" />
     <Compile Include="IAsyncRepository.cs" />
     <Compile Include="ICache.cs" />
@@ -218,8 +237,8 @@
     <Compile Include="Serialization\CryptoFormatter.cs" />
     <Compile Include="Serialization\IFormatter.cs" />
     <Compile Include="Serialization\QuickZipFormatter.cs" />
-    <Compile Include="Serialization\XmlFormatter.cs" />
     <Compile Include="Serialization\XmlSerializationHelper.cs" />
+    <Compile Include="Transactions\TransactionStateException.cs" />
     <Compile Include="UniqueKeyViolationException.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -234,6 +253,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

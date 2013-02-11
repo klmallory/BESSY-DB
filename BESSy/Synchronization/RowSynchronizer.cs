@@ -96,6 +96,7 @@ namespace BESSy.Synchronization
 
             return false;
         }
+
         RowLock<RowType> AddNewLock(Range<RowType> rows)
         {
             var rowLock = new RowLock<RowType>(this, rows, Thread.CurrentThread.ManagedThreadId);
@@ -307,8 +308,6 @@ namespace BESSy.Synchronization
 
             return true;
         }
-
-
 
         public void Unlock(RowLock<RowType> rowLock)
         {

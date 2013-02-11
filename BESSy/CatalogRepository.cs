@@ -5,6 +5,7 @@ using System.Text;
 using BESSy.Serialization.Converters;
 using BESSy.Seeding;
 using BESSy.Files;
+using BESSy.Serialization;
 
 namespace BESSy
 {
@@ -16,20 +17,16 @@ namespace BESSy
             bool autoCache,
             ISeed<IdType> seed,
             IBinConverter<IdType> idConverter,
-            IBatchFileManager<EntityType> fileManager,
-            IIndexedEntityMapManager<EntityType, IdType> mapFileManager,
-            Func<EntityType, IdType> getUniqueIdDelegate,
-            Action<EntityType, IdType> setUniqueIdDelegate)
+            ISafeFormatter mapFormatter,
+            IBatchFileManager<EntityType> fileManager)
 
             : base(cacheSize
             , fileName
             , autoCache
             , seed
             , idConverter
-            , fileManager
-            , mapFileManager
-            , getUniqueIdDelegate
-            , setUniqueIdDelegate)
+            , mapFormatter
+            , fileManager)
         {
 
         }
@@ -39,10 +36,23 @@ namespace BESSy
             return default(ISeed<IdType>);
         }
 
+        public override int Load()
+        {
+            return base.Load();
+        }
+
+        protected override void InitializeDatabase(ISeed<IdType> seed, int count)
+        {
+            base.InitializeDatabase(seed, count);
+        }
+
         //In catalogs, the seed is not managed by the individual repositories.
         //TODO: find a better way to do this than parasitical inheritance.
         protected override long SaveSeed(System.IO.Stream f)
         {
+            if (_mapFileManager.Stride > _seed.Stride)
+                _seed.Stride = _mapFileManager.Stride;
+
             return 0;
         }
     }

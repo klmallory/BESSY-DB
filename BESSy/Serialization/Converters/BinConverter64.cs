@@ -6,9 +6,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 
 namespace BESSy.Serialization.Converters
 {
+    [Serializable]
     public class BinConverter64 : IBinConverter<long>
     {
         public byte[] ToBytes(long item)
@@ -19,6 +21,15 @@ namespace BESSy.Serialization.Converters
         public long FromBytes(byte[] bytes)
         {
             return BitConverter.ToInt64(bytes, 0);
+        }
+
+        public long FromStream(Stream inStream)
+        {
+            var bytes = new byte[Length];
+
+            inStream.Read(bytes, 0, bytes.Length);
+
+            return FromBytes(bytes);
         }
 
         public int Compare(long v1, long v2)

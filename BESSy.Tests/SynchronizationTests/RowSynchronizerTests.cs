@@ -46,7 +46,7 @@ namespace BESSy.Tests.SynchronizationTests
         }
 
         [Test]
-        public void RowSynchronizesSinleRowLocks()
+        public void RowSynchronizesSingleRowLocks()
         {
             int threadId = Thread.CurrentThread.ManagedThreadId;
             bool exceptionThrown = false;
@@ -82,7 +82,7 @@ namespace BESSy.Tests.SynchronizationTests
 
             using (var lock1 = sync.Lock(new Range<int>(10, 20)))
             {
-                Parallel.For(1, 3, delegate(int i)
+                Parallel.For(1, 4, delegate(int i)
                 {
                     try
                     {
@@ -107,17 +107,18 @@ namespace BESSy.Tests.SynchronizationTests
 
             var sync = new RowSynchronizer<int>(new BinConverter32());
 
+
             using (var lock1 = sync.Lock(new Range<int>(10, 20)))
             {
-                Parallel.For(1, 3, delegate(int i)
+                Parallel.For(1, 4, delegate(int i)
                 {
                     try
                     {
                         if (Thread.CurrentThread.ManagedThreadId != threadId)
                             using (var lock2 = sync.Lock(new Range<int>(12, 22), 100))
-                            { }
+                            { exceptionThrown = false; }
                         else
-                            Thread.Sleep(500);
+                            Thread.Sleep(100);
                     }
                     catch (RowLockTimeoutException) { exceptionThrown = true; }
                 });
@@ -138,15 +139,14 @@ namespace BESSy.Tests.SynchronizationTests
 
             using (var lock1 = sync.Lock(new Range<int>(10, 20)))
             {
-                Parallel.For(1, 3, delegate(int i)
+                Parallel.For(1, 4, delegate(int i)
                 {
                     try
                     {
                         if (Thread.CurrentThread.ManagedThreadId != threadId)
                             Assert.IsFalse(sync.TryLock(15, 100, out rowLock));
-
                         else
-                            Thread.Sleep(500);
+                            Thread.Sleep(100);
                     }
                     catch (RowLockTimeoutException) { exceptionThrown = true; }
                 });
@@ -171,17 +171,63 @@ namespace BESSy.Tests.SynchronizationTests
                     {
                         if (Thread.CurrentThread.ManagedThreadId != threadId)
                             using (var lock2 = sync.Lock(random.Next(), 100))
-                            {
                                 exceptionThrown = false;
-                            }
-                        else
-                            Thread.Sleep(500);
                     }
                     catch (RowLockTimeoutException) { exceptionThrown &= true; }
                 });
             }
 
             Assert.IsTrue(exceptionThrown);
+        }
+
+        [Test]
+        public void RowSynchronizesLockAllWillTimeout()
+        {
+            int threadId = Thread.CurrentThread.ManagedThreadId;
+            bool exceptionThrown = true;
+
+            var sync = new RowSynchronizer<int>(new BinConverter32());
+
+            using (var lock1 = sync.LockAll())
+            {
+                Parallel.For(1, 12, delegate(int i)
+                {
+                    try
+                    {
+                        if (Thread.CurrentThread.ManagedThreadId != threadId)
+                            using (var lock2 = sync.LockAll(500))
+                                exceptionThrown = false;
+                    }
+                    catch (RowLockTimeoutException) { exceptionThrown &= true; }
+                });
+
+                Assert.IsTrue(exceptionThrown);
+            }
+        }
+
+        [Test]
+        public void RowSynchronizesTryLockAllWillReturnFalse()
+        {
+            int threadId = Thread.CurrentThread.ManagedThreadId;
+            bool exceptionThrown = true;
+
+            var sync = new RowSynchronizer<int>(new BinConverter32());
+            RowLock<int> rowLock;
+
+            using (var lock1 = sync.LockAll())
+            {
+                Parallel.For(1, 12, delegate(int i)
+                {
+                    try
+                    {
+                        if (Thread.CurrentThread.ManagedThreadId != threadId)
+                            Assert.IsFalse(sync.TryLockAll(500, out rowLock));
+                    }
+                    catch (RowLockTimeoutException) { exceptionThrown &= true; }
+                });
+
+                Assert.IsTrue(exceptionThrown);
+            }
         }
     }
 }

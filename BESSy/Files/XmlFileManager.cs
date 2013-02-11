@@ -15,12 +15,7 @@ using BESSy.Extensions;
 
 namespace BESSy.Files
 {
-    public interface IXmlFileManager<T> : IFileRepository<T> where T : class
-    {
-
-    }
-
-    public class XmlFileManager<T> : IXmlFileManager<T> where T : class
+    public class XmlFileManager<T> : IFileRepository<T> where T : class
     {
         public XmlFileManager()
         {
@@ -36,14 +31,14 @@ namespace BESSy.Files
 
         public string WorkingPath { get; set; }
 
-        public FileStream GetWritableFileStream(string fileNamePath)
+        public Stream GetWritableFileStream(string fileNamePath)
         {
             return new FileStream(fileNamePath, FileMode.OpenOrCreate
             , FileSystemRights.Write | FileSystemRights.CreateFiles
             , FileShare.None, _bufferSize, FileOptions.SequentialScan);
         }
 
-        public FileStream GetReadableFileStream(string fileNamePath)
+        public Stream GetReadableFileStream(string fileNamePath)
         {
             return new FileStream(fileNamePath, FileMode.Open
                 , System.Security.AccessControl.FileSystemRights.Read

@@ -21,61 +21,72 @@ namespace BESSy.Tests.CatalogTests
 {
     internal class CatalogCRUDTests
     {
+        string _testName;
         ISeed<int> _seed;
         IBinConverter<int> _idConverter;
         IBinConverter<string> _propertyConverter;
         ISafeFormatter _bsonFormatter;
         IBatchFileManager<IndexPropertyPair<int, string>> _indexBatchManager;
+        IBatchFileManager<IndexPropertyPair<string, string>> _stringBatchManager;
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexMapManager<int, string> _mapManager;
         IIndexMapManager<string, string> _stringMapManager;
-        IIndexRepository<int, string> _index;
-
+        
         IList<MockClassA> _testEntities;
 
         IList<string> Names = new List<string>() { "Hello", "Sneakers", "0Submarine", "Angel" };
 
+        [TestFixtureSetUp]
+        public void FixtureSetup()
+        {
+
+        }
+
         [SetUp]
         public void Setup()
         {
-            if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, "Catalogs")))
-                Directory.Delete(Path.Combine(Environment.CurrentDirectory, "Catalogs"), true);
-
-            if (File.Exists("testTypeRepository.catalog.index"))
-                File.Delete("testTypeRepository.catalog.index");
-
             _seed = new Seed32(999);
             _idConverter = new BinConverter32();
             _propertyConverter = new BinConverterString(1);
             _bsonFormatter = TestResourceFactory.CreateBsonFormatter();
             _bsonManager = TestResourceFactory.CreateBatchFileManager<MockClassA>(_bsonFormatter);
             _indexBatchManager = TestResourceFactory.CreateBatchFileManager<IndexPropertyPair<int, string>>(_bsonFormatter);
+            _stringBatchManager = TestResourceFactory.CreateBatchFileManager<IndexPropertyPair<string, string>>(_bsonFormatter);
 
             _mapManager = TestResourceFactory.CreateIndexMapManager<int, string>("testTypeRepository.catalog.index", _idConverter, _propertyConverter);
             _stringMapManager = TestResourceFactory.CreateIndexMapManager<string, string>("testTypeRepository.catalog.index", new BinConverterString(), _propertyConverter);
             _testEntities = TestResourceFactory.GetMockClassAObjects(3);
+        }
 
-            _index = TestResourceFactory.CreateIndexRepository<int, string>("Catalogs", "testTypeRepository.catalog.index", _seed, _idConverter, _indexBatchManager, _mapManager);
+        void Cleanup()
+        {
+            if (File.Exists(_testName + ".catalog.index"))
+                File.Delete(_testName + ".catalog.index");
+
+            if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)))
+                Directory.Delete(Path.Combine(Environment.CurrentDirectory, _testName), true);
         }
 
         [Test]
-        public void TestLoadsContentToMappingFile()
+        public void TestCatalogLoadsContentToMappingFile()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var catalog = new Catalog<MockClassA, int, string>
-                ("testTypeRepository.catalog.index"
-                , Path.Combine(Environment.CurrentDirectory, "Catalogs")
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , _propertyConverter
+                , "GetId"
+               , "SetId"
+               , "GetCatalogId");
 
             catalog.Load();
 
-            for (var i = 0; i <_testEntities.Count; i++)
+            for (var i = 0; i < _testEntities.Count; i++)
                 catalog.Add(_testEntities[i].WithName(Names[i]));
 
             catalog.Flush();
-
-            Thread.Sleep(100);
 
             while (catalog.FileFlushQueueActive)
                 Thread.Sleep(100);
@@ -83,22 +94,39 @@ namespace BESSy.Tests.CatalogTests
             Assert.AreEqual(3, catalog.Count());
 
             catalog.Dispose();
+
+            catalog = new Catalog<MockClassA, int, string>
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName));
+
+            catalog.Load();
+
+            for (var i = 0; i < _testEntities.Count; i++)
+                Assert.IsNotNull(catalog.Fetch(_testEntities[i].Id));
+
+            catalog.Dispose();
         }
 
         [Test]
-        public void TestTypeRepositoryGeneratesSequentialKeysAbove1000()
+        public void TestCatalogGeneratesSequentialKeysAbove1000()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var catalog = new Catalog<MockClassA, int, string>
-                (Path.Combine(Environment.CurrentDirectory, "Catalogs")
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 2048
                 , 8192
-                , _bsonFormatter
                 , _idConverter
                 , _propertyConverter
-                , _index
-                , _bsonManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                , _seed
+                , "GetId"
+               , "SetId"
+               , "GetCatalogId"
+               , _bsonFormatter
+               , _bsonManager
+               , _indexBatchManager);
 
             catalog.Load();
 
@@ -119,16 +147,13 @@ namespace BESSy.Tests.CatalogTests
             catalog.Dispose();
 
             catalog = new Catalog<MockClassA, int, string>
-                (Environment.CurrentDirectory
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 2048
                 , 8192
                 , _bsonFormatter
-                , _idConverter
-                , _propertyConverter
-                , TestResourceFactory.CreateIndexRepository<int, string>("Catalogs", "testTypeRepository.catalog.index", _seed, _idConverter, _indexBatchManager, _mapManager)
                 , _bsonManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                , _indexBatchManager);
 
             catalog.Load();
 
@@ -141,19 +166,26 @@ namespace BESSy.Tests.CatalogTests
         }
 
         [Test]
-        public void TestCache()
+        public void TestCatalogCache()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var catalog = new Catalog<MockClassA, int, string>
-                (Path.Combine(Environment.CurrentDirectory, "Catalogs")
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 3
                 , 8192
-                , _bsonFormatter
                 , _idConverter
                 , _propertyConverter
-                , _index
-                , _bsonManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                , new Seed32(999)
+                , "GetId"
+               , "SetId"
+               , "GetCatalogId"
+               , _bsonFormatter
+               , _bsonManager
+               , _indexBatchManager);
+
 
             catalog.Load();
 
@@ -163,15 +195,11 @@ namespace BESSy.Tests.CatalogTests
             Assert.AreEqual(1003, catalog.Add(TestResourceFactory.CreateRandom().WithName("RockMaterial")));
             Assert.AreEqual(1004, catalog.Add(TestResourceFactory.CreateRandom().WithName("Angel")));
 
-            Assert.IsTrue(catalog.Contains(1000));
+            Assert.IsFalse(catalog.Contains(1000));
             Assert.IsTrue(catalog.Contains(1001));
             Assert.IsTrue(catalog.Contains(1002));
             Assert.IsTrue(catalog.Contains(1003));
             Assert.IsTrue(catalog.Contains(1004));
-
-            catalog.Detach(1000);
-
-            Assert.IsFalse(catalog.Contains(1000));
 
             catalog.Flush();
 
@@ -180,79 +208,112 @@ namespace BESSy.Tests.CatalogTests
 
             Assert.AreEqual(5, catalog.Count());
 
+            catalog.Detach(1001);
+
+            Assert.IsFalse(catalog.Contains(1001));
+
+            ((ICache<IMappedRepository<MockClassA, int>, string>)catalog).Detach("S");
+
+            Thread.Sleep(100);
+
+            while(catalog.FileFlushQueueActive)
+                Thread.Sleep(100);
+
+            Assert.IsFalse(((ICache<IMappedRepository<MockClassA, int>, string>)catalog).Contains("S"));
+
             catalog.Dispose();
         }
 
         [Test]
         [ExpectedException(typeof(ArgumentNullException))]
-        public void TestEntityAddedCanNotBeNull()
+        public void TestCatalogEntityAddedCanNotBeNull()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var catalog = new Catalog<MockClassA, int, string>
-                (Path.Combine(Environment.CurrentDirectory, "Catalogs")
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 2048
                 , 8192
-                , _bsonFormatter
                 , _idConverter
                 , _propertyConverter
-                , _index
-                , _bsonManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                , new Seed32(999)
+                , "GetId"
+               , "SetId"
+               , "GetCatalogId"
+               , _bsonFormatter
+               , _bsonManager
+               , _indexBatchManager);
+
 
             catalog.Load();
 
             for (var i = 0; i < _testEntities.Count; i++)
                 catalog.Add(_testEntities[i].WithName(Names[i]));
 
-            Assert.AreEqual(1003, catalog.Add(null));
+            try
+            {
+                Assert.AreEqual(1003, catalog.Add(null));
+            }
+            finally
+            {
+                catalog.Clear();
 
-            catalog.Clear();
-
-            catalog.Dispose();
+                catalog.Dispose();
+            }
         }
 
         [Test]
         [ExpectedException(typeof(ArgumentNullException))]
         public void TestEntityAddedCanNotHaveNullCatalogedProperty()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var catalog = new Catalog<MockClassA, int, string>
-                (Path.Combine(Environment.CurrentDirectory, "Catalogs")
-                , 8192
-                , _bsonFormatter
-                , _idConverter
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
                 , _propertyConverter
-                , _index
-                , _bsonManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? null : m.Name.Substring(0, 1).ToUpper()));
+                , "GetId"
+               , "SetId"
+               , "GetCatalogNull");
 
             catalog.Load();
 
-            for (var i = 0; i < _testEntities.Count; i++)
-                catalog.Add(_testEntities[i].WithName(Names[i]));
+            try
+            {
+                for (var i = 0; i < _testEntities.Count; i++)
+                    catalog.Add(_testEntities[i].WithName(Names[i]));
+            }
+            finally
+            {
+                catalog.Clear();
 
-            catalog.Add(TestResourceFactory.CreateRandom().WithName(null));
-
-            catalog.Clear();
-
-            catalog.Dispose();
+                catalog.Dispose();
+            }
         }
 
         [Test]
-        public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletes()
+        public void TestCatalogLoadsInfoFromExistingFileAndUpdatesAndDeletes()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var catalog = new Catalog<MockClassA, int, string>
-                (Path.Combine(Environment.CurrentDirectory, "Catalogs")
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 2048
                 , 8192
-                , _bsonFormatter
                 , _idConverter
                 , _propertyConverter
-                , _index
-                , _bsonManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                , new Seed32(999)
+                , "GetId"
+               , "SetId"
+               , "GetCatalogId"
+               , _bsonFormatter
+               , _bsonManager
+               , _indexBatchManager);
 
             catalog.Load();
 
@@ -271,19 +332,19 @@ namespace BESSy.Tests.CatalogTests
 
             catalog.Flush();
 
+            while (catalog.FileFlushQueueActive)
+                Thread.Sleep(100);
+
             catalog.Dispose();
 
             catalog = new Catalog<MockClassA, int, string>
-                (Path.Combine(Environment.CurrentDirectory, "Catalogs")
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 2048
                 , 8192
                 , _bsonFormatter
-                , _idConverter
-                , _propertyConverter
-                ,  TestResourceFactory.CreateIndexRepository<int, string>("Catalogs", "testTypeRepository.catalog.index", _seed, _idConverter, _indexBatchManager, _mapManager)
                 , _bsonManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i)
-               , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                , _indexBatchManager);
 
             var sw = new Stopwatch();
             sw.Start();
@@ -330,28 +391,25 @@ namespace BESSy.Tests.CatalogTests
         }
 
         [Test]
-        public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletesWithStringSeed()
+        public void TestCatalogLoadsInfoFromExistingFileAndUpdatesAndDeletesWithStringSeed()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString().GetHashCode().ToString();
+            Cleanup();
+
             var catalog = new Catalog<MockClassA, string, string>
-              (Path.Combine(Environment.CurrentDirectory, "Catalogs")
-              , 8192
-              , _bsonFormatter
-              , new BinConverterString()
-              , _propertyConverter
-              , TestResourceFactory.CreateIndexRepository<string, string>
-                    ("Catalogs", "testTypeRepository.catalog.index"
-                    , new SeedString(50)
-                    , new BinConverterString()
-                    , TestResourceFactory.CreateBatchFileManager<IndexPropertyPair<string, string>>
-                        (_bsonFormatter)
-                        , TestResourceFactory.CreateIndexMapManager<string, string>
-                        ("testTypeRepository.catalog.index"
-                            , new BinConverterString()
-                            , _propertyConverter))
-              , _bsonManager
-              , (m => m.Name)
-             , ((m, id) => m.Name = id)
-             , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 2048
+                , 8192
+                , new BinConverterString()
+                , _propertyConverter
+                , new SeedString()
+                , "GetName"
+               , "SetName"
+               , "GetCatalogId"
+               , _bsonFormatter
+               , _bsonManager
+               , _stringBatchManager);
 
             catalog.Load();
 
@@ -370,28 +428,17 @@ namespace BESSy.Tests.CatalogTests
 
             catalog.Flush();
 
+            //Dispose should wait for the flush operation to complete.
             catalog.Dispose();
 
             catalog = new Catalog<MockClassA, string, string>
-              (Path.Combine(Environment.CurrentDirectory, "Catalogs")
-              , 8192
-              , _bsonFormatter
-              , new BinConverterString()
-              , _propertyConverter
-              , TestResourceFactory.CreateIndexRepository<string, string>
-                    ("Catalogs", "testTypeRepository.catalog.index"
-                    , new SeedString(50)
-                    , new BinConverterString()
-                    , TestResourceFactory.CreateBatchFileManager<IndexPropertyPair<string, string>>
-                        (_bsonFormatter)
-                        , TestResourceFactory.CreateIndexMapManager<string, string>
-                        ("testTypeRepository.catalog.index"
-                            , new BinConverterString(50)
-                            , _propertyConverter))
-              , _bsonManager
-              , (m => m.Name)
-             , ((m, id) => m.Name = id)
-             , (m => m == null || string.IsNullOrWhiteSpace(m.Name) ? "Null" : m.Name.Substring(0, 1).ToUpper()));
+                (_testName + ".catalog.index"
+                , Path.Combine(Environment.CurrentDirectory, _testName)
+                , 2048
+                , 8192
+                , _bsonFormatter
+                , _bsonManager
+                , _stringBatchManager);
 
             var sw = new Stopwatch();
             sw.Start();

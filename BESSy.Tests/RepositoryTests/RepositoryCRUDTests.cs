@@ -18,43 +18,43 @@ namespace BESSy.Tests.RepositoryTests
     [TestFixture]
     public class RepositoryCRUDTests
     {
-        ISafeFormatter _bsonFormatter;
-        IBatchFileManager<MockClassA> _zipManager;
-        IBatchFileManager<MockClassA> _bsonManager;
-        IIndexedEntityMapManager<MockClassA, int> _mapManager;
-        IIndexedEntityMapManager<MockClassA, string> _stringMapManager;
-
-        IList<MockClassA> _testEntities;
+        IList<MockClassA> testEntities;
+        string _testName;
 
         [TestFixtureSetUp()]
         public void FixtureSetup()
         {
-            _bsonFormatter = TestResourceFactory.CreateBsonFormatter();
-            _zipManager = TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter());
-            _bsonManager = TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateBsonFormatter());
-            _mapManager = TestResourceFactory.CreateIndexedMapManager<MockClassA, int>(_bsonFormatter, new BinConverter32());
-            _stringMapManager = TestResourceFactory.CreateIndexedMapManager<MockClassA, string>(_bsonFormatter, new BinConverterString());
-            _testEntities = TestResourceFactory.GetMockClassAObjects(3);
+           
         }
 
         [SetUp]
         public void Setup()
         {
-            if (File.Exists("testTypeRepository.scenario"))
-                File.Delete("testTypeRepository.scenario");
+            
+        }
+
+        void Cleanup()
+        {
+            if (File.Exists(_testName + ".scenario"))
+                File.Delete(_testName + ".scenario");
         }
 
         [Test]
         public void TestLoadsContentToMappingFile()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var testEntities = TestResourceFactory.GetMockClassAObjects(3);
+
             var repo = new Repository<MockClassA, int>
-                ("testTypeRepository.scenario"
-                , (m => m.Id)
-               , ((m, i) => m.Id = i));
+                (_testName + ".scenario"
+                , "GetId"
+               , "SetId");
 
             repo.Load();
 
-            foreach (var e in _testEntities)
+            foreach (var e in testEntities)
                 repo.Add(e);
 
             repo.Flush();
@@ -70,16 +70,21 @@ namespace BESSy.Tests.RepositoryTests
         [Test]
         public void TestTypeRepositoryGeneratesSequentialKeysAbove1000()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var testEntities = TestResourceFactory.GetMockClassAObjects(3);
+
             var repo = new Repository<MockClassA, int>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new Seed32(999)
                 , new BinConverter32()
-                , _zipManager
-                , _mapManager
-                , (m => m.Id)
-               , ((m, i) => m.Id = i));
+                , TestResourceFactory.CreateBsonFormatter()
+                , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
+                , "GetId"
+               , "SetId");
 
             repo.Load();
 
@@ -96,22 +101,73 @@ namespace BESSy.Tests.RepositoryTests
         }
 
         [Test]
-        public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletes()
+        public void TestRepositoryCacheSweepRemovesExcessStorage()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var testEntities = TestResourceFactory.GetMockClassAObjects(3);
+
             var repo = new Repository<MockClassA, int>
-                (-1
-                , "testTypeRepository.scenario"
+                (12
+                , _testName + ".scenario"
                 , true
-                , new Seed32(999)
+                , new Seed32(0)
                 , new BinConverter32()
-                , _zipManager
-                , _mapManager
-                , (m => m != null ? m.Id : 0)
-               , ((m, i) => m.Id = i));
+                , TestResourceFactory.CreateBsonFormatter()
+                , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
+                , "GetId"
+               , "SetId");
 
             repo.Load();
 
-            foreach (var e in _testEntities)
+            for (var i = 1; i < 22; i++)
+                repo.Add(TestResourceFactory.CreateRandom().WithName(i.ToString()));
+
+            repo.Flush();
+
+            while (repo.FileFlushQueueActive)
+                Thread.Sleep(100);
+                        
+            for (var i = 1; i < 22; i++)
+                repo.Fetch(i);
+
+            Assert.IsFalse(repo.Contains(1));
+            Assert.IsFalse(repo.Contains(2));
+            Assert.IsFalse(repo.Contains(3));
+            Assert.IsFalse(repo.Contains(4));
+            Assert.IsFalse(repo.Contains(5));
+            Assert.IsFalse(repo.Contains(6));
+            Assert.IsFalse(repo.Contains(7));
+            Assert.IsFalse(repo.Contains(8));
+            Assert.IsFalse(repo.Contains(9));
+            Assert.IsFalse(repo.Contains(10));
+            Assert.IsFalse(repo.Contains(11));
+            Assert.IsFalse(repo.Contains(12));
+        }
+    
+        [Test]
+        public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletes()
+        {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var testEntities = TestResourceFactory.GetMockClassAObjects(3);
+
+            var repo = new Repository<MockClassA, int>
+                (-1
+                , _testName + ".scenario"
+                , true
+                , new Seed32(999)
+                , new BinConverter32()
+                , TestResourceFactory.CreateBsonFormatter()
+                , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
+                , "GetId"
+               , "SetId");
+
+            repo.Load();
+
+            foreach (var e in testEntities)
                 repo.Add(e);
 
             var testItem = TestResourceFactory.CreateRandom();
@@ -128,18 +184,19 @@ namespace BESSy.Tests.RepositoryTests
             
             repo.Flush();
 
+            //Dispose should wait for the flush operation to complete.
             repo.Dispose();
 
             repo = new Repository<MockClassA, int>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new Seed32(999)
                 , new BinConverter32()
-                , _zipManager
-                , _mapManager
-                , (m => m != null ? m.Id : 0)
-               , ((m, i) => m.Id = i));
+                , TestResourceFactory.CreateBsonFormatter()
+                , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
+                , "GetId"
+               , "SetId");
 
             var sw = new Stopwatch();
             sw.Start();
@@ -179,29 +236,36 @@ namespace BESSy.Tests.RepositoryTests
 
             repo.Flush();
 
+            //this fetch should retrieve from the staging cache until the flush is complete.
             entity = repo.Fetch(1003) as MockClassC;
             Assert.IsNull(entity);
 
+            //Dispose should wait for the flush operation to complete.
             repo.Dispose();
         }
 
         [Test]
         public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletesWithStringSeed()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var testEntities = TestResourceFactory.GetMockClassAObjects(3);
+
             var repo = new Repository<MockClassA, string>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new SeedString()
                 , new BinConverterString()
-                , _zipManager
-                , _stringMapManager
-                , (m => m != null ? m.Name : null)
-               , ((m, id) => m.Name = id));
+                , TestResourceFactory.CreateJsonFormatter()
+                , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
+                , "GetName"
+               , "SetName");
 
             repo.Load();
 
-            foreach (var e in _testEntities)
+            foreach (var e in testEntities)
                 repo.Add(e);
 
             var testItem = TestResourceFactory.CreateRandom();
@@ -211,23 +275,27 @@ namespace BESSy.Tests.RepositoryTests
 
             Assert.IsNotNull(repo.GetFromCache("RockMaterial"));
 
-            foreach (var e in _testEntities)
+            foreach (var e in testEntities)
                 Assert.IsNotNull(repo.GetFromCache(e.Name));
 
             repo.Flush();
 
+            while (repo.FileFlushQueueActive)
+                Thread.Sleep(100);
+
+            //Dispose should wait for the flush operation to complete.
             repo.Dispose();
 
             repo = new Repository<MockClassA, string>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new SeedString()
                 , new BinConverterString()
-                , _zipManager
-                , _stringMapManager
-                , (m => m != null ? m.Name : null)
-               , ((m, id) => m.Name = id));
+                , TestResourceFactory.CreateJsonFormatter()
+                , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
+                , "GetId"
+               , "SetId");
 
             var sw = new Stopwatch();
             sw.Start();

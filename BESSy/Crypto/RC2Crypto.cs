@@ -26,11 +26,6 @@ namespace BESSy.Crypto
         byte[] _simpleVector = new byte[8] { 124, 53, 89, 243, 163, 62, 47, 191 };
         Encoding _encoding;
 
-        public RC2Crypto()
-        {
-
-        }
-
         public RC2Crypto(byte[] vector) : this(vector, Encoding.ASCII)
         {
             
@@ -119,12 +114,12 @@ namespace BESSy.Crypto
         }
 
         /// <summary>
-        /// 
+        /// Encrypts the specified value.
         /// </summary>
         /// <param name="inStream"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public Stream Encrypt(Stream inStream, byte[] key)
+        public MemoryStream Encrypt(Stream inStream, byte[] key)
         {
             if (inStream.Length < 1)
                 return new MemoryStream();
@@ -212,7 +207,7 @@ namespace BESSy.Crypto
         /// <param name="inStream"><typeparamref name="System.IO.Stream"/> to decrypt</param>
         /// <param name="key">the hash key</param>
         /// <returns>the decrypted <typeparamref name="System.IO.Stream"/></returns>
-        public Stream Decrypt(Stream inStream, byte[] key)
+        public MemoryStream Decrypt(Stream inStream, byte[] key)
         {
             RC2 rc2 = RC2.Create();
             ICryptoTransform transform = rc2.CreateDecryptor(key, _simpleVector);

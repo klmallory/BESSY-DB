@@ -1,11 +1,23 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json.Linq;
 
 namespace BESSy
 {
@@ -13,7 +25,19 @@ namespace BESSy
     {
         Create,
         Update,
-        Delete,
+        Delete
+    }
+
+    public interface IQueryableRepository<EntityType> : IQueryableReadOnlyRepository<EntityType>
+    {
+        int Delete(Func<JObject, bool> select);
+        int Update<ValType>(Func<JObject, bool> select, Action<EntityType, ValType> update);
+    }
+
+    public interface IQueryableReadOnlyRepository<EntityType>
+    {
+        IList<EntityType> Select(Func<JObject, bool> select);
+        IList<EntityType> Select(Func<JObject, bool> select, int max);
     }
 
     public interface ILinqRepository<T, I> : IReadOnlyRepository<T, I>
@@ -47,7 +71,7 @@ namespace BESSy
     }
 
     /// <summary>
-    /// Repository Interface
+    /// Contract for a repository that supports basic CRUD operations.
     /// </summary>
     /// <typeparam name="T">Stored Type</typeparam>
     /// <typeparam name="I">Key Type</typeparam>
@@ -60,7 +84,7 @@ namespace BESSy
     }
 
     /// <summary>
-    /// Read Only Repository
+    /// Contract for a repository that supports basic read operations.
     /// </summary>
     /// <typeparam name="T">Stored Type</typeparam>
     /// <typeparam name="I">Key Type</typeparam>

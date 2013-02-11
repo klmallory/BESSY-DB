@@ -15,6 +15,8 @@ using BESSy.Files;
 using BESSy.Extensions;
 using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
+using BESSy.Serialization;
+using BESSy.Cache;
 
 namespace BESSy
 {
@@ -27,44 +29,55 @@ namespace BESSy
         void Flush();
     }
 
-
     public abstract class AbstractMappedRepository<EntityType, IdType> : IMappedRepository<EntityType, IdType> 
     {
-        protected AbstractMappedRepository(string fileName) 
+        /// <summary>
+        /// Opens an existing repository with the specified settings.
+        /// </summary>
+        /// <param name="cacheSize"></param>
+        /// <param name="fileName"></param>
+        /// <param name="mapFormatter"></param>
+        /// <param name="fileManager"></param>
+        public AbstractMappedRepository(
+            int cacheSize
+            ,string fileName
+            , ISafeFormatter mapFormatter
+            , IBatchFileManager<EntityType> fileManager) 
         {
+            _create = false;
+            CacheSize = cacheSize;
+            AutoCache = true;
+
             _fileName = fileName;
+
+            _mapFormatter = mapFormatter;
+            _fileManager = fileManager;
         }
 
-        //TODO: Row Level locking, like a dictionary of RowLock objects, with start and end segment property.
-        //TODO: Json .NET like query language support.
-
-        public AbstractMappedRepository
-            (bool createIfNotExistant,
-            int cacheSize,
+        /// <summary>
+        /// Creates or opens an existing repository with the specified settings.
+        /// </summary>
+        /// <param name="cacheSize"></param>
+        /// <param name="fileName"></param>
+        /// <param name="seed"></param>
+        /// <param name="idConverter"></param>
+        /// <param name="mapFormatter"></param>
+        /// <param name="fileManager"></param>
+        protected AbstractMappedRepository
+            (int cacheSize,
             string fileName,
             ISeed<IdType> seed,
             IBinConverter<IdType> idConverter,
-            IBatchFileManager<EntityType> fileManager,
-            IIndexedEntityMapManager<EntityType, IdType> mapFileManager) : this(fileName)
+            ISafeFormatter mapFormatter,
+            IBatchFileManager<EntityType> fileManager) : this(cacheSize, fileName, mapFormatter, fileManager)
         {
-            if (seed == null)
-                throw new ArgumentNullException("seed is a required paramter.");
+            _create = true;
 
-            _idConverter = idConverter;
-            _create = createIfNotExistant;
-            _fileManager = fileManager;
-            _mapFileManager = mapFileManager;
+            if (seed == null)
+                throw new ArgumentNullException("seed is a required parameter for a new repository.");
 
             _seed = seed;
-
-            AutoCache = true;
-
-            if (cacheSize < 0)
-                DetermineOptimumCacheSize();
-            else
-                CacheSize = cacheSize;
-
-            _mapFileManager.OnFlushCompleted += new FlushCompleted<EntityType, IdType>(HandleOnFlushCompleted);
+            _seed.IdConverter = idConverter;
         }
 
         
@@ -75,8 +88,9 @@ namespace BESSy
 
         bool _inFlush;
         string _fileName;
+        bool _create;
 
-        protected bool _create;
+        protected ISafeFormatter _mapFormatter;
         protected IBatchFileManager<EntityType> _fileManager;
         protected IIndexedEntityMapManager<EntityType, IdType> _mapFileManager;
 
@@ -91,14 +105,6 @@ namespace BESSy
         protected abstract IdType GetIdFrom(EntityType item);
         protected abstract void SetIdFor(EntityType item, IdType id);
 
-        protected virtual void DetermineOptimumCacheSize()
-        {
-            if (Environment.Is64BitProcess)
-                CacheSize = 512000000 / (((int)(Math.Ceiling(_seed.Stride / (double)Environment.SystemPageSize))) * Environment.SystemPageSize).Clamp(1, int.MaxValue);
-            else
-                CacheSize = 256000000 / (((int)(Math.Ceiling(_seed.Stride / (double)Environment.SystemPageSize))) * Environment.SystemPageSize).Clamp(1, int.MaxValue);
-        }
-
         protected virtual void HandleOnFlushCompleted(IDictionary<IdType, EntityType> itemsFlushed)
         {
             Trace.TraceInformation("Flush Completed Handler Called.");
@@ -107,8 +113,6 @@ namespace BESSy
             {
                 if (_mapFileManager.Stride > _seed.Stride)
                     _seed.Stride = _mapFileManager.Stride;
-
-                DetermineOptimumCacheSize();
 
                 lock (_syncStaging)
                     if (itemsFlushed != null)
@@ -131,20 +135,20 @@ namespace BESSy
             {
                 _cacheIsDirty |= dirtyOperation;
 
+                if (AutoCache)
+                    if (_cache.Count > CacheSize)
+                        Sweep();
+
                 if (_cache.ContainsKey(id))
                     _cache[id] = item;
                 else if (_cacheQueue.Contains(id))
                     _cache.Add(id, item);
-                else if (AutoCache || forceCache)
+                else if (forceCache || AutoCache)
                 {
                     _cacheQueue.Add(id);
                     _cache.Add(id, item);
                 }
             }
-
-            if (AutoCache)
-                if (_cache.Count > CacheSize)
-                    Sweep();
         }
 
         public virtual int CacheSize { get; set; }
@@ -184,14 +188,16 @@ namespace BESSy
 
                     var fi = new FileInfo(_fileName);
 
-                    if (!fi.Directory.Exists)
-                        CreateDirectory(fi);
-
                     if (!fi.Exists)
                     {
                         if (_create)
+                        {
+                            if (!fi.Directory.Exists)
+                                CreateDirectory(fi);
+
                             using (var c = _fileManager.GetWritableFileStream(_fileName))
                                 c.Flush();
+                        }
                         else
                             throw new FileNotFoundException("File not found.", _fileName);
                     }
@@ -208,11 +214,13 @@ namespace BESSy
                         var seed = LoadSeed(stream);
 
                         if (count > 0 && !object.Equals(seed, default(ISeed<IdType>)))
-                            _seed = seed;
+                            InitializeDatabase(seed, count);
+                        else
+                            InitializeDatabase(_seed, count);
 
-                        _mapFileManager.OpenOrCreate(_fileName, count, _seed.Stride);
-
-                        var batch = LoadBatchFromFile(stream).ToDictionary(i => GetIdFrom(i));
+                        var batch = LoadBatchFromFile(stream)
+                            .Where(entity => !object.Equals(entity, default(EntityType)))
+                            .ToDictionary(i => GetIdFrom(i));
 
                         var seg = 0;
 
@@ -231,7 +239,21 @@ namespace BESSy
             return Count();
         }
 
-        protected virtual IList<EntityType> LoadBatchFromFile(FileStream stream)
+        protected virtual void InitializeDatabase(ISeed<IdType> seed, int count)
+        {
+            if (CacheSize < 1)
+                CacheSize = Caching.DetermineOptimumCacheSize(seed.Stride);
+
+            _seed = seed;
+            
+            _idConverter = (IBinConverter<IdType>)_seed.IdConverter;
+            
+            _mapFileManager = new IndexedEntityMapManager<EntityType, IdType>(_idConverter, _mapFormatter);
+            _mapFileManager.OnFlushCompleted += new FlushCompleted<EntityType, IdType>(HandleOnFlushCompleted);
+            _mapFileManager.OpenOrCreate(_fileName, count, _seed.Stride);
+        }
+
+        protected virtual IList<EntityType> LoadBatchFromFile(Stream stream)
         {
             return _fileManager.LoadBatchFrom(stream);
         }
@@ -270,12 +292,14 @@ namespace BESSy
                     if (_stagingCache.Count > 0)
                         _stagingCache.RemoveAll(s => s.Count == 0);
 
-                IDictionary<IdType, EntityType> sort = new Dictionary<IdType, EntityType>(_cache);
+                var sort = new Dictionary<IdType, EntityType>(_cache);
 
                 lock (_syncStaging)
+                {
                     _stagingCache.Add(sort);
 
-                _mapFileManager.Flush(sort);
+                    _mapFileManager.Flush(sort);
+                }
 
                 ClearCache();
 
@@ -349,13 +373,7 @@ namespace BESSy
                         f.Flush();
                         f.Close();
 
-                        GC.Collect();
-
-                        GC.WaitForFullGCComplete(5000);
-
-                        fi = new FileInfo(tempFileName);
-
-                        fi.Replace(_fileName, _fileName + ".old", true);
+                        _fileManager.Replace(tempFileName, _fileName);
                     }
 
                     lock (_syncFileQueue)
@@ -374,6 +392,8 @@ namespace BESSy
                 Trace.TraceInformation("_syncFileFlush exited.");
 
                 _inFlush = false;
+
+                GC.Collect();
             }
         }
 
@@ -406,7 +426,7 @@ namespace BESSy
         {
             var newId = GetIdFrom(item);
 
-            if (_idConverter.Compare(newId, default(IdType)) == 0 || !Contains(newId))
+            if (_idConverter.Compare(newId, default(IdType)) == 0)
             {
                 newId = GetNextIdFor(item);
                 SetIdFor(item, newId);
@@ -448,7 +468,8 @@ namespace BESSy
 
             item = _mapFileManager.Load(id);
 
-            UpdateCache(id, item, false, false);
+            if (!object.Equals(item, default(EntityType)))
+                UpdateCache(id, item, false, false);
 
             return item;
         }
@@ -598,8 +619,8 @@ namespace BESSy
                 lock (_syncCache)
                     lock (_syncStaging)
                         return Enumerable.OfType<TResult>(_mapFileManager)
-                            .Concat(_cache.Values.OfType<TResult>())
-                            .Concat(_stagingCache.SelectMany(s => s.Values.OfType<TResult>()));
+                            .Union(_cache.Values.OfType<TResult>())
+                            .Union(_stagingCache.SelectMany(s => s.Values.OfType<TResult>()));
         }
 
         public IQueryable<EntityType> AsQueryable()
@@ -608,8 +629,8 @@ namespace BESSy
                 lock (_syncCache)
                     lock (_syncStaging)
                         return _mapFileManager.AsQueryable<EntityType>()
-                            .Concat(_cache.Values.AsQueryable<EntityType>())
-                            .Concat(_stagingCache.SelectMany(s => s.Values.AsQueryable<EntityType>()));
+                            .Union(_cache.Values.AsQueryable<EntityType>())
+                            .Union(_stagingCache.SelectMany(s => s.Values.AsQueryable<EntityType>()));
         }
 
         #endregion
@@ -631,18 +652,14 @@ namespace BESSy
                     return;
                 }
 
-                var diff = (_cache.Count - CacheSize);
+                //clear enough cache for smooth operations.
+                var toRemove = _cacheQueue.Distinct().Take(CacheSize / 2).ToList();
 
-                if (diff <= 0)
-                    return;
-
-                var r = _cache.Keys.ToList().GetRange(0, diff).ToList();
-
-                r.ForEach(a =>
+                foreach (var id in toRemove)
                 {
-                    _cacheQueue.RemoveAll(c => _idConverter.Compare(c, a) == 0);
-                    _cache.Remove(a);
-                });
+                    _cacheQueue.RemoveAll(c => _idConverter.Compare(c, id) == 0);
+                    _cache.Remove(id);
+                }
             }
 
             _mapFileManager.Sweep();
@@ -713,7 +730,7 @@ namespace BESSy
                 if (_cacheQueue.Contains(id))
                     _cacheQueue.Remove(id);
 
-                if (!_cacheQueue.Contains(id) && _cache.ContainsKey(id))
+                if (_cache.ContainsKey(id))
                     _cache.Remove(id);
             }
         }

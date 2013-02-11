@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 
 namespace BESSy.Serialization.Converters
 {
@@ -15,6 +16,7 @@ namespace BESSy.Serialization.Converters
         T Max { get; }
         byte[] ToBytes(T item);
         T FromBytes(byte[] bytes);
+        T FromStream(Stream inStream);
         int Length { get; }
 
         /// <summary>

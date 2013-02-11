@@ -27,9 +27,16 @@ namespace BESSy.Tests.RepositoryTests
         IIndexedEntityMapManager<MockClassA, int> _mapManager;
 
         IList<MockClassA> _testEntities;
+        string _testName;
 
         [TestFixtureSetUp()]
         public void FixtureSetup()
+        {
+
+        }
+
+        [SetUp]
+        public void Setup()
         {
             _bsonFormatter = TestResourceFactory.CreateBsonFormatter();
             _bsonManager = TestResourceFactory.CreateBatchFileManager<MockClassA>(_bsonFormatter);
@@ -38,28 +45,32 @@ namespace BESSy.Tests.RepositoryTests
             _testEntities = TestResourceFactory.GetMockClassAObjects(3);
         }
 
-        [SetUp]
-        public void Setup()
+        void Cleanup()
         {
-            if (File.Exists("testTypeRepository.scenario"))
-                File.Delete("testTypeRepository.scenario");
+            if (File.Exists(_testName + ".scenario"))
+                File.Delete(_testName + ".scenario");
         }
 
+
         [Test]
+        [Category("Performance")]
         public void LinqTests()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var seed = new Seed32(999);
 
             var repo = new Repository<MockClassA, int>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , seed
                 , (IBinConverter<int>)new BinConverter32()
+                , _bsonFormatter
                 , _bsonManager
-                , _mapManager
-                , (e => e.Id)
-                , ((e, id) => e.Id = id));
+                , "GetId"
+               , "SetId");
 
             repo.Load();
 
@@ -87,6 +98,8 @@ namespace BESSy.Tests.RepositoryTests
             while (repo.FileFlushQueueActive)
                 Thread.Sleep(10);
 
+            repo.ClearCache();
+
             var entity = repo.Fetch(31783);
             Assert.IsNotNull(entity);
 
@@ -107,6 +120,9 @@ namespace BESSy.Tests.RepositoryTests
 
             entity = repo.Fetch(103400);
             Assert.IsNotNull(entity);
+
+            entity = repo.Fetch(103401);
+            Assert.IsNull(entity);
 
             Assert.AreEqual(0, repo.Where(e => e == null).Count());
 

@@ -23,11 +23,17 @@ namespace BESSy.Tests.RepositoryTests
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexedEntityMapManager<MockClassA, int> _mapManager;
         IIndexedEntityMapManager<MockClassA, string> _stringMapManager;
-
         IList<MockClassA> _testEntities;
+        string _testName;
 
         [TestFixtureSetUp()]
         public void FixtureSetup()
+        {
+
+        }
+
+        [SetUp]
+        public void Setup()
         {
             _bsonFormatter = TestResourceFactory.CreateBsonFormatter();
             _cryptoFormatter = TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateCryptoFormatter());
@@ -37,26 +43,29 @@ namespace BESSy.Tests.RepositoryTests
             _testEntities = TestResourceFactory.GetMockClassAObjects(3);
         }
 
-        [SetUp]
-        public void Setup()
+        void Cleanup()
         {
-            if (File.Exists("testTypeRepository.scenario"))
-                File.Delete("testTypeRepository.scenario");
+            if (File.Exists(_testName + ".scenario"))
+                File.Delete(_testName + ".scenario");
         }
 
         [Test]
-        public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletes()
+        public void TestCryptoLoadsInfoFromExistingZipFileAndUpdatesAndDeletes()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+
             var repo = new Repository<MockClassA, int>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new Seed32(999)
                 , new BinConverter32()
+                , _bsonFormatter
                 , _cryptoFormatter
-                , _mapManager
-                , (m => m != null ? m.Id : 0)
-               , ((m, i) => m.Id = i));
+                , "GetId"
+               , "SetId");
 
             repo.Load();
 
@@ -81,14 +90,14 @@ namespace BESSy.Tests.RepositoryTests
 
             repo = new Repository<MockClassA, int>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new Seed32(999)
                 , new BinConverter32()
+                , _bsonFormatter
                 , _cryptoFormatter
-                , _mapManager
-                , (m => m != null ? m.Id : 0)
-               , ((m, i) => m.Id = i));
+                , "GetId"
+               , "SetId");
 
             var sw = new Stopwatch();
             sw.Start();
@@ -135,18 +144,21 @@ namespace BESSy.Tests.RepositoryTests
         }
 
         [Test]
-        public void TestLoadsInfoFromExistingZipFileAndUpdatesAndDeletesWithStringSeed()
+        public void TestCryptoLoadsInfoFromExistingZipFileAndUpdatesAndDeletesWithStringSeed()
         {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
             var repo = new Repository<MockClassA, string>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new SeedString()
                 , new BinConverterString()
+                , _bsonFormatter
                 , _cryptoFormatter
-                , _stringMapManager
-                , (m => m != null ? m.Name : null)
-               , ((m, id) => m.Name = id));
+                , "GetName"
+               , "SetName");
 
             repo.Load();
 
@@ -169,14 +181,14 @@ namespace BESSy.Tests.RepositoryTests
 
             repo = new Repository<MockClassA, string>
                 (-1
-                , "testTypeRepository.scenario"
+                , _testName + ".scenario"
                 , true
                 , new SeedString()
                 , new BinConverterString()
+                , _bsonFormatter
                 , _cryptoFormatter
-                , _stringMapManager
-                , (m => m != null ? m.Name : null)
-               , ((m, id) => m.Name = id));
+                , "GetId"
+               , "SetId");
 
             var sw = new Stopwatch();
             sw.Start();

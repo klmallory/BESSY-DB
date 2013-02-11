@@ -11,72 +11,135 @@ using BESSy.Serialization;
 using BESSy.Files;
 using System.IO;
 using BESSy.Seeding;
+using System.Reflection;
+using BESSy.Cache;
 
 namespace BESSy
 {
     public class Catalog<EntityType, IdType, PropertyType> : AbstractMappedCatalog<EntityType, IdType, PropertyType>
     {
+        static ISafeFormatter DefaultFormatter { get { return new BSONFormatter(); } }
+
+        static IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> DefaultIndexFileManager { get { return new BatchFileManager<IndexPropertyPair<IdType, PropertyType>>(DefaultFormatter); } }
+
+        static IBatchFileManager<EntityType> DefaultRepositoryFileManager { get { return new BatchFileManager<EntityType>(DefaultFormatter); } }
+
+        /// <summary>
+        /// Opens an existing catalog with the specified fileName, with the specified working folder.
+        /// </summary>
+        /// <param name="indexFileName"></param>
+        /// <param name="workingFolder"></param>
+        public Catalog
+            (string indexFileName
+            , string workingFolder) 
+            
+            : this(indexFileName, workingFolder, -1, 8192, DefaultFormatter, DefaultRepositoryFileManager, DefaultIndexFileManager)
+        {
+        }
+
+        /// <summary>
+        /// Opens an existing catalog with the specified fileName, with the specified working folder.
+        /// </summary>
+        /// <param name="indexFileName"></param>
+        /// <param name="workingFolder"></param>
+        /// <param name="cacheSize"></param>
+        /// <param name="repositoryCacheSize"></param>
+        /// <param name="mapFormatter"></param>
+        /// <param name="indexFileManager"></param>
         public Catalog
             (string indexFileName
             , string workingFolder
-            , Func<EntityType, IdType> getIdDelegate
-            , Action<EntityType, IdType> setIdDelegate
-            , Func<EntityType, PropertyType> getPropertyDelegate)
+            , int cacheSize
+            , int repositoryCacheSize
+            , ISafeFormatter mapFormatter
+            , IBatchFileManager<EntityType> repositoryFileManager
+            , IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> indexFileManager)
         {
-            var fileNamePath = Path.Combine(workingFolder, indexFileName);
+            AutoCache = true;
+            CacheSize = cacheSize;
             WorkingFolder = workingFolder;
 
-            ISeed<IdType> seed;
-            TypeFactory.GetTypesFor(out seed, out _idConverter);
+            _fileManager = repositoryFileManager;
+            _mapFormatter = mapFormatter;
 
-            _mapFormatter = new BSONFormatter(BSONFormatter.GetDefaultSettings());
-            _fileManager = new BatchFileManager<EntityType>(4096, 4096, _mapFormatter);
-            _propertyConverter = TypeFactory.GetBinConverterFor<PropertyType>();
+            _index = new IndexRepository<IdType, PropertyType>(Path.Combine(workingFolder, indexFileName), cacheSize, mapFormatter, indexFileManager);
 
-            var indexFileManager = new IndexFileManager<IdType, PropertyType>(4096, _mapFormatter);
-            var indexMapManager = new IndexMapManager<IdType, PropertyType>(fileNamePath, _idConverter, _propertyConverter);
-            _index = new IndexRepository<IdType, PropertyType>
-                (true
-                , -1
-                , fileNamePath
-                , seed
-                , _idConverter
-                , indexFileManager
-                , indexMapManager);
-
-            _getId = getIdDelegate;
-            _setId = setIdDelegate;
-            _getProperty = getPropertyDelegate;
-
-            DefaultCatalogCacheSize = 8192;
-            AutoCache = true;
+            DefaultRepositoryCacheSize = repositoryCacheSize;
         }
 
-        public Catalog(
-            string workingFolder,
-            int defaultCatalogCacheSize,
-            ISafeFormatter mapFormatter,
-            IBinConverter<IdType> idConverter,
-            IBinConverter<PropertyType> propertyConverter,
-            IIndexRepository<IdType, PropertyType> index,
-            IBatchFileManager<EntityType> fileManager,
-            Func<EntityType, IdType> getIdDelegate,
-            Action<EntityType, IdType> setIdDelegate,
-            Func<EntityType, PropertyType> getPropertyDelegate)
-            : base(index, idConverter, propertyConverter)
+        /// <summary>
+        /// Creates or opens an existing catalog with the specified filename and settings.
+        /// </summary>
+        /// <param name="indexFileName"></param>
+        /// <param name="workingFolder"></param>
+        /// <param name="propertyConverter"></param>
+        public Catalog(string indexFileName
+            , string workingFolder
+            , IBinConverter<PropertyType> propertyConverter
+            , string getIdMethod
+            , string setIdMethod
+            , string getPropertyMethod) 
+
+            : this(indexFileName
+            , workingFolder
+            , -1, 8192
+            , TypeFactory.GetBinConverterFor<IdType>()
+            , TypeFactory.GetBinConverterFor<PropertyType>()
+            , TypeFactory.GetSeedFor<IdType>()
+            , getIdMethod
+            , setIdMethod
+            , getPropertyMethod
+            , DefaultFormatter
+            , DefaultRepositoryFileManager
+            , DefaultIndexFileManager)
         {
-            WorkingFolder = workingFolder;
-            _mapFormatter = mapFormatter;
-            _idConverter = idConverter;
-            _propertyConverter = propertyConverter;
-            _fileManager = fileManager;
 
-            _getId = getIdDelegate;
-            _setId = setIdDelegate;
-            _getProperty = getPropertyDelegate;
+        }
 
-            DefaultCatalogCacheSize = defaultCatalogCacheSize;
+        /// <summary>
+        /// Creates or opens an existing catalog with the specified filename and settings. 
+        /// </summary>
+        /// <param name="indexFileName"></param>
+        /// <param name="workingFolder"></param>
+        /// <param name="cacheSize"></param>
+        /// <param name="repositoryCacheSize"></param>
+        /// <param name="idConverter"></param>
+        /// <param name="propertyConverter"></param>
+        /// <param name="seed"></param>
+        /// <param name="getIdMethod"></param>
+        /// <param name="setIdMethod"></param>
+        /// <param name="getPropertyMethod"></param>
+        /// <param name="mapFormatter"></param>
+        /// <param name="repositoryFileManager"></param>
+        /// <param name="indexFileManager"></param>
+        public Catalog(string indexFileName
+            , string workingFolder
+            , int cacheSize
+            , int repositoryCacheSize
+            , IBinConverter<IdType> idConverter
+            , IBinConverter<PropertyType> propertyConverter
+            , ISeed<IdType> seed
+            , string getIdMethod
+            , string setIdMethod
+            , string getPropertyMethod
+            , ISafeFormatter mapFormatter
+            , IBatchFileManager<EntityType> repositoryFileManager
+            , IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> indexFileManager)
+        {
             AutoCache = true;
+            CacheSize = cacheSize;
+            WorkingFolder = workingFolder;
+
+            _fileManager = repositoryFileManager;
+            _mapFormatter = mapFormatter;
+           
+            seed.GetIdMethod = getIdMethod;
+            seed.SetIdMethod = setIdMethod;
+            seed.GetCategoryIdMethod = getPropertyMethod;
+
+            _index = new IndexRepository<IdType, PropertyType>(cacheSize, Path.Combine(workingFolder, indexFileName), seed, idConverter, propertyConverter, mapFormatter, indexFileManager);
+
+            DefaultRepositoryCacheSize = repositoryCacheSize;
         }
 
         protected IBatchFileManager<EntityType> _fileManager;
@@ -86,7 +149,7 @@ namespace BESSy
         protected Func<EntityType, PropertyType> _getProperty;
 
         public string WorkingFolder { get; protected set; }
-        public int DefaultCatalogCacheSize { get; protected set; }
+        public int DefaultRepositoryCacheSize { get; protected set; }
 
         protected override PropertyType GetCatalogIdFrom(EntityType item)
         {
@@ -108,28 +171,30 @@ namespace BESSy
             return catId.ToString() + ".catalog";
         }
 
+        public override void Load()
+        {
+            base.Load();
+
+            _getId = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetMethod(_index.Seed.GetIdMethod));
+            _setId = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetMethod(_index.Seed.SetIdMethod));
+            _getProperty = (Func<EntityType, PropertyType>)Delegate.CreateDelegate(typeof(Func<EntityType, PropertyType>), typeof(EntityType).GetMethod(_index.Seed.GetCategoryIdMethod));
+
+            if (CacheSize < 1)
+                CacheSize = Caching.DetermineOptimumCacheSize(_index.Seed.Stride * DefaultRepositoryCacheSize);
+        }
+
         protected override IMappedRepository<EntityType, IdType> GetCatalogFile(PropertyType catId)
         {
             string fileNamePath = Path.Combine(GetDirectoryForCatalog(catId), GetFileNameForCatalog(catId));
 
             return new CatalogRepository<EntityType, IdType>
-                (DefaultCatalogCacheSize
+                (DefaultRepositoryCacheSize
                 , fileNamePath
                 , AutoCache
                 , _index.Seed
                 , _idConverter
-                , _fileManager
-                , new IndexedEntityMapManager<EntityType, IdType>(_idConverter, _mapFormatter)
-                , _getId
-                , _setId);
-        }
-
-        public override void Dispose()
-        {
-            if (_index != null)
-                _index.Dispose();
-
-            base.Dispose();
+                , _mapFormatter
+                , _fileManager);
         }
     }
 }

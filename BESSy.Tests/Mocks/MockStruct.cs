@@ -10,7 +10,7 @@ using NUnit.Framework;
 
 namespace BESSy.Tests.Mocks
 {
-    internal class MockStruct
+    public class MockStruct
     {
         public float X;
         public float Y;

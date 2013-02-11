@@ -13,9 +13,8 @@ namespace BESSy.Seeding
     {
         public Seed32() : this(0) { }
 
-        public Seed32(int startingSeed)
+        public Seed32(int startingSeed) : base(startingSeed)
         {
-            LastSeed = startingSeed;
         }
 
         public override int Increment()

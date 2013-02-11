@@ -9,7 +9,7 @@ using System.Text;
 
 namespace BESSy.Tests.Mocks
 {
-    internal class MockClassB : MockClassA
+    public class MockClassB : MockClassA
     {
         public Guid ReplicationID { get; set; }
         public double[] GetSomeCheckSum { get; set; }
