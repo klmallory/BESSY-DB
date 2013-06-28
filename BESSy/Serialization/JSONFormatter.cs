@@ -15,11 +15,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 */
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization.Formatters;
 using System.Text;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace BESSy.Serialization
 {
@@ -35,8 +36,11 @@ namespace BESSy.Serialization
                 throw new ArgumentNullException("settings", "Serializer settings can not be null.");
 
             _serializer = JsonSerializer.Create(settings);
+            _converters = settings.Converters.ToList().ToArray();
+            
         }
 
+        JsonConverter[] _converters;
         JsonSerializer _serializer;
 
         /// <summary>
@@ -118,6 +122,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -137,6 +142,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -174,6 +180,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -193,6 +200,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -203,14 +211,6 @@ namespace BESSy.Serialization
             using (var sr = new StreamReader(inStream))
                 using (var reader = new JsonTextReader(sr))
                     return JObject.Load(reader);
-        }
-
-        public JArray ParseArray(Stream inStream)
-        {
-            inStream.Position = 0;
-            using (var sr = new StreamReader(inStream))
-                using (var reader = new JsonTextReader(sr))
-                    return JArray.Load(reader);
         }
 
         static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()

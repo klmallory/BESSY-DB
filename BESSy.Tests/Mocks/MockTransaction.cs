@@ -3,28 +3,59 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using BESSy.Transactions;
+using System.Threading;
+using System.Runtime;
 
 namespace BESSy.Tests.Mocks
 {
     public class MockTransaction<IdType, EntityType> : ITransaction<IdType, EntityType>
     {
+        [TargetedPatchingOptOut("Performance critical.")]
+        public MockTransaction() { }
+
         public MockTransaction(ITransactionManager<IdType, EntityType> transactionManager)
+            : this(-1, transactionManager)
+        {
+
+        }
+
+        public MockTransaction(int timeToLive, ITransactionManager<IdType, EntityType> transactionManager)
         {
             Id = Guid.NewGuid();
+            Source = transactionManager.Source;
             _transactionManager = transactionManager;
+
+            if (timeToLive > 0)
+                new Timer(ForceCommit, null, timeToLive, -1);
         }
 
         object _syncRoot = new object();
-        bool _complete = false;
+        bool _isCommitted = false;
+
         ITransactionManager<IdType, EntityType> _transactionManager;
-        Dictionary<IdType, EnlistedAction<IdType, EntityType>> _enlistedActions 
+        Dictionary<IdType, EnlistedAction<IdType, EntityType>> _enlistedActions
             = new Dictionary<IdType, EnlistedAction<IdType, EntityType>>();
+
+        void ForceCommit(object state)
+        {
+            lock (_syncRoot)
+            {
+                if (IsComplete) return;
+                if (_isCommitted) return;
+
+                _isCommitted = true;
+                _transactionManager.Commit(this);
+            }
+        }
+
+        public Guid Source { get; set; }
+        public bool IsComplete { get; private set; }
 
         public void Enlist(Action action, IdType id, EntityType entity)
         {
             lock (_syncRoot)
             {
-                if (_complete) throw new TransactionStateException("Transaction is no longer active. No furthur enlistment is possible.");
+                if (IsComplete) throw new TransactionStateException("Transaction is no longer active. No furthur enlistment is possible.");
 
                 var enlistment = new EnlistedAction<IdType, EntityType>(action, id, entity);
 
@@ -47,38 +78,72 @@ namespace BESSy.Tests.Mocks
 
         public Guid Id { get; private set; }
 
+        public bool Contains(IdType id)
+        {
+            return _enlistedActions.ContainsKey(id);
+        }
+
         public void Rollback()
         {
-            if (_complete) throw new TransactionStateException("Transaction is no longer active. There is nothing to rollback.");
+            if (IsComplete) throw new TransactionStateException("Transaction is no longer active. There is nothing to rollback.");
 
             lock (_syncRoot)
             {
                 _transactionManager.RollBack(this);
-
-                _complete = true;
             }
         }
 
         public void Commit()
         {
-            if (_complete) throw new TransactionStateException("Transaction is no longer active. There is nothing to commit.");
+            if (IsComplete) throw new TransactionStateException("Transaction is no longer active. There is nothing to commit.");
 
             lock (_syncRoot)
             {
+                _isCommitted = true;
                 _transactionManager.Commit(this);
+            }
+        }
 
-                _complete = true;
+
+        public void MarkComplete()
+        {
+            lock (_syncRoot)
+            {
+                IsComplete = true;
             }
         }
 
         public void Dispose()
         {
-            lock (_syncRoot)
-                if (!_complete)
+            if (!IsComplete)
+            {
+                if (!_isCommitted)
+                {
                     if (_transactionManager != null)
-                        _transactionManager.RollBack(this);
+                    {
+                        lock (_syncRoot)
+                            _transactionManager.RollBack(this);
 
-            _transactionManager = null;
+                        while (!IsComplete)
+                            Thread.Sleep(100);
+                    }
+                }
+                else
+                {
+                    while (!IsComplete)
+                        Thread.Sleep(100);
+                }
+            }
+
+            //remove the reference to the transactionMagager.
+            lock (_syncRoot)
+                _transactionManager = null;
+        }
+
+
+        public int EnlistCount
+        {
+            get { return _enlistedActions.Count; }
         }
     }
 }

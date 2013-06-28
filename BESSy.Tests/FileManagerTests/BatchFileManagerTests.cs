@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using NUnit.Framework;
-using BESSy.Serialization;
 using BESSy.Files;
-using BESSy.Tests.Mocks;
-using System.IO;
-using BESSy.Serialization.Converters;
 using BESSy.Seeding;
+using BESSy.Serialization;
+using BESSy.Serialization.Converters;
+using BESSy.Tests.Mocks;
+using NUnit.Framework;
 
 namespace BESSy.Tests.FileManagerTests
 {
@@ -127,6 +127,7 @@ namespace BESSy.Tests.FileManagerTests
         }
 
         [Test]
+        [Category("Performance")]
         public void BatchSavesAndLoadsLargeCapacityWithSeed()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();

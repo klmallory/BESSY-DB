@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections;
@@ -94,7 +105,7 @@ namespace BESSy.Files
 
             List<int> toRemove = new List<int>();
 
-            //find the former segment with a valid Id.
+            //find the former dbSegment with a valid Id.
             for (var i = 0; i < paras.Count; i++)
             {
                 while (paras[i] >= 0 && _idConverter.Compare(LookupFromSegment(paras[i]), default(IdType)) == 0)
@@ -166,7 +177,7 @@ namespace BESSy.Files
                         var len = length.Clamp(1, int.MaxValue);
 
                         _index = MemoryMappedFile.CreateOrOpen
-                            (@"Global\" + Guid.NewGuid().ToString()
+                            (Guid.NewGuid().ToString()
                             , _segmentStride * len
                             , MemoryMappedFileAccess.ReadWriteExecute
                             , MemoryMappedFileOptions.None
@@ -236,7 +247,7 @@ namespace BESSy.Files
                 var copyBuffer = new byte[Stride];
 
                 var newMap = MemoryMappedFile.CreateOrOpen
-                    (@"Global\" + Guid.NewGuid().ToString()
+                    (Guid.NewGuid().ToString()
                     , items.Count * rowSize
                     , MemoryMappedFileAccess.ReadWriteExecute
                     , MemoryMappedFileOptions.None
@@ -244,7 +255,7 @@ namespace BESSy.Files
                     , HandleInheritability.Inheritable);
 
                 var newIndexMap = MemoryMappedFile.CreateOrOpen
-                    (@"Global\" + Guid.NewGuid().ToString()
+                    (Guid.NewGuid().ToString()
                     , items.Count * _segmentStride
                     , MemoryMappedFileAccess.ReadWriteExecute
                     , MemoryMappedFileOptions.None
@@ -454,7 +465,7 @@ namespace BESSy.Files
                     var newHints = new Dictionary<IdType, int>();
 
                     var newMap = MemoryMappedFile.CreateOrOpen
-                       (@"Global\" + Guid.NewGuid().ToString()
+                       (Guid.NewGuid().ToString()
                        , length * rowSize
                        , MemoryMappedFileAccess.ReadWriteExecute
                        , MemoryMappedFileOptions.None
@@ -462,13 +473,12 @@ namespace BESSy.Files
                        , HandleInheritability.Inheritable);
 
                     var newIndexMap = MemoryMappedFile.CreateOrOpen
-                        (@"Global\" + Guid.NewGuid().ToString()
+                        (Guid.NewGuid().ToString()
                         , length * _segmentStride
                         , MemoryMappedFileAccess.ReadWriteExecute
                         , MemoryMappedFileOptions.None
                         , new MemoryMappedFileSecurity()
                         , HandleInheritability.Inheritable);
-
 
                     Parallel.ForEach(newGroups, delegate(IndexingCPUGroup<IdType> group)
                     {
@@ -510,14 +520,12 @@ namespace BESSy.Files
                                                         var newSegmentBuffer = new byte[_segConverter.Length];
                                                         var copyBuffer = new byte[Stride];
 
-                                                        //var newSegment = subset.StartNewSegment;
-
-                                                        //read id
+                                                        //read prop
                                                         var read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
                                                         var id = _idConverter.FromBytes(idReadBuffer);
                                                         var nextId = default(IdType);
 
-                                                        //skip segment
+                                                        //skip dbSegment
                                                         read = indexView.Read(segReadBuffer, 0, segReadBuffer.Length);
                                                         var seg = _segConverter.FromBytes(segReadBuffer);
 
@@ -526,7 +534,7 @@ namespace BESSy.Files
 
                                                         while (newSegment <= subset.EndNewSegment)
                                                         {
-                                                            //setup segment to be written
+                                                            //setup dbSegment to be written
                                                             newSegmentBuffer = _segConverter.ToBytes(newSegment);
 
                                                             //insert before
@@ -578,7 +586,7 @@ namespace BESSy.Files
                                                                 {
                                                                     //read nextId
                                                                     read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
-                                                                    //skip segment
+                                                                    //skip dbSegment
                                                                     indexView.Position += _segConverter.Length;
 
                                                                     nextId = _idConverter.FromBytes(idReadBuffer);
@@ -587,7 +595,7 @@ namespace BESSy.Files
                                                                     while (read > 0 && _idConverter.Compare(nextId, default(IdType)) == 0 && segment <= group.EndSegment)
                                                                     {
                                                                         read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
-                                                                        //skip segment
+                                                                        //skip dbSegment
                                                                         indexView.Position += _segConverter.Length;
 
                                                                         nextId = _idConverter.FromBytes(idReadBuffer);
@@ -864,7 +872,7 @@ namespace BESSy.Files
 
             List<int> toRemove = new List<int>();
 
-            //find the former segment with a valid Id.
+            //find the former dbSegment with a valid Id.
             for (var i = 0; i < paras.Count; i++)
             {
                 while (_idConverter.Compare(LookupFromSegment(paras[i]), default(IdType)) == 0)
@@ -918,7 +926,7 @@ namespace BESSy.Files
                 if (_hints.ContainsKey(id))
                     return _hints[id];
 
-                var last = _hints.AsParallel().Last(l => _idConverter.Compare(l.Key, id) <= 0);
+                var last = _hints.AsParallel().LastOrDefault(l => _idConverter.Compare(l.Key, id) <= 0);
 
                 return last.Value;
             }
@@ -960,7 +968,7 @@ namespace BESSy.Files
         public virtual IdType LookupFromSegment(int segment)
         {
             if (segment < 0)
-                throw new ArgumentException("segment must be a non negative number.");
+                throw new ArgumentException("dbSegment must be a non negative number.");
 
             using (var lck = IndexSynchronizer.Lock(segment))
             {
@@ -1199,11 +1207,11 @@ namespace BESSy.Files
             return SaveToFile(obj, id, segment);
         }
 
-        [Obsolete]
-        public override bool SaveToFile(EntityType obj, int segment)
-        {
-            throw new NotSupportedException("Use overload instead.");
-        }
+        //[Obsolete]
+        //public override bool SaveToFile(EntityType obj, int segment)
+        //{
+        //    throw new NotSupportedException("Use overload instead.");
+        //}
 
         public virtual bool SaveToFile(EntityType obj, IdType id, int segment)
         {
@@ -1235,6 +1243,8 @@ namespace BESSy.Files
             lock (_syncHints)
                 if (segment % this._segmentsPerHint == 0 && !_hints.ContainsKey(id))
                 _hints[id] = segment;
+
+            _indexCache.Values.Where(i => i.ContainsKey(id)).ToList().ForEach(s => s[id] = segment);
 
             lock (_syncFile)
                 if (segment > Length)
@@ -1296,6 +1306,13 @@ namespace BESSy.Files
         }
 
         #region ICache<int,I> Members
+
+        public int CacheSize { get { return _indexCache.Count; } set { } }
+
+        public int CacheCount()
+        {
+            return _indexCache.Select(i => i.Value.Count()).Aggregate((t, i) => t + i);
+        }
 
         public bool IsNew(IdType id)
         {

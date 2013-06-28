@@ -141,8 +141,9 @@
     <CodeAnalysisIgnoreBuiltInRules>true</CodeAnalysisIgnoreBuiltInRules>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\Tools\Json.NET\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\Tools\Json.NET.Fork\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="nunit.framework">
       <HintPath>..\Tools\nUnit\nunit.framework.dll</HintPath>
@@ -155,6 +156,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -167,19 +169,39 @@
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerRebuildTests.cs" />
     <Compile Include="CachingTests\DatabaseCacheTests.cs" />
     <Compile Include="CryptoTests\RC2Tests.cs" />
+    <Compile Include="DatabaseTests\DatabaseCapacityTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseCRUDTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseQueryTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseTransactionTests.cs" />
     <Compile Include="FileManagerTests\BatchFileManagerTests.cs" />
     <Compile Include="CatalogTests\CatalogCapacityTests.cs" />
     <Compile Include="CatalogTests\CatalogCRUDTests.cs" />
-    <Compile Include="FileManagerTests\SegmentedFileManagerTest.cs" />
+    <Compile Include="FileRepositoryTests\XmlFileRepositoryTests.cs" />
+    <Compile Include="FileTest.cs" />
+    <Compile Include="Indexes\IndexFileTests.cs" />
+    <Compile Include="Indexes\IndexTests.cs" />
+    <Compile Include="Indexes\PrimaryIndexFileTests.cs" />
+    <Compile Include="IndexRepositoryTests\IndexRepositoryBasicTests.cs" />
+    <Compile Include="IndexRepositoryTests\IndexRepositoryCRUDTests.cs" />
     <Compile Include="Mocks\MockBatchFileManager.cs" />
     <Compile Include="Mocks\MockClassA.cs" />
     <Compile Include="Mocks\MockClassB.cs" />
     <Compile Include="Mocks\MockClassC.cs" />
     <Compile Include="Mocks\MockClassD.cs" />
+    <Compile Include="Mocks\MockClassE.cs" />
+    <Compile Include="Mocks\MockFileRepository.cs" />
     <Compile Include="Mocks\MockTransaction.cs" />
     <Compile Include="Mocks\MockTransactionFactory.cs" />
+    <Compile Include="Replication\MultiplePublisherSubscriberTests.cs" />
+    <Compile Include="Replication\PublisherTests.cs" />
+    <Compile Include="Replication\SubscriberTests.cs" />
     <Compile Include="RepositoryTests\RepositoryCryptoTests.cs" />
     <Compile Include="RepositoryTests\RepositoryMethodTests.cs" />
+    <Compile Include="ResourceRepositoryTests\Resources\testRes.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>testRes.resx</DependentUpon>
+    </Compile>
     <Compile Include="SeedTests\Seed32Tests.cs" />
     <Compile Include="SeedTests\Seed64Tests.cs" />
     <Compile Include="SeedTests\SeedGuidTests.cs" />
@@ -190,6 +212,11 @@
     <Compile Include="SerializationTests\JSONFormatterTests.cs" />
     <Compile Include="SerializationTests\ZipFormatterTests.cs" />
     <Compile Include="SynchronizationTests\RowSynchronizerTests.cs" />
+    <Compile Include="Test.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Test.resx</DependentUpon>
+    </Compile>
     <Compile Include="TestResourceFactory.cs" />
     <Compile Include="Mocks\MockStruct.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -197,6 +224,7 @@
     <Compile Include="RepositoryTests\RepositoryCRUDTests.cs" />
     <Compile Include="RepositoryTests\RepositoryLinqTests.cs" />
     <Compile Include="TaskGroups\TaskGroupTests.cs" />
+    <Compile Include="TransactionTests\TransactionManagerTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BESSy\BESSy.csproj">
@@ -208,9 +236,25 @@
       <Name>SevenZip</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
-    <Folder Include="FileRepositoryTests\" />
-    <Folder Include="ResourceRepositoryTests\" />
+    <EmbeddedResource Include="ResourceRepositoryTests\Resources\testRes.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>testRes.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Test.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Test.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ResourceRepositoryTests\Resources\Images\Luna_DIFF.png" />
+    <Content Include="ResourceRepositoryTests\Resources\Images\Luna_MAT.png" />
+    <Content Include="ResourceRepositoryTests\Resources\Images\Luna_NRM.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ResourceRepositoryTests\Resources\Sounds\MiscAngelic.ogg" />
+    <None Include="ResourceRepositoryTests\Resources\Sounds\MiscSitarOutOfTune.ogg" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

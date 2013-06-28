@@ -16,7 +16,7 @@ using NUnit.Framework;
 namespace BESSy.Tests.RepositoryTests
 {
     [TestFixture]
-    public class RepositoryCryptoTests
+    public class RepositoryCryptoTests : FileTest
     {
         ISafeFormatter _bsonFormatter;
         IBatchFileManager<MockClassA> _cryptoFormatter;
@@ -24,7 +24,6 @@ namespace BESSy.Tests.RepositoryTests
         IIndexedEntityMapManager<MockClassA, int> _mapManager;
         IIndexedEntityMapManager<MockClassA, string> _stringMapManager;
         IList<MockClassA> _testEntities;
-        string _testName;
 
         [TestFixtureSetUp()]
         public void FixtureSetup()
@@ -43,12 +42,6 @@ namespace BESSy.Tests.RepositoryTests
             _testEntities = TestResourceFactory.GetMockClassAObjects(3);
         }
 
-        void Cleanup()
-        {
-            if (File.Exists(_testName + ".scenario"))
-                File.Delete(_testName + ".scenario");
-        }
-
         [Test]
         public void TestCryptoLoadsInfoFromExistingZipFileAndUpdatesAndDeletes()
         {
@@ -64,10 +57,10 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverter32()
                 , _bsonFormatter
                 , _cryptoFormatter
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             repo.Load();
+
 
             foreach (var e in _testEntities)
                 repo.Add(e);
@@ -96,8 +89,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverter32()
                 , _bsonFormatter
                 , _cryptoFormatter
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             var sw = new Stopwatch();
             sw.Start();
@@ -111,7 +103,7 @@ namespace BESSy.Tests.RepositoryTests
             var entity = (MockClassC)repo.Fetch(1003);
 
             Assert.IsNotNull(entity);
-            Assert.AreEqual(5, repo.Count());
+            Assert.AreEqual(5, repo.Length);
             Assert.AreEqual("RockMaterial", entity.Name);
 
             entity.Name = "RockMaterialUpdated";
@@ -157,8 +149,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverterString()
                 , _bsonFormatter
                 , _cryptoFormatter
-                , "GetName"
-               , "SetName");
+                , "Name");
 
             repo.Load();
 
@@ -187,8 +178,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverterString()
                 , _bsonFormatter
                 , _cryptoFormatter
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             var sw = new Stopwatch();
             sw.Start();
@@ -202,7 +192,7 @@ namespace BESSy.Tests.RepositoryTests
             var entity = (MockClassC)repo.Fetch("RockMaterial");
 
             Assert.IsNotNull(entity);
-            Assert.AreEqual(4, repo.Count());
+            Assert.AreEqual(4, repo.Length);
             Assert.AreEqual("RockMaterial", entity.Name);
 
             entity.Name = "RockMaterialUpdated";

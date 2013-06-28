@@ -25,6 +25,8 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
 using Newtonsoft.Json;
+using BESSy.Cache;
+using BESSy.Factories;
 
 namespace BESSy.Tests
 {
@@ -83,6 +85,48 @@ namespace BESSy.Tests
             return new IndexMapManager<IdType, PropertyType>(fileName, idConverter, propertyConverter);
         }
 
+        internal static IRepositoryCacheFactory CreateRepositoryCacheFactory()
+        {
+            return new RepositoryCacheFactory(-1);
+        }
+
+        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>()
+        {
+            return new IndexRepositoryFactory<IdType, PropertyType>();
+        }
+
+        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(IBinConverter<IdType> idConverter, IBinConverter<PropertyType> propertyConverter, ISeed<IdType> seed)
+        {
+            return new IndexRepositoryFactory<IdType, PropertyType>(idConverter, propertyConverter, seed);
+        }
+
+        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(int cacheSize, ISeed<IdType> seed)
+        {
+            return CreateIndexFactory<IdType, PropertyType>(new RepositoryCacheFactory(cacheSize), seed);
+        }
+
+        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(IRepositoryCacheFactory cacheFactory)
+        {
+            var indexFactory = new IndexRepositoryFactory<IdType, PropertyType>()
+            {
+                DefaultCacheFactory = cacheFactory
+            };
+
+            return indexFactory;
+        }
+
+        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(IRepositoryCacheFactory cacheFactory, ISeed<IdType> seed)
+        {
+            var indexFactory = new IndexRepositoryFactory<IdType, PropertyType>()
+            {
+                DefaultCacheFactory = cacheFactory,
+                DefaultSeed = seed
+            };
+
+            return indexFactory;
+        }
+
+
         internal static MockClassA CreateRandom()
         {
             return new MockClassC()
@@ -101,6 +145,30 @@ namespace BESSy.Tests
             };
         }
 
+        internal static MockClassD CreateRandomRelation(IRepository<RelationshipEntity<int>, int> repo)
+        {
+            return new MockClassE(repo)
+            {
+                Name = "Class " + random.Next(),
+                Location = new MockStruct()
+                {
+                    X = (float)random.NextDouble(),
+                    Y = (float)random.NextDouble(),
+                    Z = (float)random.NextDouble(),
+                    W = (float)random.NextDouble()
+                },
+                GetSomeCheckSum = new double[] { random.NextDouble(), random.NextDouble() },
+                ReferenceCode = "R " + random.Next(),
+                ReplicationID = Guid.NewGuid(),
+                NamesOfStuff = new string[] { Guid.NewGuid().ToString(), Guid.NewGuid().ToString() },
+                TPSCoverSheet = Guid.NewGuid().ToString(),
+                Es = new Dictionary<int, MockClassE>() { 
+                    { random.Next(), (MockClassE)CreateRandomRelation(repo) },
+                    { random.Next(), (MockClassE)CreateRandomRelation(repo)},
+                 }
+            };
+        }
+
         internal static IList<MockClassA> GetMockClassAObjects(int count)
         {
             var mocks = new List<MockClassA>();
@@ -108,6 +176,18 @@ namespace BESSy.Tests
             Enumerable.Range(0, count)
                 .ToList()
                 .ForEach(i => mocks.Add(CreateRandom()));
+
+
+            return mocks;
+        }
+
+        internal static IList<MockClassD> GetMockClassDObjects(int count, IRepository<RelationshipEntity<int>, int> repo)
+        {
+            var mocks = new List<MockClassD>();
+
+            Enumerable.Range(0, count)
+                .ToList()
+                .ForEach(i => mocks.Add(CreateRandomRelation(repo)));
 
 
             return mocks;

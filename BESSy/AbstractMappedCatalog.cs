@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections.Generic;
@@ -12,25 +23,21 @@ using BESSy.Serialization.Converters;
 using BESSy.Files;
 using System.Threading;
 using BESSy.Cache;
+using BESSy.Factories;
+using BESSy.Serialization;
 
 namespace BESSy
 {
-    public interface IMappedCatalog<EntityType, IdType, PropertyType> : IRepository<EntityType, IdType>
-        , ICache<EntityType, IdType>
-        , ICache<IMappedRepository<EntityType, IdType>, PropertyType>
+    public interface IMappedCatalog<EntityType, IdType, PropertyType> : IRepository<EntityType, IdType>, ISweep, IFlush, ILoad
     {
-        void Load();
-        void Load(IList<PropertyType> catalogs);
-        int CacheSize { get; set; }
-        bool AutoCache { get; set; }
-        bool FileFlushQueueActive { get; }
+        void DetachCatalog(PropertyType catId);
+        IDictionary<IdType, EntityType> GetCache();
     }
 
     public abstract class AbstractMappedCatalog<EntityType, IdType, PropertyType> : IMappedCatalog<EntityType, IdType, PropertyType>
     {
         protected AbstractMappedCatalog()
         {
-            AutoCache = true;
         }
 
         protected IBinConverter<IdType> _idConverter;
@@ -38,48 +45,39 @@ namespace BESSy
 
         protected bool _inFlush = false;
         Queue<long> _flushQueue = new Queue<long>();
-        List<PropertyType> _catalogDeferredCache = new List<PropertyType>();
-
-        Dictionary<PropertyType, IMappedRepository<EntityType, IdType>> _catalogCache = 
-            new Dictionary<PropertyType, IMappedRepository<EntityType, IdType>>();
 
         protected object _syncFlush = new object();
         protected object _syncFlushQueue = new object();
-        protected object _syncCache = new object();
+
         protected IIndexRepository<IdType, PropertyType> _index;
+        protected IRepositoryCache<PropertyType, IIndexedRepository<EntityType, IdType>> _catalogCache;
 
-        protected virtual void UpdateCache(PropertyType catId, IMappedRepository<EntityType, IdType> catalog)
+        protected IBatchFileManager<EntityType> _fileManager;
+        protected ISafeFormatter _mapFormatter;
+        protected Func<EntityType, IdType> _getId;
+        protected Action<EntityType, IdType> _setId;
+        protected Func<EntityType, PropertyType> _getProperty;
+
+        protected string _indexFileNamePath;
+        protected IIndexRepositoryFactory<IdType, PropertyType> _indexFactory;
+        protected IRepositoryCacheFactory _cacheFactory;
+
+        protected virtual IIndexedRepository<EntityType, IdType> GetCatalog(PropertyType catId)
         {
-            lock (_syncCache)
-            {
-                if (AutoCache && _catalogCache.Count > CacheSize)
-                    Sweep();
-
-                if (_catalogCache.ContainsKey(catId))
-                    _catalogCache[catId] = catalog;
-
-                else if (_catalogDeferredCache.Contains(catId))
-                    _catalogCache.Add(catId, catalog);
-
-                else if (AutoCache)
-                {
-                    _catalogDeferredCache.Add(catId);
-                    _catalogCache.Add(catId, catalog);
-                }
-            }
-        }
-
-        protected virtual IMappedRepository<EntityType, IdType> GetCatalog(PropertyType catId)
-        {
-            lock (_syncCache)
-                if (_catalogCache.ContainsKey(catId))
-                    return _catalogCache[catId];
+            if (_catalogCache.Contains(catId))
+                return _catalogCache.GetFromCache(catId);
 
             var cat = GetCatalogFile(catId);
 
-            cat.Load();
+            try
+            {
+                cat.Load();
+            }
+            catch (FileNotFoundException fnfEx) { Trace.TraceError(fnfEx.ToString()); return null; }
+            catch (FieldAccessException faEx) { Trace.TraceError(faEx.ToString()); return null; }
+            catch (FileLoadException flEx) { Trace.TraceError(flEx.ToString()); return null; }
 
-            UpdateCache(catId, cat);
+            _catalogCache.UpdateCache(catId, cat, true, false);
 
             return cat;
         }
@@ -105,10 +103,7 @@ namespace BESSy
 
         protected abstract PropertyType GetCatalogIdFrom(EntityType item);
         protected abstract IdType GetIdFrom(EntityType item);
-        protected abstract IMappedRepository<EntityType, IdType> GetCatalogFile(PropertyType catId);
-
-        public virtual int CacheSize { get; set; }
-        public virtual bool AutoCache { get; set; }
+        protected abstract IIndexedRepository<EntityType, IdType> GetCatalogFile(PropertyType catId);
 
         public virtual bool FileFlushQueueActive
         {
@@ -123,61 +118,38 @@ namespace BESSy
                 if (_index.FileFlushQueueActive)
                     return true;
 
-                lock (_syncCache)
-                    if (_catalogCache.Any(c => c.Value.FileFlushQueueActive))
-                        return true;
+                if (_catalogCache.AsEnumerable().Where(c => c != null).Any(c => c.FileFlushQueueActive))
+                    return true;
 
                 return false;
             }
         }
 
-        public virtual void Load()
+        public virtual int Load()
         {
+            if (File.Exists(_indexFileNamePath))
+                _index = _indexFactory.Create(_indexFileNamePath);
+            else
+                _index = _indexFactory.CreateNew(_indexFileNamePath);
+
             _index.Load();
 
             this._idConverter = (IBinConverter<IdType>)_index.Seed.IdConverter;
             this._propertyConverter = (IBinConverter<PropertyType>)_index.Seed.PropertyConverter;
+
+            _getId = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_index.Seed.IdProperty).GetGetMethod());
+            _setId = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_index.Seed.IdProperty).GetSetMethod());
+            _getProperty = (Func<EntityType, PropertyType>)Delegate.CreateDelegate(typeof(Func<EntityType, PropertyType>), typeof(EntityType).GetProperty(_index.Seed.CategoryIdProperty).GetGetMethod());
+
+            _catalogCache = _cacheFactory.Create<PropertyType, IIndexedRepository<EntityType, IdType>>(true, _cacheFactory.DefaultCacheSize, _propertyConverter);
+
+            if (_catalogCache.CacheSize < 1)
+                _catalogCache.CacheSize = Caching.DetermineOptimumCacheSize(_index.Seed.Stride);
+
+            return 0;
         }
 
-        public virtual void Load(IList<PropertyType> catalogs)
-        {
-            this.Load();
-
-            foreach (var catId in catalogs)
-            {
-                GetCatalog(catId);
-            }
-        }
-
-        #region ICache<IMappedRepository<EntityType,IdType>,PropertyType> Members
-
-        bool ICache<IMappedRepository<EntityType, IdType>, PropertyType>.IsNew(PropertyType id)
-        {
-            return false;
-        }
-
-        bool ICache<IMappedRepository<EntityType, IdType>, PropertyType>.Contains(PropertyType id)
-        {
-            lock (_syncCache)
-                return _catalogCache.ContainsKey(id);
-        }
-
-        IMappedRepository<EntityType, IdType> ICache<IMappedRepository<EntityType, IdType>, PropertyType>.GetFromCache(PropertyType id)
-        {
-            lock (_syncCache)
-                if (_catalogCache.ContainsKey(id))
-                    return _catalogCache[id];
-
-            return default(IMappedRepository<EntityType, IdType>);
-        }
-
-        void ICache<IMappedRepository<EntityType, IdType>, PropertyType>.CacheItem(PropertyType id)
-        {
-            lock (_syncCache)
-                _catalogDeferredCache.Add(id);
-        }
-
-        void ICache<IMappedRepository<EntityType, IdType>, PropertyType>.Detach(PropertyType catId)
+        public void DetachCatalog(PropertyType catId)
         {
             ThreadPool.QueueUserWorkItem(new WaitCallback(BeginDetach), catId);
         }
@@ -195,127 +167,36 @@ namespace BESSy
                     if (_propertyConverter.Compare(catId, default(PropertyType)) == 0)
                         return;
 
-                    IMappedRepository<EntityType, IdType> catalog = null;
+                    if (!_catalogCache.Contains(catId))
+                        return;
 
-                    lock (_syncCache)
-                    {
-                        if (!_catalogCache.ContainsKey(catId))
-                            return;
+                    var catalog = _catalogCache.GetFromCache(catId);
 
-                        catalog = _catalogCache[catId];
-                    }
+                    _catalogCache.Detach(catId);
 
-                    if (!object.Equals(catalog, default(IMappedRepository<EntityType, IdType>)))
-                    {
-                        catalog.Flush();
+                    if (object.Equals(catalog, default(IIndexedRepository<EntityType, IdType>)))
+                        return;
 
-                        while (catalog.FileFlushQueueActive)
-                            Thread.Sleep(100);
+                    catalog.Flush();
 
-                        catalog.Dispose();
-                    }
+                    while (catalog.FileFlushQueueActive)
+                        Thread.Sleep(100);
 
-                    lock (_syncCache)
-                        if (_catalogCache.ContainsKey(catId))
-                            _catalogCache.Remove(catId);
+                    catalog.Dispose();
                 }
-                finally
-                {
-                    _inFlush = false;
-                }
+                finally { _inFlush = false; }
             }
         }
-
-        #endregion
 
         public virtual void Sweep()
         {
-            if (_catalogCache.Count <= CacheSize || CacheSize == 0)
-                return;
-
-            lock (_syncCache)
-            {
-                var diff = (_catalogCache.Count - CacheSize);
-
-                if (diff <= 0)
-                    return;
-
-                var r = _catalogCache.Keys.ToList().GetRange(0, diff).ToList();
-
-                r.ForEach(a =>
-                {
-                    _catalogDeferredCache.RemoveAll(d => _propertyConverter.Compare(d, a) == 0);
-
-                    if (_catalogCache.ContainsKey(a))
-                    {
-                        _catalogCache[a].Flush();
-                        _catalogCache.Remove(a);
-                    }
-                });
-            }
-
+            _catalogCache.Sweep();
             _index.Sweep();
         }
 
-        public int Count()
+        public int Length
         {
-            return _index.Count();
-        }
-
-        public bool IsNew(IdType id)
-        {
-            return false;
-        }
-
-        public bool Contains(IdType id)
-        {
-            var catId = GetCatalogIdFor(id);
-
-            if (_propertyConverter.Compare(catId, default(PropertyType)) == 0)
-                return false;
-
-            lock (_syncCache)
-                if (_catalogCache.ContainsKey(catId))
-                    return _catalogCache[catId].Contains(id);
-
-            return false;
-        }
-
-        public EntityType GetFromCache(IdType id)
-        {
-            var catId = GetCatalogIdFor(id);
-
-            if (_propertyConverter.Compare(catId, default(PropertyType)) == 0)
-                return default(EntityType);
-
-            var cat = GetCatalog(catId);
-
-            return cat.GetFromCache(id);
-        }
-
-        public void CacheItem(IdType id)
-        {
-            _index.CacheItem(id);
-        }
-
-        public void Detach(IdType id)
-        {
-            var catId = GetCatalogIdFor(id);
-
-            //if (_propertyConverter.Compare(catId, default(PropertyType)) == 0)
-            //    throw new KeyNotFoundException(string.Format("Catalog with id {0} not found.", catId));
-
-            lock (_syncCache)
-                if (_catalogCache.ContainsKey(catId))
-                    _catalogCache[catId].Detach(id);
-
-            _index.Detach(id);
-        }
-
-        public void ClearCache()
-        {
-            lock (_syncCache)
-                _catalogDeferredCache.Clear();
+            get { return _index.Length; }
         }
 
         public IdType Add(EntityType item)
@@ -333,19 +214,13 @@ namespace BESSy
             if (_propertyConverter.Compare(catId, default(PropertyType)) == 0)
                 throw new ArgumentNullException("Catalog property can not be null.");
 
-            lock (_syncCache)
-            {
-                var cat = GetCatalog(catId);
+            var cat = GetCatalog(catId);
 
-                var id = cat.Add(item);
+            var id = cat.Add(item);
 
-                _index.Add(new IndexPropertyPair<IdType, PropertyType>(id, catId));
+            _index.Add(new IndexPropertyPair<IdType, PropertyType>(id, catId));
 
-                UpdateCache(catId, cat);
-
-                return id;
-            }
-            
+            return id;
         }
 
         public void AddOrUpdate(EntityType item, IdType id)
@@ -385,7 +260,7 @@ namespace BESSy
                     oldCatId = GetCatalogIdFor(id);
 
                 if (_propertyConverter.Compare(oldCatId, default(PropertyType)) == 0)
-                    throw new InvalidOperationException(string.Format("Entity with id {0} not Found to update.", id));
+                    throw new InvalidOperationException(string.Format("Entity with prop {0} not Found to update.", id));
 
                 var oldCat = GetCatalog(oldCatId);
 
@@ -395,9 +270,6 @@ namespace BESSy
             }
 
             catalog.AddOrUpdate(item, newId);
-
-            lock (_syncCache)
-                UpdateCache(catId, catalog);
 
             _index.Update(new IndexPropertyPair<IdType, PropertyType>(newId, catId), id);
         }
@@ -427,12 +299,17 @@ namespace BESSy
             cat.Delete(id);
         }
 
+        #region Flush 
+
         public void Flush()
         {
             lock (_syncFlushQueue)
                 _flushQueue.Enqueue(DateTime.Now.Ticks);
 
             ThreadPool.QueueUserWorkItem(new WaitCallback(BeginFlush));
+
+            while (!_inFlush)
+                Thread.Sleep(10);
         }
 
         private void BeginFlush(object state)
@@ -452,20 +329,15 @@ namespace BESSy
                 {
                     _inFlush = true;
 
-                    List<IMappedRepository<EntityType, IdType>> staging = null;
+                    var staging = _catalogCache.AsEnumerable();
 
-                    lock (_syncCache)
-                    {
-                        staging = _catalogCache.Values.ToList();
+                    foreach (var cat in staging)
+                        cat.Flush();
 
-                        foreach (var s in staging)
-                            s.Flush();
+                    while (staging.Any(s => s.FileFlushQueueActive))
+                        Thread.Sleep(100);
 
-                        while (staging.Any(s => s.FileFlushQueueActive))
-                            Thread.Sleep(100);
-
-                        _index.Flush();
-                    }
+                    _index.Flush();
 
                     while (_index.FileFlushQueueActive)
                         Thread.Sleep(100);
@@ -485,16 +357,23 @@ namespace BESSy
             }
         }
 
+        #endregion
+
+        public IDictionary<IdType, EntityType> GetCache()
+        {
+            return _catalogCache
+                .AsEnumerable()
+                .Where(c => c != null)
+                .SelectMany(c => c.GetCache())
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+        }
+
         public void Clear()
         {
-            ClearCache();
+            _catalogCache.ClearCache();
 
-            lock (_syncCache)
-                foreach (var c in _catalogCache)
-                    if (c.Value != null)
-                        c.Value.Clear();
-
-            _index.Clear();
+            if (_index != null)
+                _index.Clear();
         }
 
         public virtual void Dispose()
@@ -502,20 +381,18 @@ namespace BESSy
             while (FileFlushQueueActive)
                 Thread.Sleep(100);
 
-            
-
-            foreach (var c in _catalogCache)
-                if (c.Value != null)
-                    c.Value.Dispose();
+            foreach (var c in _catalogCache.AsEnumerable().Where(c => c != null))
+                    c.Dispose();
 
             lock (_syncFlush)
                 if (_index != null)
                     _index.Dispose();
 
-            ClearCache();
+            Clear();
 
             _index = null;
         }
 
+        
     }
 }

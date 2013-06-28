@@ -14,12 +14,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 */
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Threading.Tasks;
+using BESSy.Cache;
 using BESSy.Extensions;
 using BESSy.Parallelization;
 using BESSy.Seeding;
@@ -29,22 +31,39 @@ using BESSy.Synchronization;
 using BESSy.Transactions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Threading;
 
 namespace BESSy.Files
 {
+    public delegate void Reorganized<EntityType>();
+    public delegate void Committed<EntityType>(IList<TransactionResult<EntityType>> results, IDisposable transaction);
     public delegate void SaveFailed<EntityType>(SaveFailureInfo<EntityType> saveFailInfo);
-    public delegate void CommitFailed<IdType, EntityType>( CommitFailureInfo<IdType, EntityType> commitFailInfo);
+    public delegate void CommitFailed<EntityType>(CommitFailureInfo<EntityType> commitFailInfo);
 
-    public interface IAtomicFileManager<IdType, EntityType> : IQueryableFile, IFileManager, IDisposable
+    public interface IAtomicFileManager<EntityType> : IQueryableFile, IFileManager, IDisposable, ILoad
     {
+        string FileNamePath { get; }
+        int MaxLength { get; }
+        int SeedPosition { get; }
+        int Length { get; }
+        int Stride { get; }
+        bool FileFlushQueueActive { get; }
         EntityType LoadSegmentFrom(int segment);
         void SaveSegment(EntityType obj, int segment);
         int SaveSegment(EntityType obj);
         void DeleteSegment(int segment);
-        IDictionary<IdType, int> CommitTransaction(ITransaction<IdType, EntityType> trans, IDictionary<IdType, int> segments);
+        IDictionary<IdType, int> CommitTransaction<IdType>(ITransaction<IdType, EntityType> trans, IDictionary<IdType, int> segments);
+        void Reorganize<IdType>(IBinConverter<IdType> converter, Func<JObject, IdType> idSelector);
+        void Rebuild(Guid transactionId, int newStride, int newLength, int newSeedStride);
+        void Rebuild(int newStride, int newLength, int newSeedStride);
+
+        event SaveFailed<EntityType> SaveFailed;
+        //event CommitFailed<EntityType> CommitFailed;
+        event Committed<EntityType> TransactionCommitted;
+        event Reorganized<EntityType> Reorganized;
     }
 
-    public class AtomicFileManager<IdType, EntityType> : IAtomicFileManager<IdType, EntityType>
+    public class AtomicFileManager<EntityType> : IAtomicFileManager<EntityType>
     {
         //TODO: this needs to come from the Formatter, not the file manager. That way the delimeter can be specific to the encoding.
         internal readonly static ArraySegment<byte> SeedStart = new ArraySegment<byte>
@@ -52,6 +71,10 @@ namespace BESSy.Files
 
         internal readonly static ArraySegment<byte> SegmentDelimeter = new ArraySegment<byte>
             (new byte[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 });
+
+        public AtomicFileManager(string fileNamePath)
+            : this(fileNamePath, Environment.SystemPageSize.Clamp(2048, 8192), new BSONFormatter())
+        { }
 
         public AtomicFileManager(string fileNamePath, IQueryableFormatter formatter)
             : this(fileNamePath, Environment.SystemPageSize.Clamp(2048, 8192), formatter)
@@ -62,23 +85,28 @@ namespace BESSy.Files
         { }
 
         public AtomicFileManager(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
-            : this(fileNamePath, bufferSize, 0, formatter, rowSynchronizer)
+            : this(fileNamePath, bufferSize, 0, 0, formatter, rowSynchronizer)
         { }
 
-        public AtomicFileManager(string fileNamePath, int bufferSize, int startingSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+        public AtomicFileManager(string fileNamePath, int bufferSize, int startingSize, int maximumBlockSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
         {
             _startingSize = startingSize;
+            _maximumBlockSize = maximumBlockSize;
             _bufferSize = bufferSize;
             _formatter = formatter;
-            _fileNamePath = fileNamePath;
+            FileNamePath = fileNamePath;
             _rowSynchronizer = rowSynchronizer;
             _lookupGroups = new List<IndexingCPUGroup<int>>();
-            _segmentSeed = new Seed32(0);
         }
 
-        static int GetStrideFor(int length)
+        protected static int GetStrideFor(int length)
         {
             return (int)(((length / 64) + 1) * 64);
+        }
+
+        protected static int GetPositionFor(long length)
+        {
+            return (int)(((length / 512) + 1) * 512);
         }
 
         protected static MemoryMappedFile OpenMemoryMap(string fileNamePath, FileStream fileStream)
@@ -86,12 +114,20 @@ namespace BESSy.Files
             var fi = new FileInfo(fileNamePath);
             fi.Directory.Create();
 
+            MemoryMappedFileSecurity security = new MemoryMappedFileSecurity();
+            security.AddAccessRule
+                (new System.Security.AccessControl.AccessRule<MemoryMappedFileRights>
+                    ("everyone", MemoryMappedFileRights.FullControl
+                    , System.Security.AccessControl.AccessControlType.Allow));
+
+            GC.Collect();
+
             return MemoryMappedFile.CreateFromFile
                 (fileStream
-                , "Global\\" + fileNamePath + ".mapping"
+                , fileNamePath + ".mapping"
                 , fileStream.Length
                 , MemoryMappedFileAccess.ReadWrite //Execute
-                , new MemoryMappedFileSecurity()
+                , security
                 , HandleInheritability.Inheritable
                 , true);
         }
@@ -111,17 +147,21 @@ namespace BESSy.Files
             return (((seedPosition + (length * (long)stride)) / Environment.SystemPageSize) + 1) * Environment.SystemPageSize;
         }
 
-        object _syncRoot = new object();
-        IQueryableFormatter _formatter;
-        ISeed<Int32> _segmentSeed;
+        
         int _bufferSize;
         int _startingSize;
-        string _fileNamePath;
-        string _ioError = "File name {0}, could not be found or accessed: {1}.";
-        string _serilizerError = "File could not be serialized : \r\n {0} \r\n {1}";
+        int _maximumBlockSize;
+        
         MemoryMappedFile _fileMap;
-        FileStream _fileStream;
 
+        protected object _syncRoot = new object();
+        protected string _ioError = "File name {0}, could not be found or accessed: {1}.";
+        protected string _serializerError = "File could not be serialized : \r\n {0} \r\n {1}";
+        protected Stack<int> _operations = new Stack<int>();
+
+        protected FileStream _fileStream;
+        protected IQueryableFormatter _formatter;
+        protected virtual ISeed<Int32> _seed { get; set; }
         protected IList<IndexingCPUGroup<int>> _lookupGroups { get; set; }
         protected IRowSynchronizer<int> _rowSynchronizer { get; set; }
 
@@ -140,14 +180,14 @@ namespace BESSy.Files
             return length + ((int)Math.Ceiling(length * .10)).Clamp(GetMinimumDatabaseSize(), 10000);
         }
 
-        protected void CloseFile()
+        protected virtual void CloseFile()
         {
             SaveSeed();
 
             if (_fileMap != null)
                 _fileMap.Dispose();
 
-            if (_segmentSeed != null)
+            if (_seed != null)
                 _fileStream.SetLength(SeedPosition + ((Length + 1) * Stride));
 
             _fileStream.Flush();
@@ -155,21 +195,21 @@ namespace BESSy.Files
             _fileStream.Dispose();
         }
 
-        protected void InitializeFileMap()
+        protected virtual void InitializeFileMap()
         {
             if (_fileMap != null)
                 _fileMap.Dispose();
 
-            _fileMap = OpenMemoryMap(_fileNamePath, _fileStream);
+            _fileMap = OpenMemoryMap(FileNamePath, _fileStream);
 
             var groups = TaskGrouping.GetSegmentedTaskGroups(MaxLength, Stride);
 
             _lookupGroups = TaskGrouping.GetCPUGroupsFor(groups.ToDictionary(g => g, g => g));
         }
 
-        protected void InitializeFileStream(FileStream fileStream)
+        protected virtual  void InitializeFileStream(FileStream fileStream, int length)
         {
-            MaxLength = GetSizeWithGrowthFactor(Length);
+            MaxLength = GetSizeWithGrowthFactor(length);
 
             var size = GetFileSizeFor(SeedPosition, MaxLength, Stride);
 
@@ -181,46 +221,71 @@ namespace BESSy.Files
             if (_fileStream != null)
                 CloseFile();
 
-            _fileStream = OpenFile(_fileNamePath, _bufferSize);
+            _fileStream = OpenFile(FileNamePath, _bufferSize);
 
-            InitializeFileStream(_fileStream);
+            InitializeFileStream(_fileStream, Length);
         }
 
         protected Stream GetWritableFileStream(int segment, int count)
         {
-            return _fileMap.CreateViewStream(segment * Stride, count * Stride, MemoryMappedFileAccess.Write);
+            return _fileMap.CreateViewStream(SeedPosition + (segment * Stride), count * Stride, MemoryMappedFileAccess.Write);
         }
 
         protected Stream GetReadableFileStream(int segment, int count)
         {
-            return _fileMap.CreateViewStream(segment * Stride, count * Stride, MemoryMappedFileAccess.Read);
+            return _fileMap.CreateViewStream(SeedPosition + (segment * Stride), count * Stride, MemoryMappedFileAccess.Read);
         }
 
-        protected long SaveSeed()
+        protected virtual void InitializeSeedFrom(FileStream fileStream)
         {
-            using (var seedStream = _formatter.FormatObjStream(_segmentSeed))
+            _seed = LoadSeedFrom<int>(fileStream);
+        }
+
+        protected virtual void InitializeSeed()
+        {
+            _seed = new Seed32(0);
+        }
+
+        protected virtual void ReinitializeSeed(int recordsWritten)
+        {
+            _seed = new Seed32(recordsWritten);
+        }
+
+        protected virtual ISeed<SeedType> GetDefaultSeed<SeedType>()
+        {
+            return (ISeed<SeedType>)(object)new Seed32();
+        }
+
+        protected virtual long SaveSeed()
+        {
+            var seedStream = _formatter.FormatObjStream(_seed);
+
+            try
             {
-                if (seedStream.Length + SegmentDelimeter.Array.Length > SeedPosition)
-                    Rebuild(Stride, Length, (int)seedStream.Length + SegmentDelimeter.Array.Length);
+                if (GetPositionFor(seedStream.Length + SegmentDelimeter.Array.Length) > SeedPosition)
+                {
+                    Rebuild(Stride, Length, GetPositionFor(seedStream.Length + SegmentDelimeter.Array.Length));
+                    seedStream = _formatter.FormatObjStream(_seed);
+                }
 
                 return SaveSeed(_fileStream, seedStream, SeedPosition);
             }
+            finally { if (seedStream != null) seedStream.Dispose(); }
         }
 
-        protected long SaveSeed(FileStream fileStream, Stream seedStream, int seedStride)
+        protected virtual long SaveSeed(FileStream fileStream, Stream seedStream, int seedStride)
         {
 
 #if DEBUG
             if (seedStream == null)
                 throw new ArgumentNullException("seed");
 #endif
-
-            try
+            lock (_syncRoot)
             {
-                seedStream.Position = 0;
-
-                lock (_syncRoot)
+                try
                 {
+                    seedStream.Position = 0;
+
                     using (var allLock = _rowSynchronizer.LockAll())
                     {
                         fileStream.Position = 0;
@@ -240,22 +305,23 @@ namespace BESSy.Files
 
                         return position;
                     }
+
                 }
+                catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
+                catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
+                catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serilizerError, jsEx.InnerException, jsEx)); throw; }
-            catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
         }
 
-        protected ISeed<int> LoadSeedFrom(FileStream fileStream)
+        protected ISeed<IdType> LoadSeedFrom<IdType>(FileStream fileStream)
         {
-            try
+            lock (_syncRoot)
             {
-                if (fileStream.Length < SegmentDelimeter.Array.Length)
-                    return _segmentSeed;
-
-                lock (_syncRoot)
+                try
                 {
+                    if (fileStream.Length < SegmentDelimeter.Array.Length)
+                        return (ISeed<IdType>)(object)_seed;
+
                     var pos = fileStream.Position = 0;
 
                     var match = SegmentDelimeter.Array[0];
@@ -268,7 +334,7 @@ namespace BESSy.Files
                     ArraySegment<byte> s = new ArraySegment<byte>(buffer, 0, SeedStart.Array.Length);
 
                     if (!s.Equals<byte>(SeedStart))
-                        return new Seed32();
+                        return GetDefaultSeed<IdType>();
 
                     pos += (SeedStart.Array.Length);
                     buffer = buffer.Skip((int)pos).ToArray();
@@ -289,14 +355,14 @@ namespace BESSy.Files
 
                                     fileStream.Position = pos + index + delLength;
 
-                                    var seed = _formatter.UnformatObj<ISeed<int>>(bufferedStream);
+                                    var seed = _formatter.UnformatObj<ISeed<IdType>>(bufferedStream);
 
                                     fileStream.Position += SegmentDelimeter.Array.Length;
 
                                     if (seed.MinimumSeedStride >= fileStream.Position)
                                         fileStream.Position = seed.MinimumSeedStride;
-                                    else
-                                        seed.MinimumSeedStride = (int)fileStream.Position;
+                                    //else
+                                    //    seed.MinimumSeedStride = (int)fileStream.Position;
 
                                     return seed;
                                 }
@@ -311,20 +377,22 @@ namespace BESSy.Files
                         }
                     }
 
-                    return new Seed32();
+                    return GetDefaultSeed<IdType>();
                 }
+                catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
+                catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
+                catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serilizerError, jsEx.InnerException, jsEx)); throw; }
-            catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
         }
-        
+
+        public string FileNamePath { get; protected set; }
         public int MaxLength { get; protected set; }
         public string WorkingPath { get; set; }
         public int Pages { get { return _lookupGroups.Count; } }
-        public int SeedPosition { get { return _segmentSeed.MinimumSeedStride; } }
-        public int Length { get { return _segmentSeed.LastSeed; } }
-        public int Stride { get { return _segmentSeed.Stride; } }
+        public virtual int SeedPosition { get { return _seed.MinimumSeedStride; } protected set { _seed.MinimumSeedStride = value; } }
+        public virtual int Length { get { return _seed.LastSeed; } }
+        public virtual int Stride { get { return _seed.Stride; } protected set { _seed.Stride = value; } }
+        public bool FileFlushQueueActive { get { return _rowSynchronizer.HasLocks(); } }
 
         public Stream GetWritableFileStream(string fileNamePath)
         {
@@ -340,23 +408,21 @@ namespace BESSy.Files
                 , _bufferSize, true);
         }
 
-        public void Load()
+        public virtual int Load()
         {
             lock (_syncRoot)
             {
                 using (_rowSynchronizer.LockAll())
                 {
-                    ISeed<int> seed = new Seed32();
-
-                    var fi = new FileInfo(_fileNamePath);
+                    var fi = new FileInfo(FileNamePath);
 
                     if (!fi.Exists)
                     {
-                        _segmentSeed = seed;
+                        InitializeSeed();
 
                         _fileStream = fi.Create();
 
-                        InitializeFileStream(_fileStream);
+                        InitializeFileStream(_fileStream, 0);
                         InitializeFileMap();
                     }
                     else
@@ -365,7 +431,7 @@ namespace BESSy.Files
                         {
                             fs.Position = 0;
 
-                            _segmentSeed = LoadSeedFrom(fs);
+                            InitializeSeedFrom(fs);
 
                             fs.Close();
                         }
@@ -373,24 +439,34 @@ namespace BESSy.Files
                         InitializeFileStream();
                         InitializeFileMap();
                     }
+
+                    if (_maximumBlockSize <= 0)
+                        _maximumBlockSize = (Caching.DetermineOptimumCacheSize(Stride) / 2).Clamp(0, MaxLength);
+
+                    return Length;
                 }
             }
         }
 
         /// <summary>
-        /// Saves the entity at the specified segment position.
+        /// Saves the entity at the specified dbSegment position.
         /// </summary>
         /// <param name="obj">The entity to be saved.</param>
         /// <param name="segment"></param>
         /// <returns></returns>
-        public void SaveSegment(EntityType obj, int segment)
+        public virtual void SaveSegment(EntityType obj, int segment)
         {
             try
             {
                 using (var inStream = _formatter.FormatObjStream(obj))
                 {
-                    if (inStream.Length > Stride)
-                    { } //InvokeSaveFailed( Failed = true, NewRowSize = (int)inStream.Length };
+                    if (inStream.Length > Stride || segment > MaxLength)
+                        InvokeSaveFailed(obj, segment, GetStrideFor((int)inStream.Length), GetSizeWithGrowthFactor(segment));
+                    
+                        while (segment > _seed.LastSeed)
+                            lock (_syncRoot)
+                                //open this dbSegment # as available for use.
+                                _seed.Open(_seed.Increment());
 
                     using (var readLock = _rowSynchronizer.Lock(segment, FileAccess.Write, FileShare.Read))
                     {
@@ -403,45 +479,64 @@ namespace BESSy.Files
                     }
                 }
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serilizerError, jsEx.InnerException, jsEx)); throw; }
+            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
             catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
             catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
         }
 
-        public int SaveSegment(EntityType obj)
+        public virtual int SaveSegment(EntityType obj)
         {
             try
             {
-                using (var inStream = _formatter.FormatObjStream(obj))
+                using (_rowSynchronizer.Lock(int.MaxValue, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    var newRowSize = (int)inStream.Length;
-
-                    if (newRowSize > Stride && _segmentSeed.Peek() > MaxLength)
-                        InvokeSaveFailed(obj, newRowSize, GetSizeWithGrowthFactor(Length));
-                    else if (newRowSize > Stride)
-                        InvokeSaveFailed(obj, newRowSize, GetSizeWithGrowthFactor(Length));
-
-                    var nextSeed = _segmentSeed.Increment();
-
-                    using (var readLock = _rowSynchronizer.Lock(nextSeed, FileAccess.Write, FileShare.Read))
+                    using (var inStream = _formatter.FormatObjStream(obj))
                     {
-                        using (var stream = GetWritableFileStream(nextSeed, 1))
+                        var newRowSize = (int)inStream.Length;
+
+                        lock (_syncRoot)
                         {
-                            inStream.WriteAllTo(stream);
+                            if (newRowSize > Stride)
+                            {
+                                InvokeSaveFailed(obj, 0
+                                    , newRowSize > Stride ? GetStrideFor(newRowSize) : Stride
+                                    , GetSizeWithGrowthFactor(Length));
 
-                            stream.Flush();
+                                return 0;
+                            }
+                            else if (_seed.Peek() > MaxLength)
+                            {
+                                InvokeSaveFailed(obj, 0
+                                    , Stride
+                                    , GetSizeWithGrowthFactor(Length));
+                            }
                         }
-                    }
 
-                    return nextSeed;
+                        var nextSeed = _seed.Increment();
+
+                        if (nextSeed > MaxLength)
+                            throw new InvalidOperationException("Database length is to short for this transaction, rebuild the database first. " + nextSeed + " " + MaxLength);
+
+                        using (var readLock = _rowSynchronizer.Lock(nextSeed, FileAccess.Write, FileShare.Read))
+                        {
+                            using (var stream = GetWritableFileStream(nextSeed, 1))
+                            {
+                                inStream.WriteAllTo(stream);
+
+                                stream.Flush();
+                            }
+                        }
+
+                        return nextSeed;
+                    }
                 }
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serilizerError, jsEx.InnerException, jsEx)); throw; }
+            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
             catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
             catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
         }
 
-        public void DeleteSegment(int segment)
+        public virtual void DeleteSegment(int segment)
         {
             try
             {
@@ -456,46 +551,118 @@ namespace BESSy.Files
 
                         stream.Flush();
 
-                        _segmentSeed.Open(segment);
+                        _seed.Open(segment);
                     }
                 }
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serilizerError, jsEx.InnerException, jsEx)); throw; }
             catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
             catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
         }
 
-        public IDictionary<IdType, int> CommitTransaction(ITransaction<IdType, EntityType> trans, IDictionary<IdType, int> segments)
+        public virtual IDictionary<IdType, int> CommitTransaction<IdType>(ITransaction<IdType, EntityType> trans, IDictionary<IdType, int> segments)
         {
+            Trace.TraceInformation("Filemanager committing transaction");
+            int segment = 0;
+            object syncBuffer = new object();
+
             try
             {
                 var actions = trans.GetEnlistedActions();
-                Dictionary<IdType, Stream> buffers = new Dictionary<IdType, Stream>();
+                IDictionary<IdType, Stream> buffers = new Dictionary<IdType, Stream>();
                 Dictionary<IdType, int> returnSegments = new Dictionary<IdType, int>();
+                IList<TransactionResult<EntityType>> results = new List<TransactionResult<EntityType>>();
 
-                foreach (var action in actions.Where(a => a.Value.Action != Action.Delete))
-                    buffers.Add(action.Key, _formatter.FormatObjStream(action.Value.Entity));
+                KeyValuePair<IdType, EnlistedAction<IdType, EntityType>>[] updates;
+                KeyValuePair<IdType, EnlistedAction<IdType, EntityType>>[] deletes;
 
-                foreach (var action in actions.Where(a => a.Value.Action == Action.Delete))
-                    buffers.Add(action.Key, new MemoryStream());
+                var maxRowSize = 0;
 
-                var maxRowSize = (int)buffers.Values.Max(s => s.Length);
+                Parallel.Invoke(
+                    new System.Action(delegate
+                        {
+                            updates = actions.Where
+                                (a => (a.Value.Action == Action.Create
+                                || (a.Value.Action == Action.Update && segments[a.Key] > -1))).ToArray();
+
+                            if (updates.Count() <= 0)
+                                return;
+
+                            int rem = 0;
+                            var count = Math.DivRem(updates.Length, Environment.ProcessorCount, out rem);
+                            var groups = Environment.ProcessorCount;
+
+                            if (updates.Length <= Environment.ProcessorCount * 12)
+                            {
+                                count = updates.Length;
+                                groups = 1;
+                                rem = 0;
+                            }
+
+                            Parallel.For(0, rem > 0 ? groups + 1 : groups, delegate(int g)
+                            {
+                                var buffer = new Dictionary<IdType, Stream>();
+
+                                if (rem > 0 && g == groups)
+                                    for (var i = (g * count); i < (g * count) + rem; i++)
+                                        buffer.Add(updates[i].Key, _formatter.FormatObjStream(updates[i].Value.Entity));
+                                else
+                                    for (var i = (g * count); i < (g * count) + count; i++)
+                                        buffer.Add(updates[i].Key, _formatter.FormatObjStream(updates[i].Value.Entity));
+
+                                lock (syncBuffer)
+                                {
+                                    buffers.Merge(buffer);
+
+                                    maxRowSize = Math.Max(maxRowSize, (int)buffer.Max(b => b.Value.Length));
+                                }
+                            });
+                        })
+                    , new System.Action(delegate
+                        {
+                            deletes = actions.Where
+                                (a => a.Value.Action == Action.Delete
+                                && segments.ContainsKey(a.Key) && segments[a.Key] > -1).ToArray();
+
+                            var buffer = new Dictionary<IdType, Stream>();
+
+                            foreach (var d in deletes)
+                                buffer.Add(d.Key, new MemoryStream());
+
+                            lock (syncBuffer)
+                                buffers.Merge(buffer);
+                        })
+                    );
+
+                if (buffers.Count == 0)
+                    return returnSegments;
+
                 var newRows = actions.Values.Count(a => a.Action == Action.Create);
+
+                bool fail = false;
+
+                lock (_syncRoot)
+                    if (maxRowSize > Stride || newRows >= MaxLength - Length)
+                        fail = true;
+
+                if (fail)
+                    Rebuild(trans.Id
+                        , Math.Max(GetStrideFor(maxRowSize), Stride)
+                        , Math.Max(MaxLength, GetSizeWithGrowthFactor(Length + newRows))
+                        , SeedPosition);
 
                 using (var lockAll = _rowSynchronizer.LockAll())
                 {
-                    if (maxRowSize > Stride || newRows > MaxLength - Length)
-                    { InvokeCommitFailed(trans, maxRowSize, Length + newRows); }
-
                     foreach (var buffer in buffers)
                     {
                         var action = actions[buffer.Key].Action;
 
-                        int segment = 0;
-                        if (action == Action.Create)
-                            segment = _segmentSeed.Increment();
+                        if (action != Action.Delete && (!segments.ContainsKey(buffer.Key) || segments[buffer.Key] == 0))
+                            segment = _seed.Increment();
                         else
                             segment = segments[buffer.Key];
+
+                        if (segment > MaxLength)
+                            throw new InvalidOperationException("Database length is to short for this transaction, rebuild the database first. " + segment + " " + MaxLength);
 
                         using (var stream = GetWritableFileStream(segment, 1))
                         {
@@ -504,22 +671,32 @@ namespace BESSy.Files
                             stream.Flush();
                         }
 
+                        var a = actions[buffer.Key];
                         if (action != Action.Delete)
+                        {
                             returnSegments.Add(buffer.Key, segment);
+                            results.Add(new TransactionResult<EntityType>(segment, a.Action, a.Entity));
+                        }
                         else
-                            _segmentSeed.Open(segment);
+                        {
+                            _seed.Open(segment);
+                            results.Add(new TransactionResult<EntityType>(segment, Action.Delete, a.Entity));
+                        }
                     }
                 }
 
+                InvokeTransactionCommitted<IdType>(results, trans);
+
                 return returnSegments;
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serilizerError, jsEx.InnerException, jsEx)); throw; }
+            catch (UnauthorizedAccessException unAcEx) { Trace.TraceError(String.Format("Invalid dbSegment specified {0} for file length {1}, {2}", segment, MaxLength, unAcEx)); throw; }
+            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
             catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
             catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
             finally { GC.Collect(); }
         }
 
-        public EntityType LoadSegmentFrom(int segment)
+        public virtual EntityType LoadSegmentFrom(int segment)
         {
             try
             {
@@ -536,18 +713,32 @@ namespace BESSy.Files
             catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
         }
 
-        public JObject[] GetPage(int page)
+        public virtual int GetSegmentForPage(int page)
         {
-            List<JObject> queryPage = new List<JObject>();
+            return _lookupGroups[page].StartSegment;
+        }
 
-            lock (_syncRoot)
+        public virtual JObject[] GetPage(int page)
+        {
+            using (_rowSynchronizer.Lock(int.MaxValue, FileAccess.Read, FileShare.ReadWrite))
             {
-                if (page > _lookupGroups.Count)
-                    return queryPage.ToArray();
+                List<JObject> queryPage = new List<JObject>();
 
-                var group = _lookupGroups[page];
+                //Trace.TraceInformation("Filemanager retreiving page {0}", page);
+                IndexingCPUGroup<int> group;
 
-                using (var rowLock = _rowSynchronizer.Lock(group.StartSegment, group.EndSegment))
+                lock (_syncRoot)
+                {
+                    if (page >= _lookupGroups.Count)
+                        return queryPage.ToArray();
+
+                    group = _lookupGroups[page];
+
+                    if (group.StartSegment > Length)
+                        return queryPage.ToArray();
+                }
+
+                using (var rowLock = _rowSynchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
                 {
                     var bufferSize = Stride > Environment.SystemPageSize ? Environment.SystemPageSize : Stride;
 
@@ -558,7 +749,7 @@ namespace BESSy.Files
                             using (var outStream = new MemoryStream())
                             {
                                 if (stream.WriteSegmentTo(outStream, bufferSize, Stride, Stride))
-                                    queryPage.Add(_formatter.Parse(outStream));
+                                    queryPage.Add(_formatter.Parse(outStream).Add<int>("___segment", i));
                             }
                         }
                     }
@@ -567,21 +758,24 @@ namespace BESSy.Files
                 return queryPage.ToArray();
             }
         }
+   
 
-        public IEnumerator<JObject[]> GetEnumerator()
+        public IEnumerable<JObject[]> AsEnumerable()
         {
             return new QueryEnumerator(this);
         }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        public IEnumerable<JObject[]> AsReverseEnumerable()
         {
-            return GetEnumerator();
+            return new ReverseQueryEnumerator(this);
         }
 
         #region Rebuild
 
-        private void ReplaceDataFile(string newFileName, int newStride, int newSeedStride)
+        protected virtual void ReplaceDataFile(string newFileName, int newStride, int newLength, int newSeedStride)
         {
+            Trace.TraceInformation("Filemanager replacing datafile");
+
             using (var lockAll = _rowSynchronizer.LockAll())
             {
                 if (_fileStream != null)
@@ -590,34 +784,34 @@ namespace BESSy.Files
                         _fileMap.Dispose();
 
                     _fileStream.Flush();
+
+                    if (_seed != null)
+                        _fileStream.SetLength(SeedPosition + ((Length + 1) * Stride));
+
                     _fileStream.Close();
                     _fileStream.Dispose();
                     _fileStream = null;
                 }
 
-                File.Replace(newFileName, _fileNamePath, _fileNamePath + ".old", true);
+                File.Replace(newFileName, FileNamePath, FileNamePath + ".old", true);
 
-                _segmentSeed.Stride = newStride;
-                _segmentSeed.MinimumSeedStride = newSeedStride;
+                this.Stride = newStride;
+                this.SeedPosition = newSeedStride;
 
-                _fileStream = OpenFile(_fileNamePath, _bufferSize);
+                _fileStream = OpenFile(FileNamePath, _bufferSize);
 
-                InitializeFileStream(_fileStream);
+                InitializeFileStream(_fileStream, newLength);
                 InitializeFileMap();
-
-                SaveSeed();
             }
         }
 
-        private void CopySegmentTo(int newStride, int newSeedPosition, string newFileName, int startSegment, int endsegment)
+        protected void CopySegmentTo(int newStride, int newSeedPosition, string newFileName, int startSegment, int endsegment)
         {
-            var buffer = new byte[newStride];
-
             using (var readLock = _rowSynchronizer.Lock(new Range<int>(startSegment, endsegment), FileAccess.Read, FileShare.None))
             {
                 using (var inStream = GetReadableFileStream(startSegment, (endsegment - startSegment) + 1))
                 {
-                    inStream.Position = SeedPosition + (startSegment * Stride);
+                    //inStream.Position = SeedPosition + (startSegment * Stride);
 
                     using (var outStream = GetWritableFileStream(newFileName))
                     {
@@ -628,7 +822,7 @@ namespace BESSy.Files
                         for (var i = startSegment; i <= endsegment; i++)
                         {
                             if (!inStream.WriteSegmentTo(outStream, bufferSize, newStride, Stride))
-                                _segmentSeed.Open(i);
+                                _seed.Open(i);
                         }
 
                         outStream.Flush();
@@ -640,71 +834,203 @@ namespace BESSy.Files
             }
         }
 
-        public void Rebuild(int newStride, int newLength, int newSeedStride)
+        //public virtual void Rebuild(int length)
+        //{
+        //    Trace.TraceInformation("Filemanager rebuilding datafile length {0}", length);
+
+        //    lock (_syncRoot)
+        //    {
+        //        using (var lockAll = _rowSynchronizer.LockAll())
+        //        {
+        //            if (_fileStream != null)
+        //            {
+        //                SaveSeed();
+
+        //                if (_fileMap != null)
+        //                    _fileMap.Dispose();
+
+        //                _fileStream.Flush();
+
+        //                if (_seed != null)
+        //                    _fileStream.SetLength(SeedPosition + ((length + 1) * Stride));
+
+        //                _fileStream.Close();
+        //                _fileStream.Dispose();
+        //                _fileStream = null;
+        //            }
+
+        //            _fileStream = OpenFile(FileNamePath, _bufferSize);
+
+        //            InitializeFileStream(_fileStream, length);
+        //            InitializeFileMap();
+        //        }
+        //    }
+
+        //    InvokeReorganized();
+        //}
+
+        public virtual void Rebuild(int newStride, int newLength, int newSeedStride)
         {
             Rebuild(Guid.NewGuid(), newStride, newLength, newSeedStride);
         }
 
-        public void Rebuild(Guid transactionId, int newStride, int newLength, int newSeedStride)
+        public virtual void Rebuild(Guid transactionId, int newStride, int newLength, int newSeedStride)
         {
-            if (newSeedStride <= 0)
-                newSeedStride = SeedPosition;
-            if (newLength <= 0)
-                newLength = MaxLength;
-            if (newStride <= 0)
-                newStride = Stride;
+            Trace.TraceInformation("Filemanager rebuilding seedposition {0}, rowsize {1}, and length {2}", newSeedStride, newStride, newLength);
 
-            var newFileName = transactionId.ToString() + ".rebuild";
-            var fi = new FileInfo(newFileName);
-            if (!fi.Exists)
-                using (var nfs = fi.Create())
+            using (_rowSynchronizer.Lock(int.MaxValue, FileAccess.Read, FileShare.ReadWrite))
+            {
+                if (newSeedStride <= 0)
+                    newSeedStride = Math.Max(GetPositionFor(_formatter.FormatObj(_seed).Length + SegmentDelimeter.Array.Length), SeedPosition);
+                if (newLength <= 0)
+                    newLength = MaxLength;
+                if (newStride <= 0)
+                    newStride = Stride;
+
+                var newFileName = transactionId.ToString() + ".rebuild";
+                var fi = new FileInfo(newFileName);
+                if (!fi.Exists)
+                    using (var nfs = fi.Create())
+                    {
+                        nfs.SetLength(GetFileSizeFor(newSeedStride, newLength, newStride));
+                        nfs.Flush();
+                    }
+
+                lock (_syncRoot)
                 {
-                    nfs.SetLength(GetFileSizeFor(newSeedStride, newLength, newStride));
-                    nfs.Flush();
+                    if (newStride > Stride || newSeedStride > SeedPosition)
+                    {
+                        var tasks = TaskGrouping.GetSegmentedTaskGroups(Length, Stride);
+                        var taskgroups = new Dictionary<int, int>();
+
+                        tasks.ForEach(t => taskgroups.Add(t, t));
+
+                        var grouping = TaskGrouping.GetCPUGroupsFor<int>(taskgroups);
+
+                        Parallel.ForEach(grouping, delegate(IndexingCPUGroup<int> group)
+                        { CopySegmentTo(newStride, newSeedStride, newFileName, group.StartSegment, group.EndSegment); });
+                    }
+
+                    ReplaceDataFile(newFileName, newStride, newLength, newSeedStride);
                 }
+            }
+        }
 
-            var tasks = TaskGrouping.GetSegmentedTaskGroups(Length, Stride);
-            var taskgroups = new Dictionary<int, int>();
+        public virtual void Reorganize<IdType>(IBinConverter<IdType> converter, Func<JObject, IdType> idSelector)
+        {
+            Trace.TraceInformation("Filemanager reorganizing");
 
-            tasks.ForEach(t => taskgroups.Add(t, t));
-
-            var grouping = TaskGrouping.GetCPUGroupsFor<int>(taskgroups);
+            if (Length == 0)
+                return;
 
             lock (_syncRoot)
             {
-                if (newStride > Stride || newSeedStride > SeedPosition)
+                var newFileName = Guid.NewGuid().ToString() + ".reorganize";
+                var fi = new FileInfo(newFileName);
+                if (!fi.Exists)
                 {
-                    Parallel.ForEach(grouping, delegate(IndexingCPUGroup<int> group)
-                    { CopySegmentTo(newStride, newSeedStride, newFileName, group.StartSegment, group.EndSegment); });
+                    using (var nfs = fi.Create())
+                    {
+                        nfs.SetLength(GetFileSizeFor(SeedPosition, Length + 1, Stride));
+                        nfs.Flush();
+                    }
                 }
 
-                ReplaceDataFile(newFileName, newStride, newSeedStride);
+                using (var lockAll = _rowSynchronizer.LockAll())
+                {
+                    int recordsWritten = 0;
+                    IdType lastIdWritten = default(IdType);
+                    var block = new SortedDictionary<IdType, JObject>(converter);
+
+                    while (recordsWritten < Length)
+                    {
+                        for (var page = 0; page < Pages; page++)
+                        {
+                            foreach (var obj in GetPage(page))
+                            {
+                                obj.Remove("___segment");
+
+                                var id = idSelector.Invoke(obj);
+
+                                if (converter.Compare(id, lastIdWritten) <= 0)
+                                    continue;
+
+                                if (block.ContainsKey(id))
+                                    block[id] = obj;
+                                else
+                                    block.Add(id, obj);
+                            }
+
+                            if (block.Count > _maximumBlockSize)
+                                block = new SortedDictionary<IdType, JObject>
+                                    (block
+                                    .Take(_maximumBlockSize)
+                                    .ToDictionary(k => k.Key, k => k.Value), converter);
+                        }
+
+                        if (block.Count > 0)
+                        {
+                            using (var fs = GetWritableFileStream(newFileName))
+                            {
+                                fs.Position = SeedPosition + (recordsWritten * Stride) + Stride;
+
+                                foreach (var item in block)
+                                    using (var s = _formatter.FormatObjStream(item.Value.ToObject<EntityType>()))
+                                        s.WriteAllTo(fs, Stride);
+
+                                fs.Flush();
+                            }
+
+                            recordsWritten += block.Count;
+                            lastIdWritten = block.Last().Key;
+                        }
+
+                        block.Clear();
+                    }
+
+                    ReinitializeSeed(recordsWritten);
+                    ReplaceDataFile(newFileName, Stride, Length, SeedPosition);
+                }
             }
+
+            InvokeReorganized();
         }
 
         #endregion
 
         #region SaveFailed Event
 
-        protected void InvokeSaveFailed(EntityType entity, int newRowSize, int newDatabaseSize)
+        protected void InvokeSaveFailed(EntityType entity,int segment, int newRowSize, int newDatabaseSize)
         {
             if (SaveFailed != null)
-                SaveFailed(new SaveFailureInfo<EntityType>() { Entity = entity, NewRowSize = GetStrideFor(newRowSize), NewDatabaseSize = newDatabaseSize });
+                SaveFailed(new SaveFailureInfo<EntityType>() { Entity = entity, Segment = segment, NewRowSize = GetStrideFor(newRowSize), NewDatabaseSize = newDatabaseSize });
         }
 
         public event SaveFailed<EntityType> SaveFailed;
 
         #endregion
 
-        #region CommitFailed Event
+        #region Committed Event
 
-        protected void InvokeCommitFailed(ITransaction<IdType, EntityType> trans, int newRowSize, int newDatabaseSize)
+        protected void InvokeTransactionCommitted<IdType>(IList<TransactionResult<EntityType>> results, ITransaction<IdType, EntityType> trans)
         {
-            if (CommitFailed != null)
-                CommitFailed(new CommitFailureInfo<IdType, EntityType>() { Transaction = trans, NewRowSize = GetStrideFor(newRowSize), NewDatabaseSize = newDatabaseSize });
+            if (TransactionCommitted != null)
+                TransactionCommitted(results, trans);
         }
 
-        public event CommitFailed<IdType, EntityType> CommitFailed;
+        public event Committed<EntityType> TransactionCommitted;
+
+        #endregion
+
+        #region Reorganized Event
+
+        protected void InvokeReorganized()
+        {
+            if (Reorganized  != null)
+                Reorganized();
+        }
+
+        public event Reorganized<EntityType> Reorganized;
 
         #endregion
 
@@ -712,9 +1038,14 @@ namespace BESSy.Files
         {
             lock (_syncRoot)
             {
+                while (_rowSynchronizer.HasLocks())
+                    Thread.Sleep(100);
+
                 if (_fileStream != null)
                     CloseFile();
             }
+
+            GC.Collect();
         }
     }
 }

@@ -94,5 +94,32 @@ namespace BESSy.Tests.CryptoTests
                 }
             }
         }
+
+        [Test]
+        public void RC2EncryptsDecryptsBuffer()
+        {
+            var objs = TestResourceFactory.GetMockClassAObjects(50);
+
+            var bson = _bsonFormatter.FormatObj(objs);
+
+            var input = new MemoryStream(bson).ToArray();
+            
+            var encrypted = _crypto.Encrypt(input, _key);
+
+            var decrypted = _crypto.Decrypt(encrypted, _key);
+
+            var results = _bsonFormatter.UnformatObj<IList<MockClassA>>(decrypted);
+
+            Assert.AreEqual(objs.Count, results.Count);
+
+            for (var i = 0; i < objs.Count; i++)
+            {
+                var obj = objs[i];
+                var result = results[i];
+
+                Assert.AreEqual(obj.Id, result.Id);
+                Assert.AreEqual(obj.Name, result.Name);
+            }
+        }
     }
 }

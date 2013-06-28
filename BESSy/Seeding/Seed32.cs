@@ -11,7 +11,7 @@ namespace BESSy.Seeding
 {
     public sealed class Seed32 : Seed<Int32>
     {
-        public Seed32() : this(0) { }
+        public Seed32() : this(0) { MinimumSeedStride = 256250; }
 
         public Seed32(int startingSeed) : base(startingSeed)
         {

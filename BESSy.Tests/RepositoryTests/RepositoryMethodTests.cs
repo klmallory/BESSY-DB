@@ -52,8 +52,7 @@ namespace BESSy.Tests.RepositoryTests
 
             var repo = new Repository<MockClassA, int>
                 (_testName + ".scenario"
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             repo.Load();
 
@@ -97,7 +96,7 @@ namespace BESSy.Tests.RepositoryTests
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Fetch took {0} seconds for entity with id {1}", sw.Elapsed.TotalSeconds, 99999));
+            Console.WriteLine(string.Format("Fetch took {0} seconds for entity with prop {1}", sw.Elapsed.TotalSeconds, 99999));
 
             Assert.IsNotNull(entity);
             entity = repo.Fetch(32317);
@@ -119,7 +118,7 @@ namespace BESSy.Tests.RepositoryTests
 
             repo.Load();
 
-            Assert.AreEqual(102400, repo.Count());
+            Assert.AreEqual(102400, repo.Length);
         }
     }
 }

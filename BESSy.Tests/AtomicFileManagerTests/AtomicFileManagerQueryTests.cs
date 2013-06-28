@@ -21,15 +21,15 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using BESSy.Extensions;
 using BESSy.Files;
 using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
-using BESSy.Extensions;
-using NUnit.Framework;
 using Newtonsoft.Json.Linq;
+using NUnit.Framework;
 
 namespace BESSy.Tests.AtomicFileManagerTests
 {
@@ -70,31 +70,35 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
             IDictionary<int, int> returnSegments = null;
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
-                using (var manager = new TransactionManager<int, MockClassA>(new MockTransactionFactory<int, MockClassA>()))
+                using (var manager = new TransactionManager<int, MockClassA>
+                    (new MockTransactionFactory<int, MockClassA>()
+                    , new TransactionSynchronizer<int, MockClassA>()))
                 {
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
-                        delegate(ITransaction<int, MockClassA> tranny, IList<ITransaction<int, MockClassA>> childTransactions)
+                        delegate(ITransaction<int, MockClassA> tranny)
                         {
                             returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, int>());
+
+                            tranny.MarkComplete();
                         });
 
-                    using (var transaction = manager.BeginTransaction() as MockTransaction<int, MockClassA>)
+                    using (var tLock1 = manager.BeginTransaction())
                     {
                         addEntities.ForEach(delegate(MockClassA entity)
                         {
-                            transaction.Enlist(Action.Create, entity.Id, entity);
+                            tLock1.Transaction.Enlist(Action.Create, entity.Id, entity);
                         });
 
-                        transaction.Commit();
+                        tLock1.Transaction.Commit();
 
                         Assert.AreEqual(10000, afm.Length);
                     }
 
-                    foreach (var group in afm)
+                    foreach (var group in afm.AsEnumerable())
                     {
                         var match = group.Where(i => i.SelectToken("Id").Value<int>() > 9999).ToList();
 

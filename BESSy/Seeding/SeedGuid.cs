@@ -11,6 +11,11 @@ namespace BESSy.Seeding
 {
     public sealed class SeedGuid : Seed<Guid>
     {
+        public SeedGuid() : base()
+        {
+            MinimumSeedStride = 1024;
+        }
+
         public override Guid Increment()
         {
             return Guid.NewGuid();

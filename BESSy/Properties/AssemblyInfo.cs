@@ -11,7 +11,7 @@ using System.Resources;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("KlInk")]
 [assembly: AssemblyProduct("BESSy")]
-[assembly: AssemblyCopyright("Copyright © KlInk 2012,2013")]
+[assembly: AssemblyCopyright("Copyright © KlInk 2012-2013")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -33,6 +33,6 @@ using System.Resources;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("0.7.0.2")]
-[assembly: AssemblyFileVersion("0.7.0.2")]
+[assembly: AssemblyVersion("0.8.0.7")]
+[assembly: AssemblyFileVersion("0.8.0.7")]
 [assembly: NeutralResourcesLanguageAttribute("en-US")]

@@ -1,27 +1,65 @@
-﻿using System;
+﻿/*
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+*/
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using BESSy.Serialization.Converters;
+using BESSy.Transactions;
 
 namespace BESSy.Cache
 {
-    public interface IRepositoryCache<IdType, EntityType> : ICache<EntityType, IdType>
+    public interface IRepositoryCache<IdType, EntityType> : IAutoCache<IdType, EntityType>, IDisposable
     {
-        int CacheSize { get; }
+        bool IsDirty { get; }
         int DirtyCount { get; }
         int Count { get; }
 
-        void UpdateCache(IdType id, EntityType entity, bool autoCache, bool dirty);
+        void UpdateCache(IdType id, EntityType entity, bool forceCache, bool dirty);
+
+        ///// <summary>
+        ///// Provides a method for bulk updates.
+        ///// </summary>
+        ///// <param name="entities"></param>
+        ///// <param name="forceCache"></param>
+        ///// <param name="dirty"></param>
+        //void UpdateCache(IDictionary<IdType, EntityType> entities, bool forceCache, bool dirty);
+
+        ///// <summary>
+        ///// Updates the cache from a transaction
+        ///// </summary>
+        ///// <param name="entities"></param>
+        ///// <param name="forceCache"></param>
+        ///// <param name="dirty"></param>
+        //void UpdateCache(IDictionary<IdType, EnlistedAction<IdType, EntityType>> entities, bool forceCache, bool dirty);
+
         IDictionary<IdType, EntityType> UnloadDirtyItems();
-    }
+        IDictionary<IdType, EntityType> GetCache();
+        event EventHandler FlushRequested;
+        IEnumerable<EntityType> AsEnumerable();
+ }
 
     public class DatabaseCache<IdType, EntityType> : IRepositoryCache<IdType, EntityType>
     {
-        public DatabaseCache(int cacheSize, IBinConverter<IdType> idConverter)
+        public DatabaseCache(bool autoCache, int cacheSize, IBinConverter<IdType> idConverter)
         {
             _idConverter = idConverter;
+
             CacheSize = cacheSize;
+            AutoCache = autoCache;
         }
 
         object _syncRoot = new object();
@@ -31,23 +69,12 @@ namespace BESSy.Cache
 
         IBinConverter<IdType> _idConverter;
 
+        public bool AutoCache { get; set; }
         public int CacheSize { get; set; }
 
-        public int DirtyCount
-        {
-            get
-            {
-                return _dirtyIds.Count;
-            }
-        }
-
-        public int Count
-        {
-            get
-            {
-                return _cache.Count;
-            }
-        }
+        public bool IsDirty { get { return _dirtyIds.Count > 0; } }
+        public int DirtyCount { get { return _dirtyIds.Count; } }
+        public int Count { get { return _cache.Count; } }
 
         public bool IsNew(IdType id)
         {
@@ -56,15 +83,13 @@ namespace BESSy.Cache
 
         public bool Contains(IdType id)
         {
-            lock (_syncRoot)
-                return _cache.ContainsKey(id);
+             return _cache.ContainsKey(id);
         }
 
         public EntityType GetFromCache(IdType id)
         {
-            lock (_syncRoot)
-                if (_cache.ContainsKey(id))
-                    return _cache[id];
+            if (_cache.ContainsKey(id))
+                return _cache[id];
 
             return default(EntityType);
         }
@@ -78,13 +103,21 @@ namespace BESSy.Cache
         public void Detach(IdType id)
         {
             lock (_syncRoot)
+            {
                 _cache.Remove(id);
+                _dirtyIds.RemoveAll(d => _idConverter.Compare(d, id) == 0);
+                _deferredCache.RemoveAll(c => _idConverter.Compare(c, id) == 0);
+            }
         }
 
         public void ClearCache()
         {
             lock (_syncRoot)
+            {
                 _cache.Clear();
+                _deferredCache.Clear();
+                _dirtyIds.Clear();
+            }
         }
 
         public void Sweep()
@@ -101,11 +134,12 @@ namespace BESSy.Cache
                 else
                 {
                     //clear enough cache for smooth operations.
-                    var toRemove = _deferredCache.Distinct().Take(CacheSize / 2).ToList();
-
+                    var toRemove = _deferredCache.Distinct().Take(_cache.Count - (CacheSize / 2)).ToList();
+                    _deferredCache = _deferredCache.Distinct().Skip(_cache.Count - (CacheSize / 2)).ToList();
+                    
                     foreach (var id in toRemove)
                     {
-                        _deferredCache.RemoveAll(c => _idConverter.Compare(c, id) == 0);
+                        //_deferredCache.RemoveAll(c => IdConverter.Compare(c, id) == 0);
                         _cache.Remove(id);
                     }
                 }
@@ -129,11 +163,11 @@ namespace BESSy.Cache
 
         #region IDatabaseCache<EntityType,IdType> Members
 
-        public void UpdateCache(IdType id, EntityType entity, bool autoCache, bool dirty)
+        public void UpdateCache(IdType id, EntityType entity, bool forceCache, bool dirty)
         {
             lock (_syncRoot)
             {
-                if (autoCache)
+                if (AutoCache || forceCache)
                     if (_cache.Count > CacheSize)
                         Sweep();
 
@@ -143,7 +177,7 @@ namespace BESSy.Cache
                 else if (_deferredCache.Contains(id))
                     _cache.Add(id, entity);
 
-                else if (autoCache)
+                else if (AutoCache || forceCache)
                 {
                     _deferredCache.Add(id);
                     _cache.Add(id, entity);
@@ -151,10 +185,76 @@ namespace BESSy.Cache
                 else
                     return;
 
-                if (dirty)
+                if (dirty && !_dirtyIds.Contains(id))
                     _dirtyIds.Add(id);
             }
         }
+
+        //public void UpdateCache(IDictionary<IdType, EntityType> entities, bool forceCache, bool dirty)
+        //{
+        //    lock (_syncRoot)
+        //    {
+        //        if (AutoCache || forceCache)
+        //            if (_cache.Count + entities.Count > CacheSize)
+        //                Sweep();
+
+        //        foreach (var e in entities)
+        //        {
+        //            if (_cache.ContainsKey(e.Key))
+        //                _cache[e.Key] = e.Value;
+
+        //            else if (_deferredCache.Contains(e.Key))
+        //                _cache.Add(e.Key, e.Value);
+
+        //            else if (AutoCache || forceCache)
+        //            {
+        //                _deferredCache.Add(e.Key);
+        //                _cache.Add(e.Key, e.Value);
+        //            }
+        //            else
+        //                return;
+
+        //            if (dirty && !_dirtyIds.Contains(e.Key))
+        //                _dirtyIds.Add(e.Key);
+        //        }
+        //    }
+        //}
+
+        //public void UpdateCache(IDictionary<IdType, EnlistedAction<IdType, EntityType>> entities, bool forceCache, bool dirty)
+        //{
+        //    lock (_syncRoot)
+        //    {
+        //        if (CacheSize < entities.Count)
+        //            CacheSize = entities.Count;
+        //    }
+
+        //    if (AutoCache || forceCache)
+        //        if (_cache.Count + entities.Count > CacheSize)
+        //            Sweep();
+
+        //    lock (_syncRoot)
+        //    {
+        //        foreach (var e in entities)
+        //        {
+        //            if (_cache.ContainsKey(e.Key))
+        //                _cache[e.Key] = e.Value.Entity;
+
+        //            else if (_deferredCache.Contains(e.Key))
+        //                _cache.Add(e.Key, e.Value.Entity);
+
+        //            else if (AutoCache || forceCache)
+        //            {
+        //                _deferredCache.Add(e.Key);
+        //                _cache.Add(e.Key, e.Value.Entity);
+        //            }
+        //            else
+        //                return;
+
+        //            if (dirty && !_dirtyIds.Contains(e.Key))
+        //                _dirtyIds.Add(e.Key);
+        //        }
+        //    }
+        //}
 
         public IDictionary<IdType, EntityType> UnloadDirtyItems()
         {
@@ -163,11 +263,12 @@ namespace BESSy.Cache
             lock (_syncRoot)
             {
                 foreach (var d in _dirtyIds)
-                {
-                    if (!_cache.ContainsKey(d))
-                        continue;
-
                     dirty.Add(d, _cache[d]);
+
+                foreach (var id in dirty.Keys)
+                {
+                    _cache.Remove(id);
+                    _deferredCache.RemoveAll(c => _idConverter.Compare(c, id) == 0);
                 }
 
                 _dirtyIds.Clear();
@@ -176,6 +277,23 @@ namespace BESSy.Cache
             return dirty;
         }
 
+        public IDictionary<IdType, EntityType> GetCache()
+        {
+            return _cache;
+        }
+
+        public IEnumerable<EntityType> AsEnumerable()
+        {
+            return _cache.Values.AsEnumerable();
+        }
+
         #endregion
+
+        public void Dispose()
+        {
+
+        }
+
+
     }
 }

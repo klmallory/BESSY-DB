@@ -9,13 +9,15 @@ namespace BESSy.Files
     public struct SaveFailureInfo<EntityType>
     {
         public EntityType Entity;
+        public int Segment;
         public int NewRowSize;
         public int NewDatabaseSize;
     }
 
-    public struct CommitFailureInfo<IdType, EntityType>
+    public struct CommitFailureInfo<EntityType>
     {
-        public ITransaction<IdType, EntityType> Transaction;
+        public object Transaction;
+        public object Segments;
         public int NewRowSize;
         public int NewDatabaseSize;
     }

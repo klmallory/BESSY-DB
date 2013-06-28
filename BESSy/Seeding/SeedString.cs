@@ -13,17 +13,17 @@ using BESSy.Serialization.Converters;
 namespace BESSy.Seeding
 {
     /// <summary>
-    /// This serves mostly as a pass through place holder
+    /// This serves mostly as a pass through place holder for string implementations.
     /// </summary>
     [Serializable]
-    public class SeedString : ISeed<String>
+    public class SeedString : SeedPassive<string>
     {
         public SeedString() : this(50)
         {
             
         }
 
-        public SeedString(int maxLength)
+        public SeedString(int maxLength) : base()
         {
             _maxLen = maxLength;
             Stride = 1024;
@@ -31,35 +31,5 @@ namespace BESSy.Seeding
 
         [JsonProperty]
         int _maxLen { get; set; }
-
-        string emptyString = string.Empty;
-
-        public string Increment()
-        {
-            return emptyString;
-        }
-
-        public string LastSeed
-        {
-            get { return emptyString; }
-        }
-
-        public void Open(string id)
-        {
-            //do nothing.
-        }
-
-        public string Peek()
-        {
-            return emptyString;
-        }
-
-        public object PropertyConverter { get; set; }
-        public object IdConverter { get; set; }
-        public string GetIdMethod { get; set; }
-        public string SetIdMethod { get; set; }
-        public string GetCategoryIdMethod { get; set; }
-        public int MinimumSeedStride { get; set; }
-        public int Stride { get; set; }
     }
 }

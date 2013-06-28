@@ -13,6 +13,7 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,14 +31,15 @@ namespace BESSy
 
     public interface IQueryableRepository<EntityType> : IQueryableReadOnlyRepository<EntityType>
     {
-        int Delete(Func<JObject, bool> select);
-        int Update<ValType>(Func<JObject, bool> select, Action<EntityType, ValType> update);
+        int Delete(Func<JObject, bool> selector);
+        int Update(Func<JObject, bool> selector, params Action<EntityType>[] updates);
     }
 
     public interface IQueryableReadOnlyRepository<EntityType>
     {
-        IList<EntityType> Select(Func<JObject, bool> select);
-        IList<EntityType> Select(Func<JObject, bool> select, int max);
+        IList<EntityType> Select(Func<JObject, bool> selector);
+        IList<EntityType> SelectFirst(Func<JObject, bool> selector, int max);
+        IList<EntityType> SelectLast(Func<JObject, bool> selector, int max);
     }
 
     public interface ILinqRepository<T, I> : IReadOnlyRepository<T, I>
@@ -54,12 +56,25 @@ namespace BESSy
     }
 
     /// <summary>
+    /// Contract for a repository that requires initialization.
+    /// </summary>
+    public interface ILoad
+    {
+        /// <summary>
+        /// Initialize the repository from it's underlying device.
+        /// </summary>
+        /// <returns>The amount of records contained in this repository's underlying device.</returns>
+        int Load();
+    }
+
+    /// <summary>
     /// Contract for a repository that supports saving data directly to it's source on demand.
     /// </summary>
     /// <typeparam name="EntityType">Entity Type</typeparam>
     public interface IFlush<EntityType>
     {
         void Flush(IList<EntityType> data);
+        bool FileFlushQueueActive { get; }
     }
 
     /// <summary>
@@ -68,6 +83,7 @@ namespace BESSy
     public interface IFlush
     {
         void Flush();
+        bool FileFlushQueueActive { get; }
     }
 
     /// <summary>
@@ -91,7 +107,7 @@ namespace BESSy
     public interface IReadOnlyRepository<T, I> : IDisposable
     {
         T Fetch(I id);
-        int Count();
+        int Length { get; }
         void Clear();
     }
 }

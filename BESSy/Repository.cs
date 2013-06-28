@@ -1,7 +1,19 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -58,13 +70,12 @@ namespace BESSy
         /// Creates, or opens an existing repository with the default settings.
        /// </summary>
        /// <param name="fileName"></param>
-       /// <param name="getUniqueIdMethod"></param>
+       /// <param name="idPropertyName"></param>
        /// <param name="setUniqueIdMethod"></param>
         public Repository
             (string fileName,
-            string getUniqueIdMethod,
-            string setUniqueIdMethod)
-            : this(-1, fileName, true, DefaultSeed, DefaultBinConverter, DefaultFileFormatter, DefaultBatchFileManager, getUniqueIdMethod, setUniqueIdMethod)
+            string idPropertyName)
+            : this(-1, fileName, true, DefaultSeed, DefaultBinConverter, DefaultFileFormatter, DefaultBatchFileManager, idPropertyName)
         {
         }
 
@@ -78,7 +89,7 @@ namespace BESSy
         /// <param name="idConverter"></param>
         /// <param name="mapFormatter"></param>
         /// <param name="fileManager"></param>
-        /// <param name="getUniqueIdMethod"></param>
+        /// <param name="idPropertyName"></param>
         /// <param name="setUniqueIdMethod"></param>
         public Repository
             (int cacheSize,
@@ -88,31 +99,24 @@ namespace BESSy
             IBinConverter<IdType> idConverter,
             ISafeFormatter mapFormatter,
             IBatchFileManager<EntityType> fileManager,
-            string getUniqueIdMethod,
-            string setUniqueIdMethod)
+            string idPropertyName)
 
             : base(cacheSize, fileName, seed, idConverter, mapFormatter, fileManager)
         {
             AutoCache = autoCache;
 
-            _seed.GetIdMethod = getUniqueIdMethod;
-            _seed.SetIdMethod = setUniqueIdMethod;
+            _seed.IdProperty = idPropertyName;
         }
 
         Func<EntityType, IdType> _getUniqueId;
         Action<EntityType, IdType> _setUniqueId;
-        private string fileName;
-        private ISeed<IdType> seed;
-        private IBinConverter<IdType> idConverter;
-        private ISafeFormatter mapFormatter;
-        private IBatchFileManager<EntityType> fileManager;
 
         protected override void InitializeDatabase(ISeed<IdType> seed, int count)
         {
             base.InitializeDatabase(seed, count);
 
-            _getUniqueId = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetMethod(seed.GetIdMethod));
-            _setUniqueId = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetMethod(seed.SetIdMethod));
+            _getUniqueId = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(seed.IdProperty).GetGetMethod());
+            _setUniqueId = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(seed.IdProperty).GetSetMethod());
         }
 
         protected override IdType GetIdFrom(EntityType item)

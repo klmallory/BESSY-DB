@@ -20,14 +20,13 @@ using System.IO;
 namespace BESSy.Tests.RepositoryTests
 {
     [TestFixture]
-    public class RepositoryLinqTests
+    public class RepositoryLinqTests : FileTest
     {
         ISafeFormatter _bsonFormatter;
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexedEntityMapManager<MockClassA, int> _mapManager;
 
         IList<MockClassA> _testEntities;
-        string _testName;
 
         [TestFixtureSetUp()]
         public void FixtureSetup()
@@ -44,13 +43,6 @@ namespace BESSy.Tests.RepositoryTests
 
             _testEntities = TestResourceFactory.GetMockClassAObjects(3);
         }
-
-        void Cleanup()
-        {
-            if (File.Exists(_testName + ".scenario"))
-                File.Delete(_testName + ".scenario");
-        }
-
 
         [Test]
         [Category("Performance")]
@@ -69,8 +61,7 @@ namespace BESSy.Tests.RepositoryTests
                 , (IBinConverter<int>)new BinConverter32()
                 , _bsonFormatter
                 , _bsonManager
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             repo.Load();
 
@@ -147,7 +138,7 @@ namespace BESSy.Tests.RepositoryTests
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Linq First clause for id {0} in {1} milliseconds.", 76053, sw.Elapsed.TotalMilliseconds));
+            Console.WriteLine(string.Format("Linq First clause for prop {0} in {1} milliseconds.", 76053, sw.Elapsed.TotalMilliseconds));
 
             Assert.IsNotNull(first);
             Assert.AreEqual(76053, first.Id);
@@ -174,7 +165,7 @@ namespace BESSy.Tests.RepositoryTests
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Linq Last clause for id {0} in {1} milliseconds.", 103400, sw.Elapsed.TotalMilliseconds));
+            Console.WriteLine(string.Format("Linq Last clause for prop {0} in {1} milliseconds.", 103400, sw.Elapsed.TotalMilliseconds));
 
             Assert.IsNotNull(last);
 
@@ -187,7 +178,7 @@ namespace BESSy.Tests.RepositoryTests
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Linq LastOrDefault clause for id {0} in {1} milliseconds.", 103400, sw.Elapsed.TotalMilliseconds));
+            Console.WriteLine(string.Format("Linq LastOrDefault clause for prop {0} in {1} milliseconds.", 103400, sw.Elapsed.TotalMilliseconds));
 
             Assert.IsNull(last);
 

@@ -146,7 +146,7 @@
   <ItemGroup>
     <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\Tools\Json.NET\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\Tools\Json.NET.Fork\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -169,36 +169,48 @@
     <Compile Include="ContentNotFoundException.cs" />
     <Compile Include="Crypto\ICrypto.cs" />
     <Compile Include="Crypto\RC2Crypto.cs" />
+    <Compile Include="Database.cs" />
     <Compile Include="DuplicateKeyException.cs" />
     <Compile Include="Extensions\ArrayExtensions.cs" />
     <Compile Include="Extensions\ClampExtensions.cs" />
+    <Compile Include="Extensions\DictionaryExtensions.cs" />
     <Compile Include="Extensions\EmptyExtensions.cs" />
     <Compile Include="Extensions\FileExtensions.cs" />
+    <Compile Include="Extensions\FluentReplication.cs" />
+    <Compile Include="Extensions\JObjectExtensions.cs" />
     <Compile Include="Extensions\StreamExtensions.cs" />
-    <Compile Include="Factories\CatalogRepositoryFactory.cs" />
+    <Compile Include="Factories\AtomicFileManagerFactory.cs" />
     <Compile Include="Factories\DatabaseCacheFactory.cs" />
     <Compile Include="Factories\IndexedEntityMapManangerFactory.cs" />
+    <Compile Include="Factories\IndexFactory.cs" />
+    <Compile Include="Factories\IndexFileFactory.cs" />
     <Compile Include="Factories\IndexRepositoryFactory.cs" />
     <Compile Include="Factories\TransactionFactory.cs" />
-    <Compile Include="Files\IQueryableFile.cs" />
+    <Compile Include="Indexes\IndexFileManager.cs" />
+    <Compile Include="Indexes\PrimaryIndex.cs" />
+    <Compile Include="Indexes\PrimaryIndexFileManager.cs" />
     <Compile Include="Files\QueryEnumerator.cs" />
+    <Compile Include="Files\ReverseQueryEnumerator.cs" />
     <Compile Include="Files\SaveValidation.cs" />
-    <Compile Include="Queries\ExpressionCollections.cs" />
-    <Compile Include="Queries\ExpressionFactory.cs" />
-    <Compile Include="Queries\QueryExpressions.cs" />
-    <Compile Include="Seeding\IndexResolver.cs" />
+    <Compile Include="Indexes\Index.cs" />
+    <Compile Include="Queries\QueryExecuteException.cs" />
+    <Compile Include="RelationshipEntity.cs" />
+    <Compile Include="Replication\Publisher.cs" />
+    <Compile Include="Replication\ReplicationException.cs" />
+    <Compile Include="Replication\Subscriber.cs" />
+    <Compile Include="ResourceContainer.cs" />
+    <Compile Include="Seeding\SeedPassive.cs" />
+    <Compile Include="Serialization\QueryCryptoFormatter.cs" />
+    <Compile Include="Serialization\QueryZipFormatter.cs" />
     <Compile Include="Serialization\JSONFormatter.cs" />
+    <Compile Include="Transactions\RowLockTimeoutException.cs" />
     <Compile Include="Transactions\Transaction.cs" />
+    <Compile Include="Transactions\TransactionLock.cs" />
     <Compile Include="Transactions\TransactionManager.cs" />
     <Compile Include="Files\BatchFileManager.cs" />
     <Compile Include="Files\EntityEnumerator.cs" />
-    <Compile Include="Files\FileManager.cs" />
-    <Compile Include="Files\IBinWriter.cs" />
     <Compile Include="Files\IEntityMapManager.cs" />
-    <Compile Include="Files\IFileManager.cs" />
-    <Compile Include="Files\IFileReader.cs" />
     <Compile Include="Files\IFileRepository.cs" />
-    <Compile Include="Files\IFileWriter.cs" />
     <Compile Include="Files\IIndexedMapManager.cs" />
     <Compile Include="Files\IMapManager.cs" />
     <Compile Include="Files\IndexedEntityMapManager.cs" />
@@ -209,14 +221,12 @@
     <Compile Include="Files\XmlFileManager.cs" />
     <Compile Include="IAsyncRepository.cs" />
     <Compile Include="ICache.cs" />
-    <Compile Include="Index.cs" />
     <Compile Include="IndexRepository.cs" />
     <Compile Include="IRepository.cs" />
     <Compile Include="Synchronization\Range.cs" />
     <Compile Include="Repository.cs" />
     <Compile Include="Parallelization\TaskGrouping.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="FileRepository.cs" />
     <Compile Include="ResourceRepository.cs" />
     <Compile Include="Synchronization\RowLock.cs" />
     <Compile Include="Synchronization\RowLockTimeoutException.cs" />
@@ -238,7 +248,9 @@
     <Compile Include="Serialization\IFormatter.cs" />
     <Compile Include="Serialization\QuickZipFormatter.cs" />
     <Compile Include="Serialization\XmlSerializationHelper.cs" />
+    <Compile Include="Transactions\TransactionResult.cs" />
     <Compile Include="Transactions\TransactionStateException.cs" />
+    <Compile Include="Transactions\TransactionSynchronizer.cs" />
     <Compile Include="UniqueKeyViolationException.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -253,7 +265,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Folder Include="Serialization\Converters\JSON\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

@@ -67,12 +67,12 @@ namespace BESSy.Tests.AtomicFileManagerTests
             var seed = new Seed32();
 
             var cleanEntities = TestResourceFactory.GetMockClassAObjects(500);
-            var dirtyEntities = TestResourceFactory.GetMockClassAObjects(100);
+            var dirtyEntities = TestResourceFactory.GetMockClassAObjects(500);
 
             cleanEntities.ToList().ForEach(c => c.Id = seed.Increment());
-            cleanEntities.ToList().ForEach(d => d.Id = seed.Increment());
+            dirtyEntities.ToList().ForEach(d => d.Id = seed.Increment());
 
-            var db = new DatabaseCache<int, MockClassA>(2048, new BinConverter32());
+            var db = new DatabaseCache<int, MockClassA>(false, 2048, new BinConverter32());
 
             db.CacheItem(cleanEntities.First().Id);
 
@@ -81,6 +81,8 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 db.UpdateCache(e.Id, e, false, false);
 
             Assert.AreEqual(1, db.Count);
+            Assert.IsTrue(db.Contains(cleanEntities.First().Id));
+            Assert.AreEqual(cleanEntities.First().Name, db.GetFromCache(cleanEntities.First().Id).Name);
 
             //with autoCache
             foreach (var e in cleanEntities)
@@ -88,7 +90,54 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
             Assert.AreEqual(500, db.Count);
 
+            db.Detach(cleanEntities.First().Id);
 
+            Assert.AreEqual(499, db.Count);
+            Assert.IsFalse(db.Contains(cleanEntities.First().Id));
+            Assert.IsNull(db.GetFromCache(cleanEntities.First().Id));
+
+            db.CacheSize = 400;
+
+            db.UpdateCache(cleanEntities.First().Id, cleanEntities.First(), true, false);
+
+            Assert.AreEqual(201, db.Count);
+            Assert.IsFalse(db.IsNew(cleanEntities.First().Id));
+
+            db.ClearCache();
+
+            Assert.AreEqual(0, db.Count);
+        }
+
+        [Test]
+        public void FlushRequestAndUnloadDirtyTest()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var seed = new Seed32();
+
+            var dirtyEntities = TestResourceFactory.GetMockClassAObjects(500);
+
+            dirtyEntities.ToList().ForEach(d => d.Id = seed.Increment());
+
+            var db = new DatabaseCache<int, MockClassA>(false, 2048, new BinConverter32());
+            db.CacheSize = 400;
+
+            db.FlushRequested += new EventHandler(delegate(object sender, EventArgs e)
+            {
+                var dbparam = sender as DatabaseCache<int, MockClassA>;
+                Assert.AreEqual(dbparam.CacheSize + 1, dbparam.DirtyCount);
+
+                var dirtyItems = dbparam.UnloadDirtyItems();
+
+                Assert.AreEqual(0, dbparam.DirtyCount);
+                Assert.AreEqual(0, dbparam.Count);
+            });
+
+            foreach (var d in dirtyEntities)
+                db.UpdateCache(d.Id, d, true, true);
+
+            db.Sweep();
         }
     }
 }

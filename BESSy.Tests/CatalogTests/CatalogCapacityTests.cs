@@ -69,11 +69,10 @@ namespace BESSy.Tests.CatalogTests
 
             var catalog = new Catalog<MockClassA, int, string>
                 (_testName + ".catalog.index"
-                , Path.Combine(Environment.CurrentDirectory, "Catalogs")
+                , Path.Combine(Environment.CurrentDirectory, _testName)
                 ,_propertyConverter
-                , "GetId"
-               , "SetId"
-               , "GetCatalogId");
+                , "Id"
+               , "CatalogName");
 
             catalog.Load();
 
@@ -116,7 +115,7 @@ namespace BESSy.Tests.CatalogTests
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Fetch took {0} seconds for entity with id {1}", sw.Elapsed.TotalSeconds, 99999));
+            Console.WriteLine(string.Format("Fetch took {0} seconds for entity with prop {1}", sw.Elapsed.TotalSeconds, 99999));
 
             Assert.IsNotNull(entity);
 

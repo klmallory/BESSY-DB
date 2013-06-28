@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections.Generic;
@@ -18,16 +29,5 @@ namespace BESSy.Serialization.Converters
         T FromBytes(byte[] bytes);
         T FromStream(Stream inStream);
         int Length { get; }
-
-        /// <summary>
-        /// compares two instances of type <typeparamref name="T"/>
-        /// </summary>
-        /// <param name="item1"></param>
-        /// <param name="item2"></param>
-        /// <returns>returns 1 if <paramref name="item1"/> is greater than <paramref name="item2"/>,
-        /// returns 0 if <paramref name="item1"/> is equal to <paramref name="item2"/>,
-        /// or returns -1 if <paramref name="item1"/> is less than <paramref name="item2"/>,
-        /// </returns>
-        //int Compare(T item1, T item2);
     }
 }

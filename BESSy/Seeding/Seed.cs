@@ -22,6 +22,7 @@ namespace BESSy.Seeding
             Stride = 512;
             MinimumSeedStride = 10240;
             OpenIds = new List<IdType>();
+            Source = Guid.NewGuid();
         }
 
         public Seed(IdType startingSeed)
@@ -36,13 +37,17 @@ namespace BESSy.Seeding
         protected List<IdType> OpenIds { get; set; }
 
         [JsonProperty]
+        public Guid Source { get; protected set; }
+
+        [JsonProperty]
         public IdType LastSeed { get; protected set; }
 
+        public long LastReplicatedTimeStamp { get; set; }
         public object PropertyConverter { get; set; }
         public object IdConverter { get; set; }
-        public string GetIdMethod { get; set; }
-        public string SetIdMethod{ get; set; }
-        public string GetCategoryIdMethod { get; set; }
+
+        public string IdProperty { get; set; }
+        public string CategoryIdProperty { get; set; }
 
         public int MinimumSeedStride { get; set; }
         public int Stride { get; set; }

@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections.Generic;
@@ -14,12 +25,13 @@ using Newtonsoft.Json;
 using SevenZip;
 using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
+using Newtonsoft.Json.Linq;
 
 namespace BESSy.Serialization
 {
-    //[SecurityCritical()]
-    //[SECP.KeyContainerPermission(SECP.SecurityAction.Demand)]
-    //[SECP.ReflectionPermission(SECP.SecurityAction.Demand)]
+    [SecurityCritical()]
+    [SECP.KeyContainerPermission(SECP.SecurityAction.Demand)]
+    [SECP.ReflectionPermission(SECP.SecurityAction.Demand)]
     public class QuickZipFormatter : ISafeFormatter
     {
         public static IDictionary<CoderPropID, object> DefaultProperties = new Dictionary<CoderPropID, object>()
@@ -34,8 +46,9 @@ namespace BESSy.Serialization
             {CoderPropID.EndMarker, false}
         };
 
-        public QuickZipFormatter(IFormatter serializer) : this(serializer, DefaultProperties)
-        {        }
+        public QuickZipFormatter(IFormatter serializer)
+            : this(serializer, DefaultProperties)
+        { }
 
         public QuickZipFormatter(IFormatter serializer, IDictionary<CoderPropID, object> properties)
         {
@@ -86,7 +99,7 @@ namespace BESSy.Serialization
         public Stream FormatObjStream<T>(T obj)
         {
             var steam = _serializer.FormatObjStream(obj);
-            
+
             return Format(steam);
         }
 
@@ -100,7 +113,7 @@ namespace BESSy.Serialization
         public Byte[] FormatObj<T>(T obj)
         {
             var stream = _serializer.FormatObjStream<T>(obj);
-            
+
             return Format(((MemoryStream)stream).ToArray());
         }
 
@@ -128,7 +141,7 @@ namespace BESSy.Serialization
         public Stream Format(Stream inStream)
         {
             var stream = new MemoryStream();
-            
+
             _quickEncoder.SetCoderProperties(_properties.Keys.ToArray(), _properties.Values.ToArray());
 
             //write header
@@ -204,6 +217,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { return false; }
             catch (SystemException) { return false; }
+            catch (ApplicationException) { return false; }
         }
 
         public bool TryFormatObj<T>(T obj, out byte[] buffer)
@@ -218,6 +232,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { return false; }
             catch (SystemException) { return false; }
+            catch (ApplicationException) { return false; }
         }
 
         public bool TryUnformatObj<T>(byte[] buffer, out T obj)
@@ -232,6 +247,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { return false; }
             catch (SystemException) { return false; }
+            catch (ApplicationException) { return false; }
         }
 
         public bool TryUnformatObj<T>(Stream stream, out T obj)
@@ -246,9 +262,9 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { return false; }
             catch (SystemException) { return false; }
+            catch (ApplicationException) { return false; }
         }
 
         #endregion
-
     }
 }

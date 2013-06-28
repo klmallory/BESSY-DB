@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-/*
+﻿/*
 Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
@@ -16,25 +13,28 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.AccessControl;
 using System.Text;
 using System.Threading;
-using System.Security.AccessControl;
-using BESSy.Seeding;
-using BESSy.Serialization.Converters;
-using BESSy.Files;
-using BESSy.Extensions;
-using BESSy.Serialization;
 using BESSy.Cache;
+using BESSy.Extensions;
+using BESSy.Factories;
+using BESSy.Files;
+using BESSy.Seeding;
+using BESSy.Serialization;
+using BESSy.Serialization.Converters;
 
 namespace BESSy
 {
-    public interface IIndexRepository<IdType, PropertyType> : IMappedRepository<IndexPropertyPair<IdType, PropertyType>, IdType>
+    public interface IIndexRepository<IdType, PropertyType> : IIndexedRepository<IndexPropertyPair<IdType, PropertyType>, IdType>, ISweep
     {
         ISeed<IdType> Seed { get; }
         IList<IdType> RidLookup(PropertyType property);
-        void FlushSeed();
     }
 
     public class IndexRepository<IdType, PropertyType> : IIndexRepository<IdType, PropertyType>
@@ -42,13 +42,14 @@ namespace BESSy
         static ISafeFormatter DefaultFormatter { get { return new BSONFormatter(); } }
         static IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> DefaultFileManager
         { get { return new BatchFileManager<IndexPropertyPair<IdType, PropertyType>>(DefaultFormatter); } }
+        static IRepositoryCacheFactory DefaultCacheFactory { get { return new RepositoryCacheFactory(); } }
 
         /// <summary>
         /// Opens an existing index with the specified file name.
         /// </summary>
         /// <param name="fileName"></param>
         public IndexRepository(string fileName)
-            : this(fileName, -1, DefaultFormatter, DefaultFileManager)
+            : this(fileName, DefaultFormatter, DefaultCacheFactory, DefaultFileManager)
         {
 
         }
@@ -60,12 +61,15 @@ namespace BESSy
         /// <param name="fileName"></param>
         /// <param name="mapFormatter"></param>
         /// <param name="fileManager"></param>
-        public IndexRepository(string fileName, int cacheSize, ISafeFormatter mapFormatter, IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> fileManager)
+        public IndexRepository
+            (string fileName, 
+            ISafeFormatter mapFormatter, 
+            IRepositoryCacheFactory cacheFactory,
+            IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> fileManager)
         {
             _create = false;
-            AutoCache = true;
-            CacheSize = cacheSize;
 
+            _cacheFactory = cacheFactory;
             _fileName = fileName;
             _mapFormatter = mapFormatter;
             _fileManager = fileManager;
@@ -79,11 +83,12 @@ namespace BESSy
         public IndexRepository
             (string fileName
             ,IBinConverter<PropertyType> propertyConverter) 
-            : this(-1, fileName
+            : this(fileName
             , TypeFactory.GetSeedFor<IdType>()
             , TypeFactory.GetBinConverterFor<IdType>()
             , propertyConverter
             , DefaultFormatter
+            , DefaultCacheFactory
             , DefaultFileManager)
         {
         }
@@ -99,28 +104,26 @@ namespace BESSy
         /// <param name="mapFormatter"></param>
         /// <param name="fileManager"></param>
         public IndexRepository
-            (int cacheSize,
-            string fileName, 
+            (string fileName, 
             ISeed<IdType> seed,
             IBinConverter<IdType> idConverter,
             IBinConverter<PropertyType> propertyConverter,
             ISafeFormatter mapFormatter,
+            IRepositoryCacheFactory cacheFactory,
             IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> fileManager)
         {
             _create = true;
-            AutoCache = true;
             _fileName = fileName;
             _fileManager = fileManager;
             _mapFormatter = mapFormatter;
-
+            _cacheFactory = cacheFactory;
+            
             seed.IdConverter = idConverter;
             seed.PropertyConverter = propertyConverter;
             seed.Stride = idConverter.Length + propertyConverter.Length;
             Seed = seed;
         }
         
-        List<IdType> _cacheQueue = new List<IdType>();
-        IDictionary<IdType, PropertyType> _cache = new SortedDictionary<IdType, PropertyType>();
         List<IDictionary<IdType, PropertyType>> _stagingCache = new List<IDictionary<IdType, PropertyType>>();
         Queue<long> _fileFlushQueue = new Queue<long>();
 
@@ -132,8 +135,9 @@ namespace BESSy
         IIndexMapManager<IdType, PropertyType> _mapFileManager;
         IBinConverter<IdType> _idConverter;
 
-        protected bool _cacheIsDirty { get; set; }
-        protected object _syncCache = new object();
+        IRepositoryCacheFactory _cacheFactory;
+        IRepositoryCache<IdType, PropertyType> _cache;
+
         protected object _syncStaging = new object();
         protected object _syncFileQueue = new object();
         protected object _syncFileFlush = new object();
@@ -159,30 +163,6 @@ namespace BESSy
             { Trace.TraceError(ex.ToString()); throw; }
         }
 
-        protected virtual void UpdateCache(IdType id, PropertyType property, bool isDirty, bool forceCache = false)
-        {
-            _cacheIsDirty |= isDirty;
-
-            if (_idConverter.Compare(id, default(IdType)) == 0)
-                return;
-
-            if (_cache.ContainsKey(id))
-                _cache[id] = property;
-
-            else if (_cacheQueue.Contains(id))
-                _cache.Add(id, property);
-
-            else if (AutoCache || forceCache)
-                _cache.Add(id, property);
-
-            if (AutoCache && _cache.Count > CacheSize)
-                Sweep();
-        }
-
-        public virtual int CacheSize { get; set; }
-
-        public virtual bool AutoCache { get; set; }
-
         public virtual ISeed<IdType> Seed { get; protected set; }
 
         public bool FileFlushQueueActive
@@ -205,18 +185,8 @@ namespace BESSy
         {
             lock (_syncFileFlush)
             {
-
-                lock (_syncCache)
-                {
-                    _cache.Clear();
-
-                    _cacheQueue.Clear();
-
-                    _cacheIsDirty = false;
-
-                    lock (_syncStaging)
-                        _stagingCache.Clear();
-                }
+                lock (_syncStaging)
+                    _stagingCache.Clear();
 
                 var fi = new FileInfo(_fileName);
 
@@ -258,20 +228,16 @@ namespace BESSy
                 }
             }
 
-            return Count();
+            return Length;
         }
 
         protected virtual void InitializeDatabase(ISeed<IdType> seed, int count)
         {
-            if (CacheSize < 1)
-                CacheSize = Caching.DetermineOptimumCacheSize(seed.Stride);
-
             Seed = seed;
 
             _idConverter = (IBinConverter<IdType>)seed.IdConverter;
 
-            if (CacheSize < 1)
-                CacheSize = Caching.DetermineOptimumCacheSize(seed.Stride);
+            InitializeCache(seed);
 
             _mapFileManager = new IndexMapManager<IdType, PropertyType>
                 (_fileName
@@ -280,6 +246,30 @@ namespace BESSy
 
             _mapFileManager.OpenOrCreate(_fileName, count, seed.Stride);
             _mapFileManager.OnFlushCompleted +=new FlushCompleted<PropertyType,IdType>(HandleOnFlushCompleted);
+        }
+
+        private void InitializeCache(ISeed<IdType> seed)
+        {
+            if (_cache != null)
+            {
+                _cache.ClearCache();
+
+                _cache.FlushRequested -= new EventHandler(delegate(object sender, EventArgs e)
+                { FlushCache(); });
+
+                _cache.Dispose();
+            }
+
+            _cache = _cacheFactory.Create<IdType, PropertyType>
+                (true
+                , _cacheFactory.DefaultCacheSize
+                , (IBinConverter<IdType>)seed.IdConverter);
+
+            if (_cache.CacheSize < 1)
+                _cache.CacheSize = Caching.DetermineOptimumCacheSize(seed.Stride);
+
+            _cache.FlushRequested += new EventHandler(delegate(object sender, EventArgs e)
+            { FlushCache(); });
         }
 
         protected virtual IList<IndexPropertyPair<IdType, PropertyType>> LoadBatchFromFile(Stream stream)
@@ -304,28 +294,24 @@ namespace BESSy
 
         protected virtual void FlushCache()
         {
-            lock (_syncCache)
-            {
-                if (_stagingCache.Count > 0)
-                    lock (_syncStaging)
-                        _stagingCache.RemoveAll(s => s.Count == 0);
-
-                IDictionary<IdType, PropertyType> sort = new SortedDictionary<IdType, PropertyType>(_cache);
-
+            if (_stagingCache.Count > 0)
                 lock (_syncStaging)
-                    _stagingCache.Add(sort);
+                    _stagingCache.RemoveAll(s => s.Count == 0);
 
-                _mapFileManager.Flush(sort);
+            if (_cache.DirtyCount < 1)
+                return;
 
-                ClearCache();
+            var sort = new SortedDictionary<IdType, PropertyType>(_cache.UnloadDirtyItems());
 
-                _cacheIsDirty = false;
-            }
+            lock (_syncStaging)
+                _stagingCache.Add(sort);
+
+            _mapFileManager.Flush(sort);
         }
 
         public virtual void Flush()
         {
-            if (_cacheIsDirty)
+            if (_cache.IsDirty)
             {
                 lock (_syncFileQueue)
                     _fileFlushQueue.Enqueue(DateTime.Now.Ticks);
@@ -346,6 +332,7 @@ namespace BESSy
             {
                 Trace.TraceInformation("_syncFileFlush entered.");
 
+                var batchSize = _cache.CacheSize;
                 _inFlush = true;
 
                 long queue = 0;
@@ -370,7 +357,7 @@ namespace BESSy
 
                             batch.Add(item);
 
-                            if (batch.Count > CacheSize)
+                            if (batch.Count > batchSize)
                             {
                                 position = _fileManager.SaveBatch(f, batch, position);
 
@@ -416,44 +403,12 @@ namespace BESSy
             }
         }
 
-        public virtual void FlushSeed()
-        {
-            lock (_syncFileFlush)
-            {
-                Trace.TraceInformation("_syncFileFlush entered.");
-
-                _inFlush = true;
-
-                var tempFileName = _fileName + Guid.NewGuid().ToString();
-
-                using (var f = _fileManager.GetWritableFileStream(tempFileName))
-                {
-                    long position = _fileManager.SaveSeed<IdType>(f, Seed);
-
-                    f.Flush();
-                    f.Close();
-
-                    GC.Collect();
-
-                    GC.WaitForFullGCComplete(5000);
-
-                    FileInfo fi = new FileInfo(tempFileName);
-
-                    fi.Replace(_fileName, _fileName + ".old", true);
-                }
-
-                Trace.TraceInformation("_syncFileFlush exited.");
-
-                _inFlush = false;
-            }
-        }
-
         public virtual IdType Add(IndexPropertyPair<IdType, PropertyType> item)
         {
             if (_idConverter.Compare(item.Id, default(IdType)) == 0)
                 return default(IdType);
 
-            UpdateCache(item.Id, item.Property, true, true);
+            _cache.UpdateCache(item.Id, item.Property, true, true);
 
             return item.Id;
         }
@@ -466,7 +421,7 @@ namespace BESSy
             if (_idConverter.Compare(item.Id, id) != 0)
                 Delete(id);
 
-            UpdateCache(item.Id, item.Property, true, true);
+            _cache.UpdateCache(item.Id, item.Property, true, true);
         }
 
         public void Update(IndexPropertyPair<IdType, PropertyType> item, IdType id)
@@ -477,19 +432,19 @@ namespace BESSy
             if (_idConverter.Compare(item.Id, id) != 0)
                 Delete(id);
 
-            UpdateCache(item.Id, item.Property, true, true);
+            _cache.UpdateCache(item.Id, item.Property, true, true);
         }
 
         public IndexPropertyPair<IdType, PropertyType> Fetch(IdType id)
         {
-            IndexPropertyPair<IdType, PropertyType> item; // = default(IndexPropertyPair<IdType, PropertyType>);
+            IndexPropertyPair<IdType, PropertyType> item; // = default(IndexPropertyPair<IdType, IdType>);
 
-            if (Contains(id))
-                item = GetFromCache(id);
+            if (_cache.Contains(id))
+                item = new IndexPropertyPair<IdType, PropertyType>(id, _cache.GetFromCache(id));
             else
                 item = new IndexPropertyPair<IdType, PropertyType>(id, _mapFileManager.Load(id));
 
-            UpdateCache(id, item.Property, false);
+            _cache.UpdateCache(item.Id, item.Property, false, false);
 
             return item;
         }
@@ -503,72 +458,10 @@ namespace BESSy
 
         public virtual void Delete(IdType id)
         {
-            if (_mapFileManager.Save(default(PropertyType), id))
-                _mapFileManager.Detach(id);
+            _mapFileManager.Save(default(PropertyType), id);
 
-            UpdateCache(id, default(PropertyType), true, true);
+            _cache.UpdateCache(id, default(PropertyType), true, true);
         }
-
-        #region ILinqRepository<PropertyType,IdType> Members
-
-        public IEnumerable<IndexPropertyPair<IdType, PropertyType>> Take(int count)
-        {
-            lock (_syncFileFlush)
-                return Enumerable.Take(_mapFileManager, count);
-        }
-
-        public IEnumerable<IndexPropertyPair<IdType, PropertyType>> Skip(int count)
-        {
-            if (count > this._mapFileManager.Length)
-                throw new ArgumentException("items to skip is greater than the size of the repository.");
-
-            lock (_syncFileFlush)
-                return Enumerable.Skip(_mapFileManager, count);
-        }
-
-        public IEnumerable<IndexPropertyPair<IdType, PropertyType>> Where(Func<IndexPropertyPair<IdType, PropertyType>, bool> query)
-        {
-            lock (_syncFileFlush)
-                return Enumerable.Where(_mapFileManager, query);
-        }
-
-        public IndexPropertyPair<IdType, PropertyType> First(Func<IndexPropertyPair<IdType, PropertyType>, bool> query)
-        {
-            lock (_syncFileFlush)
-                return Enumerable.First(_mapFileManager, query);
-        }
-
-        public IndexPropertyPair<IdType, PropertyType> FirstOrDefault(Func<IndexPropertyPair<IdType, PropertyType>, bool> query)
-        {
-            lock (_syncFileFlush)
-                return Enumerable.FirstOrDefault(_mapFileManager, query);
-        }
-
-        public IndexPropertyPair<IdType, PropertyType> Last(Func<IndexPropertyPair<IdType, PropertyType>, bool> query)
-        {
-            lock (_syncFileFlush)
-                return Enumerable.Last(_mapFileManager, query);
-        }
-
-        public IndexPropertyPair<IdType, PropertyType> LastOrDefault(Func<IndexPropertyPair<IdType, PropertyType>, bool> query)
-        {
-            lock (_syncFileFlush)
-                return Enumerable.LastOrDefault(_mapFileManager, query);
-        }
-
-        public IEnumerable<TResult> OfType<TResult>()
-        {
-            lock (_syncFileFlush)
-                return Enumerable.OfType<IndexPropertyPair<IdType, TResult>>(_mapFileManager).Select(m => m.Property);
-        }
-
-        public IQueryable<IndexPropertyPair<IdType, PropertyType>> AsQueryable()
-        {
-            lock (_syncFileFlush)
-                return _mapFileManager.AsQueryable<IndexPropertyPair<IdType, PropertyType>>();
-        }
-
-        #endregion
 
         public virtual void Sweep()
         {
@@ -576,38 +469,23 @@ namespace BESSy
                 if (_stagingCache.Count > 0)
                     _stagingCache.RemoveAll(s => s == null || s.Count == 0);
 
-            lock (_syncCache)
-            {
-                if (_cache.Count <= CacheSize)
-                    return;
-
-                if (_cacheIsDirty)
-                {
-                    FlushCache();
-                    return;
-                }
-
-                var diff = (_cache.Count - CacheSize);
-
-                if (diff <= 0)
-                    return;
-
-                var toRemove = _cacheQueue.Distinct().Take(CacheSize / 2).ToList();
-
-                foreach (var id in toRemove)
-                {
-                    _cacheQueue.RemoveAll(c => _idConverter.Compare(c, id) == 0);
-                    _cache.Remove(id);
-                }
-            }
+            _cache.Sweep();
         }
 
-        public int Count()
+        public IDictionary<IdType, IndexPropertyPair<IdType, PropertyType>> GetCache()
         {
-            if (_mapFileManager != null)
-                return _mapFileManager.Length;
+             return _cache.GetCache().ToDictionary(kv => kv.Key, kv => new IndexPropertyPair<IdType, PropertyType>(kv.Key, kv.Value));
+        }
 
-            return 0;
+        public int Length
+        {
+            get
+            {
+                if (_mapFileManager != null)
+                    return _mapFileManager.Length;
+
+                return 0;
+            }
         }
 
         public void Clear()
@@ -617,80 +495,18 @@ namespace BESSy
                     _stagingCache.Clear();
 
             if (_mapFileManager != null)
-                _mapFileManager.ClearCache();
+                _mapFileManager.Clear();
 
             if (_fileFlushQueue != null)
                 lock (_syncFileFlush)
                     _fileFlushQueue.Clear();
 
-            ClearCache();
-        }
-
-        public bool IsNew(IdType id)
-        {
-            return false;
-        }
-
-        public bool Contains(IdType id)
-        {
-            lock (_syncCache)
-                lock (_syncStaging)
-                    return _cache.ContainsKey(id)
-                        || _stagingCache.Any(c => c.ContainsKey(id));
-        }
-
-        public IndexPropertyPair<IdType, PropertyType> GetFromCache(IdType id)
-        {
-            lock (_syncCache)
-            {
-                lock (_syncStaging)
-                {
-                    if (_cache.ContainsKey(id))
-                        return new IndexPropertyPair<IdType, PropertyType>(id, _cache[id]);
-                    else if (_stagingCache.Any(c => c.ContainsKey(id)))
-                        return new IndexPropertyPair<IdType, PropertyType>
-                            (id, _stagingCache.Last(s => s.ContainsKey(id))[id]);
-                }
-            }
-
-            return default(IndexPropertyPair<IdType, PropertyType>);
-        }
-
-        public void CacheItem(IdType id)
-        {
-            lock (_syncCache)
-                _cacheQueue.Add(id);
-        }
-
-        public void Detach(IdType id)
-        {
-            lock (_syncCache)
-            {
-                if (_cacheQueue.Contains(id))
-                    _cacheQueue.Remove(id);
-
-                if (_cache.ContainsKey(id))
-                    _cache.Remove(id);
-            }
-        }
-
-        public void ClearCache()
-        {
-            lock (_syncCache)
-            {
-                if (_cacheQueue != null)
-                    _cacheQueue.Clear();
-
-                if (_cache != null)
-                    _cache.Clear();
-
-                _cacheIsDirty = false;
-            }
-        }
+            _cache.ClearCache();
+        }      
 
         public void Dispose()
         {
-            if (_cacheIsDirty)
+            if (_cache.IsDirty)
                 Flush();
 
             while (FileFlushQueueActive)

@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections;
@@ -18,25 +29,26 @@ using BESSy.Parallelization;
 using BESSy.Serialization.Converters;
 using BESSy.Extensions;
 using BESSy.Synchronization;
+using System.Runtime;
 
 namespace BESSy.Files
 {
-    public struct IndexPropertyPair<IdType, PropertyType>
+    public struct IndexPropertyPair<IndexType, PropertyType>
     {
-        public IndexPropertyPair(IdType id, PropertyType property)
+        [TargetedPatchingOptOut("Performance critical to inline across NGen image boundaries")]
+        public IndexPropertyPair(IndexType id, PropertyType property)
         {
             Id = id;
             Property = property;
         }
 
-        public IdType Id;
+        public IndexType Id;
         public PropertyType Property;
     }
 
     public interface IIndexMapManager<IdType, PropertyType> : 
         IIndexedMapManager<PropertyType, IdType>
         , IEntityMapManager<IndexPropertyPair<IdType, PropertyType>>
-        , ICache<PropertyType, IdType> 
         , IEnumerable<IndexPropertyPair<IdType, PropertyType>>
     {
         PropertyType LoadPropertyFromSegment(int segment);
@@ -47,7 +59,6 @@ namespace BESSy.Files
     public class IndexMapManager<IdType, PropertyType>
         : IIndexMapManager<IdType, PropertyType>
     {
-
         public IndexMapManager
             (string name
             , IBinConverter<IdType> idConverter
@@ -149,7 +160,7 @@ namespace BESSy.Files
                     _fileName = fileName + "." + _name + ".index";
 
                     _mapFile = MemoryMappedFile.CreateOrOpen
-                        (@"Global\" + Guid.NewGuid().ToString()
+                        (Guid.NewGuid().ToString()
                         , Stride * len
                         , MemoryMappedFileAccess.ReadWriteExecute
                         , MemoryMappedFileOptions.None
@@ -164,7 +175,7 @@ namespace BESSy.Files
                 }
             }
 
-            ClearCache();
+            Clear();
         }
 
         #region Flush
@@ -204,7 +215,7 @@ namespace BESSy.Files
 #endif
 
                 var newIndexMap = MemoryMappedFile.CreateOrOpen
-                    (@"Global\" + Guid.NewGuid().ToString()
+                    (Guid.NewGuid().ToString()
                     , Stride * items.Count
                     , MemoryMappedFileAccess.ReadWriteExecute
                     , MemoryMappedFileOptions.None
@@ -318,7 +329,7 @@ namespace BESSy.Files
                 var newHints = new Dictionary<IdType, int>();
                 var newGroups = GetCPUGroupsForFlush(items);
                 var length = newGroups.Max(g => g.Inserts.Max(i => i.EndNewSegment)) + 1;
-                var newIndexMap = MemoryMappedFile.CreateOrOpen(@"Global\" + Guid.NewGuid().ToString(), Stride * length, MemoryMappedFileAccess.ReadWriteExecute);
+                var newIndexMap = MemoryMappedFile.CreateOrOpen(Guid.NewGuid().ToString(), Stride * length, MemoryMappedFileAccess.ReadWriteExecute);
 
 
                 if (!Monitor.TryEnter(_syncFlush, 500))
@@ -354,7 +365,7 @@ namespace BESSy.Files
                                             byte[] idReadBuffer = new byte[_idConverter.Length];
                                             byte[] propReadBuffer = new byte[_propertyConverter.Length];
 
-                                            //read id
+                                            //read prop
                                             var read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
                                             var id = _idConverter.FromBytes(idReadBuffer);
                                             var nextId = default(IdType);
@@ -498,7 +509,7 @@ namespace BESSy.Files
                         _mapFile.Dispose();
                         _mapFile = newIndexMap;
 
-                        ClearCache();
+                        Clear();
 
                         Length = length;
 
@@ -653,7 +664,7 @@ namespace BESSy.Files
 
             List<int> toRemove = new List<int>();
 
-            //find the former segment with a valid Id.
+            //find the former dbSegment with a valid Id.
             for (var i = 0; i < paras.Count; i++)
             {
                 while (_idConverter.Compare(LookupFromSegment(paras[i]), default(IdType)) == 0)
@@ -703,7 +714,7 @@ namespace BESSy.Files
 
             List<int> toRemove = new List<int>();
 
-            //find the former segment with a valid Id.
+            //find the former dbSegment with a valid Id.
             for (var i = 0; i < paras.Count; i++)
             {
                 while (_idConverter.Compare(LookupFromSegment(paras[i]), default(IdType)) == 0)
@@ -760,58 +771,13 @@ namespace BESSy.Files
 
         #endregion
 
-        #region ICache Members
-
-        public bool IsNew(IdType id)
-        {
-            return false;
-        }
-
-        public bool Contains(IdType id)
-        {
-            return _indexCache.Any(c => c.Value.ContainsKey(id));
-        }
-
-        public PropertyType GetFromCache(IdType id)
-        {
-            foreach (var i in _indexCache)
-                if (i.Value.ContainsKey(id))
-                    return LoadPropertyFromSegment(i.Value[id]);
-
-            return default(PropertyType);
-        }
-
-        public void CacheItem(IdType id)
-        {
-            //TODO: see if I should implement cache requests.
-        }
-
-        public void Detach(IdType id)
-        {
-            if (_indexCache.Count >= TaskGrouping.ReadLimit)
-                lock (_syncCache)
-                    foreach (var k in _indexCache.Keys)
-                        _indexCache.Remove(k);
-        }
-
-        public void ClearCache()
-        {
-            if (_indexCache != null)
-            {
-                lock (_syncCache)
-                    _indexCache.Clear();
-            }
-        }
-
         public void Sweep()
         {
             if (_indexCache.Count >= TaskGrouping.ReadLimit)
                 lock (_syncCache)
-                    foreach (var k in _indexCache.Keys.Skip(TaskGrouping.ReadLimit))
+                    foreach (var k in _indexCache.Keys.Skip(TaskGrouping.ReadLimit / 2))
                         _indexCache.Remove(k);
         }
-
-        #endregion
 
         public IList<IdType> RidLookup(PropertyType property)
         {
@@ -835,7 +801,7 @@ namespace BESSy.Files
                             byte[] idReadBuffer = new byte[_idConverter.Length];
                             byte[] propReadBuffer = new byte[_propertyConverter.Length];
 
-                            //read id
+                            //read prop
                             var read = view.Read(idReadBuffer, 0, idReadBuffer.Length);
                             var id = _idConverter.FromBytes(idReadBuffer);
 
@@ -849,7 +815,7 @@ namespace BESSy.Files
                                     lock (sync)
                                         ids.Add(id);
 
-                                //read id
+                                //read prop
                                 read = view.Read(idReadBuffer, 0, idReadBuffer.Length);
                                 id = _idConverter.FromBytes(idReadBuffer);
 
@@ -914,7 +880,7 @@ namespace BESSy.Files
         {
 #if DEBUG
             if (segment < 0 || segment > Length)
-                throw new ArgumentException("segment out of bounds of the file.", "segment");
+                throw new ArgumentException("dbSegment out of bounds of the file.", "dbSegment");
 #endif
 
             using (var lck = Synchronizer.Lock(segment))
@@ -939,7 +905,7 @@ namespace BESSy.Files
         {
 #if DEBUG
             if (segment < 0 || segment > Length)
-                throw new ArgumentException("segment out of bounds of the file.", "segment");
+                throw new ArgumentException("dbSegment out of bounds of the file.", "dbSegment");
 #endif
 
             using (var lck = Synchronizer.Lock(segment))
@@ -1108,7 +1074,7 @@ namespace BESSy.Files
         {
 #if DEBUG
             if (segment < 0 || segment > Length)
-                throw new ArgumentException("segment out of bounds of the file.", "segment");
+                throw new ArgumentException("dbSegment out of bounds of the file.", "dbSegment");
 #endif
 
             using (var lck = Synchronizer.Lock(segment))
@@ -1361,6 +1327,15 @@ namespace BESSy.Files
             return segmentStart + items.Count;
         }
 
+        public void Clear()
+        {
+            lock (_syncCache)
+                _indexCache.Clear();
+
+            lock (_syncHints)
+                _hints.Clear();
+        }
+
         public IEnumerator<IndexPropertyPair<IdType, PropertyType>> GetEnumerator()
         {
             return new IndexEnumerator<IdType, PropertyType>(this, _idConverter);
@@ -1387,6 +1362,9 @@ namespace BESSy.Files
             lock (_syncFile)
                 if (_mapFile != null)
                     _mapFile.Dispose();
+
+            Clear();
         }
+
     }
 }

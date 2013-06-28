@@ -53,6 +53,4 @@ namespace BESSy.Serialization
         byte[] Unformat(byte[] buffer);
         Stream Unformat(Stream inStream);
     }
-
-
 }

@@ -22,7 +22,7 @@ using BESSy.Synchronization;
 
 namespace BESSy.Files
 {
-    public class QueryEnumerator : IEnumerator<JObject[]>
+    public class QueryEnumerator : IEnumerator<JObject[]>, IEnumerable<JObject[]>
     {
         public QueryEnumerator(IQueryableFile file)
         {
@@ -31,8 +31,18 @@ namespace BESSy.Files
 
         object _syncRoot = new object();
 
-        int currentPage;
+        int currentPage = -1;
         IQueryableFile _file;
+
+        public IEnumerator<JObject[]> GetEnumerator()
+        {
+            return this;
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return this;
+        }
 
         public JObject[] Current
         {
@@ -71,6 +81,7 @@ namespace BESSy.Files
 
         public void Dispose()
         {
+            lock (_syncRoot)
             _file = null;
         }
     }

@@ -11,7 +11,7 @@ namespace BESSy.Tests.Mocks
 {
     public class MockClassB : MockClassA
     {
-        public Guid ReplicationID { get; set; }
+        
         public double[] GetSomeCheckSum { get; set; }
     }
 }

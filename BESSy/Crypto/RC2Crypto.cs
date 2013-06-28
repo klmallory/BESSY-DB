@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections.Generic;
@@ -11,6 +22,7 @@ using System.Security.Cryptography;
 using System.Text;
 using BESSy.Extensions;
 using SECP = System.Security.Permissions;
+using System.Runtime;
 
 namespace BESSy.Crypto
 {
@@ -26,6 +38,7 @@ namespace BESSy.Crypto
         byte[] _simpleVector = new byte[8] { 124, 53, 89, 243, 163, 62, 47, 191 };
         Encoding _encoding;
 
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
         public RC2Crypto(byte[] vector) : this(vector, Encoding.ASCII)
         {
             
@@ -56,7 +69,7 @@ namespace BESSy.Crypto
         /// Gets the key to be used from the collection of key objects passed in.
         /// </summary>
         /// <param name="key">the object array to derrive the key from.</param>
-        /// <param name="keySize">the length of the key.</param>
+        /// <param name="keySize">the _length of the key.</param>
         /// <returns>the key</returns>
         public byte[] GetKey(object[] key, int keySize)
         {

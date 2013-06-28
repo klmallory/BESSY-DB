@@ -10,16 +10,17 @@ namespace BESSy.Seeding
 {
     public interface ISeed<IdType>
     {
+        Guid Source { get; }
         IdType Increment();
         IdType LastSeed { get; }
         void Open(IdType id);
         IdType Peek();
         object PropertyConverter { get; set; }
         object IdConverter { get; set; }
-        string GetIdMethod { get; set; }
-        string SetIdMethod { get; set; }
-        string GetCategoryIdMethod { get; set; }
+        string IdProperty { get; set; }
+        string CategoryIdProperty { get; set; }
         int MinimumSeedStride { get; set; }
         int Stride { get; set; }
+        long LastReplicatedTimeStamp { get; set; }
     }
 }

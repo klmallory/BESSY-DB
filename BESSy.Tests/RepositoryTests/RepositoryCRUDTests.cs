@@ -16,29 +16,8 @@ using NUnit.Framework;
 namespace BESSy.Tests.RepositoryTests
 {
     [TestFixture]
-    public class RepositoryCRUDTests
+    public class RepositoryCRUDTests : FileTest
     {
-        IList<MockClassA> testEntities;
-        string _testName;
-
-        [TestFixtureSetUp()]
-        public void FixtureSetup()
-        {
-           
-        }
-
-        [SetUp]
-        public void Setup()
-        {
-            
-        }
-
-        void Cleanup()
-        {
-            if (File.Exists(_testName + ".scenario"))
-                File.Delete(_testName + ".scenario");
-        }
-
         [Test]
         public void TestLoadsContentToMappingFile()
         {
@@ -49,8 +28,7 @@ namespace BESSy.Tests.RepositoryTests
 
             var repo = new Repository<MockClassA, int>
                 (_testName + ".scenario"
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             repo.Load();
 
@@ -62,7 +40,7 @@ namespace BESSy.Tests.RepositoryTests
             while (repo.FileFlushQueueActive)
                 Thread.Sleep(100);
 
-            Assert.AreEqual(3, repo.Count());
+            Assert.AreEqual(3, repo.Length);
 
             repo.Dispose();
         }
@@ -83,8 +61,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverter32()
                 , TestResourceFactory.CreateBsonFormatter()
                 , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             repo.Load();
 
@@ -116,8 +93,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverter32()
                 , TestResourceFactory.CreateBsonFormatter()
                 , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             repo.Load();
 
@@ -162,8 +138,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverter32()
                 , TestResourceFactory.CreateBsonFormatter()
                 , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             repo.Load();
 
@@ -195,8 +170,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverter32()
                 , TestResourceFactory.CreateBsonFormatter()
                 , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             var sw = new Stopwatch();
             sw.Start();
@@ -210,7 +184,7 @@ namespace BESSy.Tests.RepositoryTests
             var entity = (MockClassC)repo.Fetch(1003);
 
             Assert.IsNotNull(entity);
-            Assert.AreEqual(5, repo.Count());
+            Assert.AreEqual(5, repo.Length);
             Assert.AreEqual("RockMaterial", entity.Name);
 
             entity.Name = "RockMaterialUpdated";
@@ -260,8 +234,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverterString()
                 , TestResourceFactory.CreateJsonFormatter()
                 , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
-                , "GetName"
-               , "SetName");
+                , "Name");
 
             repo.Load();
 
@@ -294,8 +267,7 @@ namespace BESSy.Tests.RepositoryTests
                 , new BinConverterString()
                 , TestResourceFactory.CreateJsonFormatter()
                 , TestResourceFactory.CreateBatchFileManager<MockClassA>(TestResourceFactory.CreateZipFormatter())
-                , "GetId"
-               , "SetId");
+                , "Id");
 
             var sw = new Stopwatch();
             sw.Start();
@@ -309,7 +281,7 @@ namespace BESSy.Tests.RepositoryTests
             var entity = (MockClassC)repo.Fetch("RockMaterial");
 
             Assert.IsNotNull(entity);
-            Assert.AreEqual(4, repo.Count());
+            Assert.AreEqual(4, repo.Length);
             Assert.AreEqual("RockMaterial", entity.Name);
 
             entity.Name = "RockMaterialUpdated";

@@ -45,9 +45,6 @@ namespace BESSy.Serialization
                 throw new ArgumentNullException("settings", "Serializer settings can not be null.");
 
             _serializer = JsonSerializer.Create(settings);
-            
-            //if (_serializer == null)
-            //    throw new InvalidOperationException("Serializer could not be created.");
         }
 
         /// <summary>
@@ -128,6 +125,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -147,6 +145,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -185,6 +184,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -204,6 +204,7 @@ namespace BESSy.Serialization
             }
             catch (JsonException) { }
             catch (SystemException) { }
+            catch (ApplicationException) { }
 
             return false;
         }
@@ -213,13 +214,6 @@ namespace BESSy.Serialization
             inStream.Position = 0;
             using (var reader = new BsonReader(inStream))
                 return JObject.Load(reader);
-        }
-
-        public JArray ParseArray(Stream inStream)
-        {
-            inStream.Position = 0;
-            using (var reader = new BsonReader(inStream))
-                return JArray.Load(reader);
         }
 
         static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()
@@ -233,7 +227,7 @@ namespace BESSy.Serialization
             Formatting = Formatting.None,
             ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor,
             TypeNameHandling = TypeNameHandling.Objects | TypeNameHandling.Arrays,
-            TypeNameAssemblyFormat = FormatterAssemblyStyle.Simple
+            TypeNameAssemblyFormat = FormatterAssemblyStyle.Simple,
         };
 
         public static JsonSerializerSettings GetDefaultSettings()

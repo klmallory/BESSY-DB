@@ -69,7 +69,7 @@ namespace BESSy.Files
                         return null;
                     }
 
-                    return XmlSerializationHelper.Deserialize<T>(xml);
+                    return XmlSerializationHelper.Deserialize<T>(xml, typeof(XmlContainer<T>));
                 }
             }
         }
@@ -135,13 +135,7 @@ namespace BESSy.Files
         {
             stream.SetLength(data.Length);
             stream.Position = 0;
-
-            using (var sw = new StreamWriter(stream))
-            {
-                sw.Write(data);
-                sw.Flush();
-                sw.Close();
-            }
+            stream.Write(data, 0, data.Length);
         }
 
         public void SaveToFile(byte[] data, string fileName, string path)

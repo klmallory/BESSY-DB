@@ -62,12 +62,12 @@ namespace BESSy.Tests.AtomicFileManagerTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
                 Assert.AreEqual(512, afm.Stride);
@@ -84,14 +84,14 @@ namespace BESSy.Tests.AtomicFileManagerTests
             var entity = TestResourceFactory.CreateRandom() as MockClassC;
             int seg = 0;
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
                 seg = afm.SaveSegment(entity);
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
@@ -123,21 +123,21 @@ namespace BESSy.Tests.AtomicFileManagerTests
             var entity2 = TestResourceFactory.CreateRandom() as MockClassC;
             int seg = 0;
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
                 seg = afm.SaveSegment(entity1);
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
                 afm.SaveSegment(entity2, seg);
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
@@ -164,7 +164,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 Assert.IsNull(obj);
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
@@ -186,53 +186,61 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
             IDictionary<int, int> returnSegments = null;
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
-                using (var manager = new TransactionManager<int, MockClassA>(new MockTransactionFactory<int, MockClassA>()))
+                using (var manager = new TransactionManager<int, MockClassA>
+                     (new MockTransactionFactory<int, MockClassA>()
+                     , new TransactionSynchronizer<int, MockClassA>()))
                 {
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
-                        delegate(ITransaction<int, MockClassA> tranny, IList<ITransaction<int, MockClassA>> childTransactions)
+                        delegate(ITransaction<int, MockClassA> tranny)
                         {
                             returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, int>());
+
+                            tranny.MarkComplete();
                         });
 
-                    using (var transaction = manager.BeginTransaction() as MockTransaction<int, MockClassA>)
+                    using (var tLock = manager.BeginTransaction())
                     {
-                        transaction.Enlist(Action.Create, entity1.Id, entity1);
+                        tLock.Transaction.Enlist(Action.Create, entity1.Id, entity1);
 
-                        transaction.Commit();
+                        tLock.Transaction.Commit();
                     }
                 }
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
-                using (var manager = new TransactionManager<int, MockClassA>(new MockTransactionFactory<int, MockClassA>()))
+                using (var manager = new TransactionManager<int, MockClassA>
+                     (new MockTransactionFactory<int, MockClassA>()
+                     , new TransactionSynchronizer<int, MockClassA>()))
                 {
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
-                        delegate(ITransaction<int, MockClassA> tranny, IList<ITransaction<int, MockClassA>> childTransactions)
+                        delegate(ITransaction<int, MockClassA> tranny)
                         {
                             returnSegments = afm.CommitTransaction(tranny, returnSegments);
+
+                            tranny.MarkComplete();
                         });
 
-                    using (var transaction = manager.BeginTransaction() as MockTransaction<int, MockClassA>)
+                    using (var tLock = manager.BeginTransaction())
                     {
                         var entity = afm.LoadSegmentFrom(returnSegments.First().Value);
 
                         entity2 = entity.WithName("No Name Joe") as MockClassC;
 
-                        transaction.Enlist(Action.Update, entity2.Id, entity2);
+                        tLock.Transaction.Enlist(Action.Update, entity2.Id, entity2);
 
-                        transaction.Commit();
+                        tLock.Transaction.Commit();
                     }
                 }
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
@@ -270,69 +278,76 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
             IDictionary<int, int> returnSegments = null;
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
-                using (var manager = new TransactionManager<int, MockClassA>(new MockTransactionFactory<int, MockClassA>()))
+                using (var manager = new TransactionManager<int, MockClassA>
+                     (new MockTransactionFactory<int, MockClassA>()
+                     , new TransactionSynchronizer<int, MockClassA>()))
                 {
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
-                        delegate(ITransaction<int, MockClassA> tranny, IList<ITransaction<int, MockClassA>> childTransactions)
+                        delegate(ITransaction<int, MockClassA> tranny)
                         {
                             returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, int>());
+                            tranny.MarkComplete();
                         });
 
-                    using (var transaction = manager.BeginTransaction() as MockTransaction<int, MockClassA>)
+                    using (var tLock = manager.BeginTransaction())
                     {
                         addEntities.ForEach(delegate(MockClassA entity)
                         {
-                            transaction.Enlist(Action.Create, entity.Id, entity);
+                            tLock.Transaction.Enlist(Action.Create, entity.Id, entity);
                         });
 
-                        transaction.Commit();
+                        tLock.Transaction.Commit();
 
                         Assert.AreEqual(25, afm.Length);
                     }
                 }
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 
                 Assert.AreEqual(25, afm.Length);
 
-                using (var manager = new TransactionManager<int, MockClassA>(new MockTransactionFactory<int, MockClassA>()))
+                using (var manager = new TransactionManager<int, MockClassA>
+                     (new MockTransactionFactory<int, MockClassA>()
+                     , new TransactionSynchronizer<int, MockClassA>()))
                 {
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
-                        delegate(ITransaction<int, MockClassA> tranny, IList<ITransaction<int, MockClassA>> childTransactions)
+                        delegate(ITransaction<int, MockClassA> tranny)
                         {
                             returnSegments = afm.CommitTransaction(tranny, returnSegments);
+
+                            tranny.MarkComplete();
                         });
 
-                    using (var transaction = manager.BeginTransaction() as MockTransaction<int, MockClassA>)
+                    using (var tLock = manager.BeginTransaction())
                     {
                         foreach (var kvp in returnSegments)
                             updateEntities.Add(afm.LoadSegmentFrom(kvp.Value) as MockClassC);
 
                         updateEntities.ForEach(u => u.Name = (u.Location.X + u.Location.Y).ToString() + u.Name);
 
-                        updateEntities.ForEach(u => transaction.Enlist(Action.Update, u.Id, u));
+                        updateEntities.ForEach(u => tLock.Transaction.Enlist(Action.Update, u.Id, u));
 
                         var insert = TestResourceFactory.CreateRandom().WithName("numb nugget") as MockClassC;
                         insert.Id = _seed.Increment();
 
                         updateEntities.Add(insert);
-                        transaction.Enlist(Action.Create, insert.Id, insert);
+                        tLock.Transaction.Enlist(Action.Create, insert.Id, insert);
 
-                        transaction.Commit();
+                        tLock.Transaction.Commit();
 
                         Assert.AreEqual(26, afm.Length);
                     }
                 }
             }
 
-            using (var afm = new AtomicFileManager<int, MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
             {
                 afm.Load();
 

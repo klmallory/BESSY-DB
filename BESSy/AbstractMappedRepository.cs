@@ -1,6 +1,17 @@
 ﻿/*
-Copyright © 2011, Kristen Mallory DBA klink.
-All rights reserved.
+Copyright (c) 2011,2012,2013 Kristen Mallory dba Klink
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 using System;
 using System.Collections.Generic;
@@ -20,16 +31,12 @@ using BESSy.Cache;
 
 namespace BESSy
 {
-    public interface IMappedRepository<T, I> : IRepository<T, I>, ILinqRepository<T, I>, ICache<T, I>
+    public interface IIndexedRepository<T, I> : IRepository<T, I>, IFlush, ILoad
     {
-        int Load();
-        int CacheSize { get; set; }
-        bool AutoCache { get; set; }
-        bool FileFlushQueueActive { get; }
-        void Flush();
+        IDictionary<I, T> GetCache();
     }
 
-    public abstract class AbstractMappedRepository<EntityType, IdType> : IMappedRepository<EntityType, IdType> 
+    public abstract class AbstractMappedRepository<EntityType, IdType> : IIndexedRepository<EntityType, IdType>, ILinqRepository<EntityType, IdType>, ICache<EntityType, IdType>
     {
         /// <summary>
         /// Opens an existing repository with the specified settings.
@@ -152,7 +159,6 @@ namespace BESSy
         }
 
         public virtual int CacheSize { get; set; }
-
         public virtual bool AutoCache { get; set; }
 
         public bool FileFlushQueueActive
@@ -236,7 +242,7 @@ namespace BESSy
                 }
             }
 
-            return Count();
+            return Length;
         }
 
         protected virtual void InitializeDatabase(ISeed<IdType> seed, int count)
@@ -380,11 +386,7 @@ namespace BESSy
                         queueCount = _fileFlushQueue.Count;
                 }
             }
-            catch (Exception ex)
-            {
-                Trace.TraceError(ex.ToString());
-                throw;
-            }
+            catch (Exception ex) { Trace.TraceError(ex.ToString()); throw; }
             finally
             {
                 Monitor.Exit(_syncFileFlush);
@@ -665,12 +667,15 @@ namespace BESSy
             _mapFileManager.Sweep();
         }
 
-        public int Count()
+        public int Length 
         {
-            if (_mapFileManager != null)
-                return _mapFileManager.Length;
+            get
+            {
+                if (_mapFileManager != null)
+                    return _mapFileManager.Length;
 
-            return 0;
+                return 0;
+            }
         }
 
         public void Clear()
@@ -715,6 +720,11 @@ namespace BESSy
                 }
             }
             return default(EntityType);
+        }
+
+        public IDictionary<IdType, EntityType> GetCache()
+        {
+            return _cache;
         }
 
         public void CacheItem(IdType id)

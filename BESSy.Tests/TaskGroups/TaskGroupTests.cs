@@ -31,16 +31,20 @@ namespace BESSy.Tests.TaskGroupTests
         [Test]
         public void TaskGroupingGetBreakdownForLargeList()
         {
+            var expectedCount = System.Environment.Is64BitOperatingSystem ? 34 : 125;
+
             var newItems = new Dictionary<int, object>();
 
             var paras = TaskGrouping.GetSegmentedTaskGroups(100000, 1024);
 
-            Assert.AreEqual(125, paras.Count());
+            Assert.AreEqual(expectedCount, paras.Count());
         }
 
         [Test]
         public void TaskGroupGetsInsertsForOneHundredThousandRecords()
         {
+            var expectedCount = System.Environment.Is64BitOperatingSystem ? 24 : 88;
+
             var rnd = new Random();
 
             var newItems = new Dictionary<int, object>();
@@ -49,7 +53,7 @@ namespace BESSy.Tests.TaskGroupTests
 
             var paras = TaskGrouping.GetSegmentedTaskGroups(70000, 1024);
 
-            Assert.AreEqual(88, paras.Count());
+            Assert.AreEqual(expectedCount, paras.Count());
 
             var groups = new Dictionary<int, int>();
 
@@ -62,7 +66,7 @@ namespace BESSy.Tests.TaskGroupTests
             var newGroups = TaskGrouping.GetCPUGroupsFor(newItems, groups, new BinConverter32(), 1024, 1024);
 
             Assert.IsFalse(newGroups.Any(n => n.StartSegment == n.EndSegment));
-            Assert.AreEqual(88, newGroups.Count());
+            Assert.AreEqual(expectedCount, newGroups.Count());
             Assert.AreEqual(101239, newGroups.Max(n => n.Inserts.Max(i => i.EndNewSegment)));
         }
     }
