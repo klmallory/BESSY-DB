@@ -14,6 +14,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 This project references the following projects.
 
-Json .NET (MIT) http://json.codeplex.com/license
+A fork of Json .NET (MIT) http://json.codeplex.com/license
+I have altered the namespace and binaries to 'BESSy.Json' so they will not conflict with the original Json.NET used in Visual Studio 2012
 
 LZMA SDK (Released into the Public Domain by Igor Pavlov) - http://www.7-zip.org/sdk.html

@@ -18,7 +18,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json.Linq;
+using BESSy.Json;
+using BESSy.Json.Linq;
 using SevenZip;
 
 namespace BESSy.Serialization
@@ -36,6 +37,8 @@ namespace BESSy.Serialization
         }
 
         protected IQueryableFormatter _serializer;
+
+        public JsonSerializer Serializer { get { return _serializer.Serializer; } }
 
         public JObject Parse(Stream inStream)
         {

@@ -25,9 +25,9 @@ namespace BESSy.Factories
 {
     public class MapManangerFactory
     {
-    //    public IIndexedEntityMapManager<EntityType, IdType> Create<IdType, EntityType>(IBinConverter<IdType> idConverter, ISafeFormatter formatter)
+    //    public IIndexedEntityMapManager<EntityType, SeedType> Create<SeedType, EntityType>(IBinConverter<SeedType> idConverter, ISafeFormatter formatter)
     //    {
-    //        return new IndexedEntityMapManager<EntityType, IdType>(idConverter, formatter);
+    //        return new IndexedEntityMapManager<EntityType, SeedType>(idConverter, formatter);
     //    }
     }
 }

@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using BESSy.Json;
+using BESSy.Relational;
 
 namespace BESSy.Tests.Mocks
 {
@@ -11,11 +13,11 @@ namespace BESSy.Tests.Mocks
 
         public string ReferenceCode { get; set; }
         public MockStruct Location { get; set; }
-        public IDictionary<int, MockClassE> Es { get; set; }
         public string[] NamesOfStuff { get; set; }
         public string TPSCoverSheet { get; set; }
         public double[] GetSomeCheckSum { get; set; }
 
-        MockClassE Parent { get { return GetRelatedEntity("parent") as MockClassE; } set { SetRelatedEntity("parent", value); } }
+        [JsonIgnore]
+        public MockClassE Parent { get { return GetRelatedEntity("parent") as MockClassE; } set { SetRelatedEntity("parent", value); } }
     }
 }

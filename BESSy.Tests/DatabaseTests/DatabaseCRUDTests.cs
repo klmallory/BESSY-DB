@@ -11,8 +11,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 */
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -62,7 +62,6 @@ namespace BESSy.Tests.DatabaseTests
             }
         }
 
-
         [Test]
         public void DatabaseFetchesSavedValues()
         {
@@ -103,6 +102,7 @@ namespace BESSy.Tests.DatabaseTests
             }
         }
 
+
         [Test]
         public void DatabaseFetchesUpdatesAndDeletes()
         {
@@ -110,13 +110,12 @@ namespace BESSy.Tests.DatabaseTests
             Cleanup();
 
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
-            var ids = new List<int>();
 
             using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
             {
                 db.Load();
 
-                objs.ToList().ForEach(o => ids.Add(db.Add(o.WithId(_seed.Increment()))));
+                objs.ToList().ForEach(o => o.Id = db.Add(o));
 
                 db.FlushAll();
             }

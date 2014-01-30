@@ -39,7 +39,7 @@ namespace BESSy.Files
 
         int _currentSegment = -1;
 
-        #region IEnumerator<T> Members
+        #region IEnumerator<ResourceType> Members
 
         public IndexPropertyPair<IdType, PropertyType> Current
         {

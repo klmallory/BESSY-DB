@@ -90,6 +90,13 @@ namespace BESSy.Tests
                     Thread.Sleep(100);
 
             fi.Delete();
+
+            fi = new FileInfo(_testName + ".database.catIndex.index");
+            if (fi.Exists)
+                while (fi.IsFileLocked())
+                    Thread.Sleep(100);
+
+            fi.Delete();
         }
     }
 }

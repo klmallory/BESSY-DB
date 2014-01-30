@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using NUnit.Framework;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using BESSy.Serialization;
 using BESSy.Files;
 using BESSy.Serialization.Converters;
@@ -22,7 +22,7 @@ namespace BESSy.Tests.RepositoryTests
     [TestFixture]
     public class RepositoryLinqTests : FileTest
     {
-        ISafeFormatter _bsonFormatter;
+        IQueryableFormatter _bsonFormatter;
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexedEntityMapManager<MockClassA, int> _mapManager;
 
@@ -45,7 +45,7 @@ namespace BESSy.Tests.RepositoryTests
         }
 
         [Test]
-        [Category("Performance")]
+        //[Category("Performance")]
         public void LinqTests()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -67,7 +67,7 @@ namespace BESSy.Tests.RepositoryTests
 
             int i = 0;
 
-            while (i <= 102400)
+            while (i <= 10240)
             {
                 var r = TestResourceFactory.CreateRandom();
                 r.Name = "Class " + i;
@@ -91,64 +91,64 @@ namespace BESSy.Tests.RepositoryTests
 
             repo.ClearCache();
 
-            var entity = repo.Fetch(31783);
+            var entity = repo.Fetch(1783);
             Assert.IsNotNull(entity);
 
-            entity = repo.Fetch(31784);
+            entity = repo.Fetch(1784);
             Assert.IsNotNull(entity);
 
-            entity = repo.Fetch(31785);
+            entity = repo.Fetch(1785);
             Assert.IsNotNull(entity);
 
-            entity = repo.Fetch(31786);
+            entity = repo.Fetch(1786);
             Assert.IsNotNull(entity);
 
-            entity = repo.Fetch(99999);
+            entity = repo.Fetch(9999);
             Assert.IsNotNull(entity);
 
-            entity = repo.Fetch(103399);
+            entity = repo.Fetch(3399);
             Assert.IsNotNull(entity);
 
-            entity = repo.Fetch(103400);
+            entity = repo.Fetch(3400);
             Assert.IsNotNull(entity);
 
-            entity = repo.Fetch(103401);
+            entity = repo.Fetch(11240);
             Assert.IsNull(entity);
 
-            Assert.AreEqual(0, repo.Where(e => e == null).Count());
+            Assert.AreEqual(0, repo.Select(s => true).Where(e => e == null).Count());
 
             Stopwatch sw = new Stopwatch();
 
-            var list = repo.Where(e => e.Id > 50000 && e.Id < 60000);
+            var list = repo.Select(e => e.Value<int>("Id") > 5000 && e.Value<int>("Id") < 6000);
 
             sw.Start();
 
-            Assert.AreEqual(9999, list.Count());
+            Assert.AreEqual(999, list.Count());
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Linq Where clause for ids {0} to {1} in {2} milliseconds.", 50000, 60000, sw.Elapsed.TotalMilliseconds));
+            Console.WriteLine(string.Format("Linq Where clause for ids {0} to {1} in {2} milliseconds.", 5000, 6000, sw.Elapsed.TotalMilliseconds));
 
             /* First Test */
             sw.Reset();
 
             sw.Start();
 
-            var first = repo.First(e => e.Id == 76053);
+            var first = repo.SelectFirst(e => e.Value<int>("Id") == 6053, 1).FirstOrDefault();
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Linq First clause for prop {0} in {1} milliseconds.", 76053, sw.Elapsed.TotalMilliseconds));
+            Console.WriteLine(string.Format("Linq First clause for prop {0} in {1} milliseconds.", 6053, sw.Elapsed.TotalMilliseconds));
 
             Assert.IsNotNull(first);
-            Assert.AreEqual(76053, first.Id);
+            Assert.AreEqual(6053, first.Id);
 
             /* FirstOrDefault Test */
             sw.Reset();
 
             sw.Start();
 
-            first = repo.FirstOrDefault(e => e.Name == "Super Stud Muffin");
+            first = repo.SelectFirst(e => e.Value<string>("Name") == "Super Stud Muffin", 1).FirstOrDefault();
 
             sw.Stop();
 
@@ -161,11 +161,11 @@ namespace BESSy.Tests.RepositoryTests
 
             sw.Start();
 
-            var last = repo.Last(e => e.Id == 103400);
+            var last = repo.SelectLast(e => e.Value<int>("Id") == 3400, 1).LastOrDefault();
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Linq Last clause for prop {0} in {1} milliseconds.", 103400, sw.Elapsed.TotalMilliseconds));
+            Console.WriteLine(string.Format("Linq Last clause for prop {0} in {1} milliseconds.", 3400, sw.Elapsed.TotalMilliseconds));
 
             Assert.IsNotNull(last);
 
@@ -174,11 +174,13 @@ namespace BESSy.Tests.RepositoryTests
 
             sw.Start();
 
-            last = repo.OfType<MockClassC>().LastOrDefault(e => e.Location.X == 2.0f);
+            var type = typeof(MockClassC).FullName;
+            
+            last = repo.Select(s => s.Value<string>("$type").Contains(type) && s.SelectToken("Location").Value<int>("X") == 2.0f).LastOrDefault();
 
             sw.Stop();
 
-            Console.WriteLine(string.Format("Linq LastOrDefault clause for prop {0} in {1} milliseconds.", 103400, sw.Elapsed.TotalMilliseconds));
+            Console.WriteLine(string.Format("Linq LastOrDefault clause for prop {0} in {1} milliseconds.", 3400, sw.Elapsed.TotalMilliseconds));
 
             Assert.IsNull(last);
 

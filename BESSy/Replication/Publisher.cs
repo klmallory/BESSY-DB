@@ -10,6 +10,7 @@ using BESSy.Extensions;
 using System.Security.AccessControl;
 using System.Threading;
 using System.Diagnostics;
+using System.Security;
 
 namespace BESSy.Replication
 {
@@ -41,7 +42,7 @@ namespace BESSy.Replication
 
         public Publisher(AbstractTransactionalDatabase<IdType, EntityType> database
             , string replicationFolder
-            , ICrypto crypto, object[] hash) 
+            , ICrypto crypto, SecureString hash) 
             : this(database, replicationFolder)
         {
             _formatter = new QueryCryptoFormatter(crypto, new BSONFormatter(), hash);

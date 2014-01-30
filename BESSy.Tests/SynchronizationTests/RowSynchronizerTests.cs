@@ -12,7 +12,7 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using NUnit.Framework;
 
 namespace BESSy.Tests.SynchronizationTests

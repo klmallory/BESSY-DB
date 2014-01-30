@@ -29,7 +29,7 @@ using BESSy.Tests.Mocks;
 using BESSy.Transactions;
 using BESSy.Extensions;
 using NUnit.Framework;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using BESSy.Cache;
 
 namespace BESSy.Tests.AtomicFileManagerTests

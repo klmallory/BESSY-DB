@@ -21,11 +21,11 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security;
 using BESSy.Crypto;
-using Newtonsoft.Json;
+using BESSy.Json;
 using SevenZip;
 using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 
 namespace BESSy.Serialization
 {
@@ -61,6 +61,8 @@ namespace BESSy.Serialization
         IDictionary<CoderPropID, object> _properties;
         IFormatter _serializer;
 
+        public bool Trim { get { return true; } }
+
         protected MemoryStream Unzip(Stream inStream)
         {
             byte[] zipProps = new byte[5];
@@ -91,9 +93,9 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Unzips the object of type <typeparamref name="T"/>
+        /// Unzips the object of type <typeparamref name="ResourceType"/>
         /// </summary>
-        /// <typeparam name="T">Type of the object to format.</typeparam>
+        /// <typeparam name="ResourceType">Type of the object to format.</typeparam>
         /// <param name="obj">object to format.</param>
         /// <returns>raw compressed / encrypted data.</returns>
         public Stream FormatObjStream<T>(T obj)
@@ -105,9 +107,9 @@ namespace BESSy.Serialization
 
 
         /// <summary>
-        /// Unzips the object of type <typeparamref name="T"/>
+        /// Unzips the object of type <typeparamref name="ResourceType"/>
         /// </summary>
-        /// <typeparam name="T">Type of the object to format.</typeparam>
+        /// <typeparam name="ResourceType">Type of the object to format.</typeparam>
         /// <param name="obj">object to format.</param>
         /// <returns>raw compressed / encrypted data.</returns>
         public Byte[] FormatObj<T>(T obj)

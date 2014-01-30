@@ -29,7 +29,7 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using NUnit.Framework;
 
 namespace BESSy.Tests.TransactionTests

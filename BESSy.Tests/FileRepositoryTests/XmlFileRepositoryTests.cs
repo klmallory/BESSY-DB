@@ -31,7 +31,7 @@ using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using NUnit.Framework;
 using System.Threading.Tasks;
 

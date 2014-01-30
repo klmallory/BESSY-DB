@@ -28,14 +28,48 @@ namespace BESSy.Factories
 {
     public interface IAtomicFileManagerFactory
     {
-        IAtomicFileManager<EntityType> Create<IdType, EntityType>(string fileNamePath, int bufferSize, int startingSize, int maxBlockSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
+        /// <summary>
+        ///  Creates a File Manager for an existing data file.
+        /// </summary>
+        /// <typeparam name="SeedType"></typeparam>
+        /// <typeparam name="EntityType"></typeparam>
+        /// <param name="fileNamePath"></param>
+        /// <param name="bufferSize"></param>
+        /// <param name="startingSize"></param>
+        /// <param name="maxBlockSize"></param>
+        /// <param name="segmentSeed"></param>
+        /// <param name="formatter"></param>
+        /// <param name="rowSynchronizer"></param>
+        /// <returns></returns>
+        IAtomicFileManager<EntityType> Create<IdType, EntityType>(string fileNamePath, int bufferSize, int startingSize, int maxBlockSize, ISeed<Int32> segmentSeed, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
+
+        /// <summary>
+        /// Creates a File Manager for a new data file.
+        /// </summary>
+        /// <typeparam name="SeedType"></typeparam>
+        /// <typeparam name="EntityType"></typeparam>
+        /// <param name="fileNamePath"></param>
+        /// <param name="bufferSize"></param>
+        /// <param name="startingSize"></param>
+        /// <param name="maxBlockSize"></param>
+        /// <param name="entitySeed"></param>
+        /// <param name="segmentSeed"></param>
+        /// <param name="formatter"></param>
+        /// <param name="rowSynchronizer"></param>
+        /// <returns></returns>
+        IAtomicFileManager<EntityType> Create<IdType, EntityType>(string fileNamePath, int bufferSize, int startingSize, int maxBlockSize, ISeed<IdType> entitySeed, ISeed<Int32> segmentSeed, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
     }
 
     internal class AtomicFileManagerFactory : IAtomicFileManagerFactory
     {
-        public IAtomicFileManager<EntityType> Create<IdType, EntityType>(string fileNamePath, int bufferSize, int startingSize, int maxBlockSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+        public IAtomicFileManager<EntityType> Create<IdType, EntityType>(string fileNamePath, int bufferSize, int startingSize, int maxBlockSize, ISeed<Int32> segmentSeed, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
         {
-            return new AtomicFileManager<EntityType>(fileNamePath, bufferSize, startingSize, maxBlockSize, formatter, rowSynchronizer);
+            return new AtomicFileManager<EntityType>(fileNamePath, bufferSize, startingSize, maxBlockSize, segmentSeed, formatter, rowSynchronizer);
+        }
+
+        public IAtomicFileManager<EntityType> Create<IdType, EntityType>(string fileNamePath, int bufferSize, int startingSize, int maxBlockSize, ISeed<IdType> entitySeed, ISeed<Int32> segmentSeed, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+        {
+            return new AtomicFileManager<EntityType>(fileNamePath, bufferSize, startingSize, maxBlockSize, entitySeed, segmentSeed, formatter, rowSynchronizer);
         }
     }
 }

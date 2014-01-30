@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>BESSy</id>
+    <version>0.8.1.0</version>
+    <title>BESSy</title>
+    <description>Object / Document peer to peer database for the .NET framework.</description>
+    <authors>Kristen Lael Mallory</authors>
+    <language>en-US</language>
+    <projectUrl>http://sourceforge.net/projects/bessydb/</projectUrl>
+    <licenseUrl>https://sourceforge.net/p/bessydb/wiki/License/</licenseUrl>
+    <tags>Object Document Database Embedded Encryption Compression Zip LZMA Transaction Replication Atomic BSON</tags>
+  </metadata>
+</package>

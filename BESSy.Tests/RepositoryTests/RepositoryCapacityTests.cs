@@ -19,7 +19,7 @@ namespace BESSy.Tests.RepositoryTests
     [TestFixture]
     public class RepositoryCapacityTests : FileTest
     {
-        ISafeFormatter _bsonFormatter;
+        IQueryableFormatter _bsonFormatter;
         IBatchFileManager<MockClassA> _zipManager;
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexedEntityMapManager<MockClassA, int> _mapManager;
@@ -112,6 +112,9 @@ namespace BESSy.Tests.RepositoryTests
             Assert.IsNotNull(entity);
             entity = repo.Fetch(34510);
             Assert.IsNotNull(entity);
+
+
+            repo.Sweep();
 
             repo.Dispose();
         }

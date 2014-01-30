@@ -149,7 +149,7 @@ namespace BESSy
             return id;
         }
 
-        public void AddOrUpdate(T item, I id)
+        public I AddOrUpdate(T item, I id)
         {
             lock (_syncRoot)
             {
@@ -158,6 +158,8 @@ namespace BESSy
                 else
                     _cache.Add(id, item);
             }
+
+            return id;
         }
 
         public void Update(T item, I id)

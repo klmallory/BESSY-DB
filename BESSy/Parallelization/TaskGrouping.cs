@@ -45,9 +45,9 @@ namespace BESSy.Parallelization
 
     public static class TaskGrouping
     {
-        internal static readonly int MemoryLimit = Environment.Is64BitOperatingSystem ? 4096000 : 1024000;
-        internal static readonly int ReadLimit = Environment.Is64BitOperatingSystem ? 3072000 : 819200;
-        internal static readonly int InsertLimit = Environment.Is64BitOperatingSystem ? 1024000 : 204800;
+        internal static readonly int MemoryLimit = Environment.Is64BitOperatingSystem ? 2048000 : 1024000;
+        internal static readonly int ReadLimit = Environment.Is64BitOperatingSystem ? 1638400 : 819200;
+        internal static readonly int InsertLimit = Environment.Is64BitOperatingSystem ? 409600 : 204800;
         internal static readonly int ArrayLimit = Environment.Is64BitOperatingSystem ? 204800 : 102400;
 
         public static List<int> GetSegmentedTaskGroups(int length, int stride)
@@ -59,10 +59,12 @@ namespace BESSy.Parallelization
             if (length < procs * 10 && stride < MemoryLimit)
                 return new List<int>() { length - 1 };
 
-            if ((length * stride) / procs > ReadLimit)
-                procs = (length * stride) / ReadLimit;
+            if (stride >= ReadLimit / 2 )
+                procs = Math.Max(length, 1);
+            else if (((length * (long)stride) / procs) > ReadLimit)
+                procs = (int)((length * (long)stride) / ReadLimit);
 
-            var len = Math.DivRem(length, procs, out rem);
+            var len = Math.Max(Math.DivRem(length, procs, out rem), 1);
 
             var paras = new List<int>();
 
@@ -184,14 +186,15 @@ namespace BESSy.Parallelization
             {
                 if (k == 0)
                 {
-                    newGroups.Add(new IndexingCPUGroup<I>()
-                    {
-                        StartSegment = 0,
-                        //StartNewSegment = 0,
-                        EndSegment = keys[k]
-                        //EndNewSegment = keys[k],
-                        //IdsToAdd = new List<I>()
-                    });
+                    if (keys[k] > 0)
+                        newGroups.Add(new IndexingCPUGroup<I>()
+                        {
+                            StartSegment = 0,
+                            //StartNewSegment = 0,
+                            EndSegment = keys[k]
+                            //EndNewSegment = keys[k],
+                            //IdsToAdd = new List<I>()
+                        });
                 }
                 else if (k < keys.Length - 1)
                 {

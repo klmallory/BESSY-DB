@@ -13,6 +13,7 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,10 +23,11 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Security;
 using System.Text;
 using BESSy.Crypto;
-using Newtonsoft.Json;
+using BESSy.Json;
 using SevenZip;
 using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
+using System.Runtime.InteropServices;
 
 namespace BESSy.Serialization
 {
@@ -35,16 +37,16 @@ namespace BESSy.Serialization
     [SECP.EnvironmentPermission(SECP.SecurityAction.Demand)]
     public class CryptoFormatter : ISafeFormatter
     {
-        public CryptoFormatter(ICrypto cryptoProvider, IFormatter serializer, object[] hash)
+        public CryptoFormatter(ICrypto cryptoProvider, IFormatter serializer, SecureString hash)
         {
             _crypto = cryptoProvider;
             _serializer = serializer;
-            _hash = hash;
+            _key = _crypto.GetKey(hash, _crypto.KeySize);
         }
 
         ICrypto _crypto;
         IFormatter _serializer;
-        object[] _hash;
+        byte[] _key;
 
         #region ISafeFormatter Members
 
@@ -108,12 +110,14 @@ namespace BESSy.Serialization
 
         #region IFormatter Members
 
+        public bool Trim { get { return true; } }
+
         public Stream FormatObjStream<T>(T obj)
         {
             using (var stream = _serializer.FormatObjStream(obj))
             {
                 stream.Position = 0;
-                var outStream = _crypto.Encrypt(stream, _crypto.GetKey(_hash, _crypto.KeySize));
+                var outStream = _crypto.Encrypt(stream, _key);
 
                 outStream.Position = 0;
                 return outStream;
@@ -124,14 +128,14 @@ namespace BESSy.Serialization
         {
             var buffer = _serializer.FormatObj(obj);
 
-            buffer = _crypto.Encrypt(buffer, _crypto.GetKey(_hash, _crypto.KeySize));
+            buffer = _crypto.Encrypt(buffer, _key);
 
             return buffer;
         }
 
         public T UnformatObj<T>(byte[] buffer)
         {
-            buffer = _crypto.Decrypt(buffer, _crypto.GetKey(_hash, _crypto.KeySize));
+            buffer = _crypto.Decrypt(buffer, _key);
 
             return _serializer.UnformatObj<T>(buffer);
         }
@@ -140,7 +144,7 @@ namespace BESSy.Serialization
         {
             inStream.Position = 0;
 
-            var stream = _crypto.Decrypt(inStream, _crypto.GetKey(_hash, _crypto.KeySize));
+            var stream = _crypto.Decrypt(inStream, _key);
 
             return _serializer.UnformatObj<T>(stream);
         }
@@ -151,26 +155,26 @@ namespace BESSy.Serialization
 
         public byte[] Format(byte[] buffer)
         {
-            return _crypto.Encrypt(buffer, _crypto.GetKey(_hash, _crypto.KeySize));
+            return _crypto.Encrypt(buffer, _key);
         }
 
         public Stream Format(Stream inStream)
         {
             inStream.Position = 0;
 
-            return _crypto.Encrypt(inStream, _crypto.GetKey(_hash, _crypto.KeySize));
+            return _crypto.Encrypt(inStream, _key);
         }
 
         public byte[] Unformat(byte[] buffer)
         {
-            return _crypto.Decrypt(buffer, _crypto.GetKey(_hash, _crypto.KeySize));
+            return _crypto.Decrypt(buffer, _key);
         }
 
         public Stream Unformat(Stream inStream)
         {
             inStream.Position = 0;
 
-            return _crypto.Decrypt(inStream, _crypto.GetKey(_hash, _crypto.KeySize));
+            return _crypto.Decrypt(inStream, _key);
         }
 
         #endregion

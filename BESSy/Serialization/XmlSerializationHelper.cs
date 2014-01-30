@@ -206,7 +206,7 @@ namespace BESSy.Serialization
         /// <summary>
         /// Tries the deserialize.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="ResourceType"></typeparam>
         /// <param name="xmlReader">The XML reader.</param>
         /// <param name="output">The output.</param>
         /// <returns></returns>
@@ -246,7 +246,7 @@ namespace BESSy.Serialization
         /// Deserializes the specified XML as the specified inner type.
         /// </summary>
         /// <param name="xml">The XML.</param>
-        /// <returns>returns the deserialized object T.</returns>
+        /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(string xml) where T : class
         {
             XmlSerializer xsl = new XmlSerializer(typeof(T));
@@ -260,7 +260,7 @@ namespace BESSy.Serialization
         /// Deserializes the specified XML as the specified inner type.
         /// </summary>
         /// <param name="xml">The XML.</param>
-        /// <returns>returns the deserialized object T.</returns>
+        /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(string xml, params Type[] types) where T : class
         {
             XmlSerializer xsl = new XmlSerializer(typeof(T), types);
@@ -286,10 +286,10 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Deserializes the specified stream reader as T.
+        /// Deserializes the specified stream reader as ResourceType.
         /// </summary>
         /// <param name="streamReader">The stream reader.</param>
-        /// <returns>returns the deserialized object T.</returns>
+        /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(StreamReader streamReader) where T : class
         {
             XmlSerializer xsl = new XmlSerializer(typeof(T));
@@ -300,10 +300,10 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Deserializes the specified stream as T.
+        /// Deserializes the specified stream as ResourceType.
         /// </summary>
         /// <param name="stream">The stream.</param>
-        /// <returns>returns the deserialized object T.</returns>
+        /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(Stream stream) where T : class
         {
             XmlSerializer xsl = new XmlSerializer(typeof(T));
@@ -316,7 +316,7 @@ namespace BESSy.Serialization
         /// <summary>
         /// Deserializes the specified <see cref="XmlTextReader"/>.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="ResourceType"></typeparam>
         /// <param name="reader">The reader.</param>
         /// <returns></returns>
         public static T Deserialize<T>(XmlTextReader reader) where T : class
@@ -327,7 +327,7 @@ namespace BESSy.Serialization
         /// <summary>
         /// Deserializes the specified <see cref="XmlReader"/>.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="ResourceType"></typeparam>
         /// <param name="reader">The reader.</param>
         /// <returns></returns>
         public static T Deserialize<T>(XmlReader reader) where T : class

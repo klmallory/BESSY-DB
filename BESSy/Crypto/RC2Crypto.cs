@@ -13,6 +13,7 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,6 +24,7 @@ using System.Text;
 using BESSy.Extensions;
 using SECP = System.Security.Permissions;
 using System.Runtime;
+using System.Runtime.InteropServices;
 
 namespace BESSy.Crypto
 {
@@ -37,21 +39,27 @@ namespace BESSy.Crypto
     {
         byte[] _simpleVector = new byte[8] { 124, 53, 89, 243, 163, 62, 47, 191 };
         Encoding _encoding;
-
-        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
-        public RC2Crypto(byte[] vector) : this(vector, Encoding.ASCII)
-        {
-            
-        }
-
+       
         /// <summary>
         /// What's your Vector, Victor?
         /// </summary>
         /// <param name="vector"></param>
-        /// <param name="?"></param>
-        public RC2Crypto(byte[] vector, Encoding encoding)
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
+        public RC2Crypto(SecureString vector)
+            : this(vector, Encoding.ASCII)
         {
-            _simpleVector = vector;
+
+        }
+        
+        /// <summary>
+        /// What's your Vector, Victor?
+        /// </summary>
+        /// <param name="vector"></param>
+        /// <param name="encoding"></param>
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
+        public RC2Crypto(SecureString vector, Encoding encoding)
+        {
+            _simpleVector = GetKey(vector, KeySize);
             _encoding = encoding;
         }
 
@@ -68,26 +76,29 @@ namespace BESSy.Crypto
         /// <summary>
         /// Gets the key to be used from the collection of key objects passed in.
         /// </summary>
-        /// <param name="key">the object array to derrive the key from.</param>
+        /// <param name="key">the secure string to derrive the key from.</param>
         /// <param name="keySize">the _length of the key.</param>
         /// <returns>the key</returns>
-        public byte[] GetKey(object[] key, int keySize)
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
+        public byte[] GetKey(SecureString key, int keySize)
         {
 #if DEBUG
-            if (key.IsNullOrEmpty())
+            if (key == null || key.Length == 0)
                 throw new ArgumentNullException("key", "key cannot be null");
 #endif
-            Random rnd = new Random(key.GetHashCode());
-
             byte[] buf = new byte[keySize];
 
-            for (int i = 0; i < keySize; i++)
+            IntPtr bstr = IntPtr.Zero;
+
+            try
             {
-                long hash = key[i % key.Length].GetHashCode();
-                var bit = (hash * 11).Clamp(0, long.MaxValue) % 256;
-                buf[i] = Convert.ToByte(bit);
+                bstr = Marshal.SecureStringToBSTR(key);
+                for (int i = 0; i < keySize; i++)
+                    buf[i] = Marshal.ReadByte(bstr, (i * 7) % key.Length);
             }
-            
+            finally
+            { Marshal.ZeroFreeBSTR(bstr); }
+
             return buf;
         }
 
@@ -96,8 +107,8 @@ namespace BESSy.Crypto
         /// </summary>
         /// <param name="value">The value.</param>
         /// <param name="key">The key.</param>
-        /// <param name="encoding">The encoding.</param>
         /// <returns></returns>
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
         public string Encrypt(string value, byte[] key)
         {
             byte[] raw = _encoding.GetBytes(value);
@@ -113,6 +124,7 @@ namespace BESSy.Crypto
         /// <param name="value">The value.</param>
         /// <param name="key">The key.</param>
         /// <returns></returns>
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
         public byte[] Encrypt(byte[] value, byte[] key)
         {
             RC2 rc2 = RC2.Create();
@@ -132,6 +144,7 @@ namespace BESSy.Crypto
         /// <param name="inStream"></param>
         /// <param name="key"></param>
         /// <returns></returns>
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
         public MemoryStream Encrypt(Stream inStream, byte[] key)
         {
             if (inStream.Length < 1)
@@ -167,8 +180,8 @@ namespace BESSy.Crypto
         /// </summary>
         /// <param name="value">The value.</param>
         /// <param name="key">The key.</param>
-        /// <param name="encoding">The encoding.</param>
         /// <returns></returns>
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
         public string Decrypt(string value, byte[] key)
         {
             byte[] raw = Convert.FromBase64String(value);
@@ -184,6 +197,7 @@ namespace BESSy.Crypto
         /// <param name="value">The value.</param>
         /// <param name="key">The key.</param>
         /// <returns></returns>
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
         public byte[] Decrypt(byte[] value, byte[] key)
         {
             var decrypted = new byte[0];
@@ -194,6 +208,8 @@ namespace BESSy.Crypto
                 RC2 rc2 = RC2.Create();
                 ICryptoTransform transform = rc2.CreateDecryptor(key, _simpleVector);
                 rc2.Padding = PaddingMode.PKCS7;
+
+                var sr = new StreamReader(inStream);
 
                 using (var cryptoStream = new CryptoStream(inStream, transform, CryptoStreamMode.Read))
                 {
@@ -220,6 +236,7 @@ namespace BESSy.Crypto
         /// <param name="inStream"><typeparamref name="System.IO.Stream"/> to decrypt</param>
         /// <param name="key">the hash key</param>
         /// <returns>the decrypted <typeparamref name="System.IO.Stream"/></returns>
+        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
         public MemoryStream Decrypt(Stream inStream, byte[] key)
         {
             RC2 rc2 = RC2.Create();
@@ -230,14 +247,15 @@ namespace BESSy.Crypto
 
             using (var cryptoStream = new CryptoStream(inStream, transform, CryptoStreamMode.Read))
             {
-                byte[] buffer = new byte[Environment.SystemPageSize];
                 
+                byte[] buffer = new byte[Environment.SystemPageSize];
+
                 var read = cryptoStream.Read(buffer, 0, buffer.Length);
 
                 while (read > 0)
                 {
                     outStream.Write(buffer, 0, read);
- 
+
                     read = cryptoStream.Read(buffer, 0, buffer.Length);
                 }
             }

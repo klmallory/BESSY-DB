@@ -15,23 +15,27 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 */
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Security;
 using System.Text;
 using BESSy.Crypto;
-using Newtonsoft.Json.Linq;
-using System.IO;
+using BESSy.Json;
+using BESSy.Json.Linq;
 
 namespace BESSy.Serialization
 {
     public class QueryCryptoFormatter : CryptoFormatter, IQueryableFormatter
     {
-        public QueryCryptoFormatter(ICrypto cryptoProvider, IQueryableFormatter serializer, object[] hash)
+        public QueryCryptoFormatter(ICrypto cryptoProvider, IQueryableFormatter serializer, SecureString hash)
             : base(cryptoProvider, serializer, hash)
         {
             _serializer = serializer;
         }
 
         protected IQueryableFormatter _serializer;
+
+        public JsonSerializer Serializer { get { return _serializer.Serializer; } }
 
         public JObject Parse(Stream inStream)
         {

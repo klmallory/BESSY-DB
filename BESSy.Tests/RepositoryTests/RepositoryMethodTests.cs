@@ -10,7 +10,7 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using NUnit.Framework;
 
 namespace BESSy.Tests.RepositoryTests
@@ -18,7 +18,7 @@ namespace BESSy.Tests.RepositoryTests
     [TestFixture]
     public class RepositoryMethodTests
     {
-        ISafeFormatter _bsonFormatter;
+        IQueryableFormatter _bsonFormatter;
         IBatchFileManager<MockClassA> _zipManager;
         IBatchFileManager<MockClassA> _bsonManager;
         IIndexedEntityMapManager<MockClassA, int> _mapManager;

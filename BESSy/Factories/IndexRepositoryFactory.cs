@@ -34,7 +34,7 @@ namespace BESSy.Factories
         IBinConverter<IdType> DefaultIdConverter { get; set; }
         IBinConverter<PropertyType> DefaultPropertyConverter { get; set; }
         ISeed<IdType> DefaultSeed { get; set; }
-        ISafeFormatter DefaultMapFormatter { get; set; }
+        IQueryableFormatter DefaultMapFormatter { get; set; }
         IRepositoryCacheFactory DefaultCacheFactory { get; set; }
         IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> DefaultBatchFileManager { get; set; }
 
@@ -47,7 +47,7 @@ namespace BESSy.Factories
         public IBinConverter<IdType> DefaultIdConverter { get; set; }
         public IBinConverter<PropertyType> DefaultPropertyConverter { get; set; }
         public ISeed<IdType> DefaultSeed { get; set; }
-        public ISafeFormatter DefaultMapFormatter { get; set; }
+        public IQueryableFormatter DefaultMapFormatter { get; set; }
         public IRepositoryCacheFactory DefaultCacheFactory { get; set; }
         public IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> DefaultBatchFileManager { get; set; }
 
@@ -75,7 +75,7 @@ namespace BESSy.Factories
         (IBinConverter<IdType> idConverter
         , IBinConverter<PropertyType> propertyConverter
         , ISeed<IdType> seed
-        , ISafeFormatter mapFormatter)
+        , IQueryableFormatter mapFormatter)
             : this(idConverter
             , propertyConverter
             , seed
@@ -89,7 +89,7 @@ namespace BESSy.Factories
             (IBinConverter<IdType> idConverter
             , IBinConverter<PropertyType> propertyConverter
             , ISeed<IdType> seed
-            , ISafeFormatter mapFormatter
+            , IQueryableFormatter mapFormatter
             , IRepositoryCacheFactory cacheFactory)
             : this(idConverter
             , propertyConverter
@@ -105,7 +105,7 @@ namespace BESSy.Factories
             (IBinConverter<IdType> idConverter
             , IBinConverter<PropertyType> propertyConverter
             , ISeed<IdType> seed
-            , ISafeFormatter mapFormatter
+            , IQueryableFormatter mapFormatter
             , IRepositoryCacheFactory cacheFactory
             , IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> batchManager)
         {

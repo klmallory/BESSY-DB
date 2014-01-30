@@ -30,22 +30,6 @@ namespace BESSy.Cache
 
         void UpdateCache(IdType id, EntityType entity, bool forceCache, bool dirty);
 
-        ///// <summary>
-        ///// Provides a method for bulk updates.
-        ///// </summary>
-        ///// <param name="entities"></param>
-        ///// <param name="forceCache"></param>
-        ///// <param name="dirty"></param>
-        //void UpdateCache(IDictionary<IdType, EntityType> entities, bool forceCache, bool dirty);
-
-        ///// <summary>
-        ///// Updates the cache from a transaction
-        ///// </summary>
-        ///// <param name="entities"></param>
-        ///// <param name="forceCache"></param>
-        ///// <param name="dirty"></param>
-        //void UpdateCache(IDictionary<IdType, EnlistedAction<IdType, EntityType>> entities, bool forceCache, bool dirty);
-
         IDictionary<IdType, EntityType> UnloadDirtyItems();
         IDictionary<IdType, EntityType> GetCache();
         event EventHandler FlushRequested;
@@ -161,7 +145,7 @@ namespace BESSy.Cache
 
         #endregion
 
-        #region IDatabaseCache<EntityType,IdType> Members
+        #region IDatabaseCache<EntityType,SeedType> Members
 
         public void UpdateCache(IdType id, EntityType entity, bool forceCache, bool dirty)
         {
@@ -189,72 +173,6 @@ namespace BESSy.Cache
                     _dirtyIds.Add(id);
             }
         }
-
-        //public void UpdateCache(IDictionary<IdType, EntityType> entities, bool forceCache, bool dirty)
-        //{
-        //    lock (_syncRoot)
-        //    {
-        //        if (AutoCache || forceCache)
-        //            if (_cache.Count + entities.Count > CacheSize)
-        //                Sweep();
-
-        //        foreach (var e in entities)
-        //        {
-        //            if (_cache.ContainsKey(e.Key))
-        //                _cache[e.Key] = e.Value;
-
-        //            else if (_deferredCache.Contains(e.Key))
-        //                _cache.Add(e.Key, e.Value);
-
-        //            else if (AutoCache || forceCache)
-        //            {
-        //                _deferredCache.Add(e.Key);
-        //                _cache.Add(e.Key, e.Value);
-        //            }
-        //            else
-        //                return;
-
-        //            if (dirty && !_dirtyIds.Contains(e.Key))
-        //                _dirtyIds.Add(e.Key);
-        //        }
-        //    }
-        //}
-
-        //public void UpdateCache(IDictionary<IdType, EnlistedAction<IdType, EntityType>> entities, bool forceCache, bool dirty)
-        //{
-        //    lock (_syncRoot)
-        //    {
-        //        if (CacheSize < entities.Count)
-        //            CacheSize = entities.Count;
-        //    }
-
-        //    if (AutoCache || forceCache)
-        //        if (_cache.Count + entities.Count > CacheSize)
-        //            Sweep();
-
-        //    lock (_syncRoot)
-        //    {
-        //        foreach (var e in entities)
-        //        {
-        //            if (_cache.ContainsKey(e.Key))
-        //                _cache[e.Key] = e.Value.Entity;
-
-        //            else if (_deferredCache.Contains(e.Key))
-        //                _cache.Add(e.Key, e.Value.Entity);
-
-        //            else if (AutoCache || forceCache)
-        //            {
-        //                _deferredCache.Add(e.Key);
-        //                _cache.Add(e.Key, e.Value.Entity);
-        //            }
-        //            else
-        //                return;
-
-        //            if (dirty && !_dirtyIds.Contains(e.Key))
-        //                _dirtyIds.Add(e.Key);
-        //        }
-        //    }
-        //}
 
         public IDictionary<IdType, EntityType> UnloadDirtyItems()
         {

@@ -21,7 +21,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using System.Diagnostics;
 using System.Security.AccessControl;
 using BESSy.Serialization;
@@ -33,7 +33,7 @@ namespace BESSy.Files
 {
     public abstract class MapManager<EntityType> : IEntityMapManager<EntityType>
     {
-        public MapManager(ISafeFormatter formatter)
+        public MapManager(IQueryableFormatter formatter)
         {
             _formatter = formatter;
 
@@ -44,7 +44,7 @@ namespace BESSy.Files
         protected object _syncMap = new object();
 
         protected bool _inFlush = false;
-        protected ISafeFormatter _formatter { get; set; }
+        protected IQueryableFormatter _formatter { get; set; }
         protected MemoryMappedFile _file { get; set; }
 
         protected string _handle;
@@ -115,7 +115,7 @@ namespace BESSy.Files
 
         public virtual int SaveBatchToFile(IList<EntityType> objs, int segmentStart)
         {
-            if (objs.IsNullOrEmpty())
+            if (objs == null || objs.Count == 0)
                 return 0;
 
             lock (_syncFlush)

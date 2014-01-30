@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using BESSy.Json;
+using BESSy.Relational;
 
 namespace BESSy.Tests.Mocks
 {
@@ -18,23 +20,12 @@ namespace BESSy.Tests.Mocks
         public virtual string CatalogName { get { return Name == null || Name.Length < 1 ? "_" : Name.Substring(0, 1).ToUpper(); } }
         public virtual string CatalogNameNull { get { return null; } }
 
-        MockClassD HiC { get { return GetRelatedEntity("hic") as MockClassD; } set { SetRelatedEntity("hic", value); } }
-    }
+        [JsonIgnore]
+        public MockClassD HiC { get { return GetRelatedEntity("hic") as MockClassD; } set { SetRelatedEntity("hic", value); } }
 
-    internal static class ExtendMockClassD
-    {
-        public static MockClassD WithName(this MockClassD mock, string name)
-        {
-            mock.Name = name;
+        [JsonIgnore]
+        public IEnumerable<MockClassD> LowBall { get { return GetRelatedEntities("lowball").Cast<MockClassD>(); } set { SetRelatedEntities("lowball", value); } }
 
-            return mock;
-        }
-
-        public static MockClassD WithId(this MockClassD mock, int id)
-        {
-            mock.Id = id;
-
-            return mock;
-        }
+        public new void SetRepository(IRepository<RelationshipEntity<int>, int> repo) { base.SetRepository(repo); }
     }
 }

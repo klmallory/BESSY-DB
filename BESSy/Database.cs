@@ -32,8 +32,8 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Transactions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using BESSy.Json;
+using BESSy.Json.Linq;
 
 namespace BESSy
 {
@@ -149,7 +149,7 @@ namespace BESSy
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="idToken"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         public Database(string fileName, string idToken
             , ISeed<IdType> seed)
             : this(fileName, idToken, seed            
@@ -163,7 +163,7 @@ namespace BESSy
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="idToken"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="converter"></param>
         public Database(string fileName, string idToken
             , ISeed<IdType> seed
@@ -179,7 +179,7 @@ namespace BESSy
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="idToken"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="converter"></param>
         /// <param name="formatter"></param>
         /// <param name="transactionManager"></param>
@@ -198,7 +198,7 @@ namespace BESSy
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="idToken"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="converter"></param>
         /// <param name="formatter"></param>
         /// <param name="transactionManager"></param>
@@ -218,7 +218,7 @@ namespace BESSy
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="idToken"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="converter"></param>
         /// <param name="formatter"></param>
         /// <param name="transactionManager"></param>
@@ -240,7 +240,7 @@ namespace BESSy
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="idToken"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="converter"></param>
         /// <param name="formatter"></param>
         /// <param name="transactionManager"></param>
@@ -265,7 +265,7 @@ namespace BESSy
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="idToken"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="converter"></param>
         /// <param name="formatter"></param>
         /// <param name="transactionManager"></param>

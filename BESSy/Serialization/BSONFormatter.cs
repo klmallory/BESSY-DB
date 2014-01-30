@@ -21,13 +21,14 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Bson;
-using Newtonsoft.Json.Serialization;
+using BESSy.Json;
+using BESSy.Json.Bson;
+using BESSy.Json.Serialization;
 using SevenZip;
 using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
+using System.Diagnostics;
 
 namespace BESSy.Serialization
 {
@@ -46,6 +47,8 @@ namespace BESSy.Serialization
 
             _serializer = JsonSerializer.Create(settings);
         }
+
+        public bool Trim { get { return false; } }
 
         /// <summary>
         /// Passthrough for Bson
@@ -123,8 +126,8 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException) { }
-            catch (SystemException) { }
+            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
+            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
             catch (ApplicationException) { }
 
             return false;
@@ -143,8 +146,8 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException) { }
-            catch (SystemException) { }
+            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
+            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
             catch (ApplicationException) { }
 
             return false;
@@ -161,12 +164,12 @@ namespace BESSy.Serialization
         public T UnformatObj<T>(Stream inStream)
         {
             inStream.Position = 0;
-            using (var reader = new BsonReader(inStream))
-            {
-                T retVal = _serializer.Deserialize<T>(reader);
+            //using (var reader = )
+            //{
+                T retVal = _serializer.Deserialize<T>(new BsonReader(inStream));
 
                 return retVal;
-            }
+            //}
         }
 
         public bool TryUnformatObj<T>(byte[] buffer, out T obj)
@@ -182,8 +185,8 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException) { }
-            catch (SystemException) { }
+            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
+            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
             catch (ApplicationException) { }
 
             return false;
@@ -202,25 +205,27 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException) { }
-            catch (SystemException) { }
+            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
+            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
             catch (ApplicationException) { }
 
             return false;
         }
 
+        public JsonSerializer Serializer { get { return _serializer; } }
+
         public JObject Parse(Stream inStream)
         {
             inStream.Position = 0;
-            using (var reader = new BsonReader(inStream))
-                return JObject.Load(reader);
+
+            return JObject.Load(new BsonReader(inStream));
         }
 
         static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()
         {
             NullValueHandling = NullValueHandling.Ignore,
             DateTimeZoneHandling = DateTimeZoneHandling.Utc,
-            DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate,
+            DefaultValueHandling = DefaultValueHandling.Ignore,
             DateFormatHandling = DateFormatHandling.IsoDateFormat,
             MissingMemberHandling = MissingMemberHandling.Ignore,
             ContractResolver = new DefaultContractResolver() { IgnoreSerializableInterface = true },
@@ -228,6 +233,7 @@ namespace BESSy.Serialization
             ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor,
             TypeNameHandling = TypeNameHandling.Objects | TypeNameHandling.Arrays,
             TypeNameAssemblyFormat = FormatterAssemblyStyle.Simple,
+            ReferenceLoopHandling = ReferenceLoopHandling.Ignore
         };
 
         public static JsonSerializerSettings GetDefaultSettings()

@@ -15,7 +15,7 @@ namespace BESSy.Tests.FileManagerTests
     [TestFixture]
     public class BatchFileManagerTests
     {
-        ISafeFormatter _bsonFormatter;
+        IQueryableFormatter _bsonFormatter;
         IList<MockClassA> _testEntities;
         string _testName;
 

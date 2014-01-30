@@ -24,7 +24,7 @@ using System.Security.AccessControl;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using BESSy.Parallelization;
 using BESSy.Serialization.Converters;
 using BESSy.Extensions;
@@ -50,6 +50,7 @@ namespace BESSy.Files
         IIndexedMapManager<PropertyType, IdType>
         , IEntityMapManager<IndexPropertyPair<IdType, PropertyType>>
         , IEnumerable<IndexPropertyPair<IdType, PropertyType>>
+        , ISweep
     {
         PropertyType LoadPropertyFromSegment(int segment);
         List<IndexingCPUGroup<IdType>> GetCPUGroupsForLookup(int strideToUse);
@@ -325,12 +326,6 @@ namespace BESSy.Files
 
             while (items != null && items.Count > 0)
             {
-                var hintSync = new object();
-                var newHints = new Dictionary<IdType, int>();
-                var newGroups = GetCPUGroupsForFlush(items);
-                var length = newGroups.Max(g => g.Inserts.Max(i => i.EndNewSegment)) + 1;
-                var newIndexMap = MemoryMappedFile.CreateOrOpen(Guid.NewGuid().ToString(), Stride * length, MemoryMappedFileAccess.ReadWriteExecute);
-
 
                 if (!Monitor.TryEnter(_syncFlush, 500))
                     return;
@@ -340,6 +335,19 @@ namespace BESSy.Files
                     Trace.TraceInformation("_syncFlush entered.");
 
                     _inFlush = true;
+
+                    var hintSync = new object();
+                    var newHints = new Dictionary<IdType, int>();
+                    var newGroups = GetCPUGroupsForFlush(items);
+                    var length = newGroups.Max(g => g.Inserts.Max(i => i.EndNewSegment)) + 1;
+
+                    var newIndexMap = MemoryMappedFile.CreateOrOpen
+                        (Guid.NewGuid().ToString()
+                        , Stride * length
+                        , MemoryMappedFileAccess.ReadWriteExecute
+                        , MemoryMappedFileOptions.None
+                        , new MemoryMappedFileSecurity()
+                        , HandleInheritability.Inheritable);
 
                     Parallel.ForEach(newGroups, delegate(IndexingCPUGroup<IdType> group)
                     {
@@ -434,6 +442,9 @@ namespace BESSy.Files
 
                                                         nextId = _idConverter.FromBytes(idReadBuffer);
 
+                                                        if (read > 0)
+                                                            segment++;
+
                                                         //read nextId until valid Id is found.
                                                         while (read > 0 && _idConverter.Compare(nextId, default(IdType)) == 0 && segment <= group.EndSegment)
                                                         {
@@ -466,7 +477,8 @@ namespace BESSy.Files
                                                         }
                                                     }
 
-                                                    id = nextId;
+                                                    if (_idConverter.Compare(nextId, default(IdType)) != 0)
+                                                        id = nextId;
                                                 }
                                                 else
                                                 {
@@ -566,7 +578,7 @@ namespace BESSy.Files
             indexView.Read(idReadBuffer, 0, _idConverter.Length);
             indexView.Read(propReadBuffer, 0, _propertyConverter.Length);
 
-            //write new Index
+            //write new PrimaryIndex
             newIndexView.Write(idReadBuffer, 0, idReadBuffer.Length);
             newIndexView.Write(propReadBuffer, 0, propReadBuffer.Length);
         }
@@ -581,7 +593,7 @@ namespace BESSy.Files
             idReadBuffer = _idConverter.ToBytes(id);
             propBuffer = _propertyConverter.ToBytes(item);
 
-            //write new Index
+            //write new PrimaryIndex
             newIndexView.Write(idReadBuffer, 0, idReadBuffer.Length);
             newIndexView.Write(propBuffer, 0, propBuffer.Length);
 
@@ -781,6 +793,9 @@ namespace BESSy.Files
 
         public IList<IdType> RidLookup(PropertyType property)
         {
+            if (Length <= 0)
+                return new List<IdType>();
+
             object sync = new object();
 
             var ids = new List<IdType>();

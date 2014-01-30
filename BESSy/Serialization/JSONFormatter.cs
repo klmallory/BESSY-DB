@@ -18,9 +18,9 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters;
 using System.Text;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
+using BESSy.Json;
+using BESSy.Json.Linq;
+using BESSy.Json.Serialization;
 
 namespace BESSy.Serialization
 {
@@ -42,6 +42,8 @@ namespace BESSy.Serialization
 
         JsonConverter[] _converters;
         JsonSerializer _serializer;
+
+        public bool Trim { get { return false; } }
 
         /// <summary>
         /// Passthrough for Json
@@ -205,6 +207,8 @@ namespace BESSy.Serialization
             return false;
         }
 
+        public JsonSerializer Serializer { get { return _serializer; } }
+
         public JObject Parse(Stream inStream)
         {
             inStream.Position = 0;
@@ -217,14 +221,14 @@ namespace BESSy.Serialization
         {
             NullValueHandling = NullValueHandling.Ignore,
             DateTimeZoneHandling = DateTimeZoneHandling.Utc,
-            DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate,
+            DefaultValueHandling = DefaultValueHandling.Ignore,
             DateFormatHandling = DateFormatHandling.IsoDateFormat,
             MissingMemberHandling = MissingMemberHandling.Ignore,
             ContractResolver = new DefaultContractResolver() { IgnoreSerializableInterface = true },
             Formatting = Formatting.None,
             ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor,
             TypeNameHandling = TypeNameHandling.Objects,
-            TypeNameAssemblyFormat = FormatterAssemblyStyle.Simple
+            TypeNameAssemblyFormat = FormatterAssemblyStyle.Simple,
         };
 
         public static JsonSerializerSettings GetDefaultSettings()

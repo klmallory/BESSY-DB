@@ -31,7 +31,7 @@ using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using NUnit.Framework;
 
 
@@ -48,18 +48,22 @@ namespace BESSy.Tests.Indexes
 
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id" };
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
+                , "Id"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
-                , seed
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(1000, 1), 1);
-                index.SaveSegment(new IndexPropertyPair<int, int>(1001, 2), 2);
-                index.SaveSegment(new IndexPropertyPair<int, int>(1002, 3), 3);
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0)
+                });
 
                 var pair = index.LoadSegmentFrom(2);
 
@@ -76,13 +80,16 @@ namespace BESSy.Tests.Indexes
 
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id" };
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>(_testName + ".index", seed))
+            using (var index = new IndexFileManager<int, MockClassA>(_testName + ".index", "Id", new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(1000, 1));
-                index.SaveSegment(new IndexPropertyPair<int, int>(1001, 2));
-                index.SaveSegment(new IndexPropertyPair<int, int>(1002, 3));
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0)
+                });
 
                 var pair = index.LoadSegmentFrom(2);
 
@@ -90,10 +97,10 @@ namespace BESSy.Tests.Indexes
                 Assert.AreEqual(2, pair.Property);
             }
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"))
             {
-                index.Load();
+                index.Load<int>();
 
                 var pair = index.LoadSegmentFrom(1);
 
@@ -120,27 +127,33 @@ namespace BESSy.Tests.Indexes
 
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id" };
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
-                , 4096, 2048, 4096
+                , "Id"
+                , 4096, 2048, 4096 
                 , new BSONFormatter()
-                , seed
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(1000, 1));
-                index.SaveSegment(new IndexPropertyPair<int, int>(1001, 2));
-                index.SaveSegment(new IndexPropertyPair<int, int>(1002, 3));
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0)
+                });
             }
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
+                , "Id"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
                 var pair = index.LoadSegmentFrom(1);
 
@@ -167,47 +180,59 @@ namespace BESSy.Tests.Indexes
 
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id" };
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
+                , "Id"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
-                , seed
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(1000, 1));
-                index.SaveSegment(new IndexPropertyPair<int, int>(1001, 2));
-                index.SaveSegment(new IndexPropertyPair<int, int>(1002, 3));
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0)
+                });
             }
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
                 , new RowSynchronizer<int>(new BinConverter32())))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(1009, 2), 2);
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(1002, Action.Update, 3, 3)
+                });
 
-                var pair = index.LoadSegmentFrom(2);
+                var pair = index.LoadSegmentFrom(3);
 
-                Assert.AreEqual(1009, pair.Id);
-                Assert.AreEqual(2, pair.Property);
+                Assert.AreEqual(1002, pair.Id);
+                Assert.AreEqual(3, pair.Property);
             }
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
+                , "Id"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.DeleteSegment(2);
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(1002, Action.Delete, 3, 3)
+                });
 
-                var pair = index.LoadSegmentFrom(2);
+                var pair = index.LoadSegmentFrom(3);
 
                 Assert.AreEqual(0, pair.Id);
                 Assert.AreEqual(0, pair.Property);
@@ -222,34 +247,40 @@ namespace BESSy.Tests.Indexes
 
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id" };
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
+                , "Id"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
-                , seed
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 1));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 2));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 3));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 4));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 5));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 6));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 7));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 8));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 9));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 10));
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0)
+                });
             }
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
+                , "Id"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
                 foreach (var page in index.AsEnumerable())
                 {
@@ -273,30 +304,34 @@ namespace BESSy.Tests.Indexes
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id" };
             seed.MinimumSeedStride = 512;
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
+                , "Id"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
-                , seed
-                , new RowSynchronizer<int>(new BinConverter32())))
+                , new RowSynchronizer<int>(new BinConverter32())
+                , new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(1000, 1), 1);
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0)
+                });
 
                 for (var i = 0; i < 5000; i++)
-                    index.Seed.Open(i);
+                    index.SegmentSeed.Open(i);
             }
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"
                 , 4096, 2048, 4096
                 , new BSONFormatter()
                 , new RowSynchronizer<int>(new BinConverter32())))
             {
-                index.Load();
+                index.Load<int>();
 
-                Assert.Greater(index.Seed.MinimumSeedStride, 42000);
+                Assert.Greater(index.SegmentSeed.MinimumSeedStride, 42000);
             }
         }
 
@@ -308,21 +343,27 @@ namespace BESSy.Tests.Indexes
 
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id", MinimumSeedStride = 512 };
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>(_testName + ".index", seed))
+            using (var index = new IndexFileManager<int, MockClassA>(_testName + ".index", "Id", new BinConverter32()))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 1));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 2));
-                index.SaveSegment(new IndexPropertyPair<int, int>(seed.Increment(), 3));
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<int>(seed.Increment(), Action.Create, index.SegmentSeed.Increment(), 0)
+                });
             }
 
-            using (var index = new PrimaryIndexFileManager<int, MockClassA>
+            using (var index = new IndexFileManager<int, MockClassA>
                 (_testName + ".index"))
             {
-                index.Load();
+                index.Load<int>();
 
-                index.DeleteSegment(43);
+                index.UpdateFromTransaction(new List<TransactionIndexResult<int>>()
+                {
+                    new TransactionIndexResult<int>(1001, Action.Delete, 1, 0)
+                });
             }
         }
 
@@ -333,28 +374,41 @@ namespace BESSy.Tests.Indexes
             Cleanup();
 
             var seed = new Seed32(999) { IdConverter = new BinConverter32(), IdProperty = "Id", MinimumSeedStride = 512 };
+
             using (var tm = new TransactionManager<int, MockClassA>())
             {
                 var transaction = new MockTransaction<int, MockClassA>(tm);
                 var results = new List<TransactionIndexResult<int>>();
-                using (var index = new PrimaryIndexFileManager<int, MockClassA>(_testName + ".index", seed))
+                using (var index = new IndexFileManager<int, MockClassA>(_testName + ".index", "Id", new BinConverter32()))
                 {
-                    index.Load();
+                    index.Load<int>();
+
+                    index.Rebuilt += new Rebuild<IndexPropertyPair<int, int>>(delegate(Guid transactionId, int newStride, int newLength, int newSeedStride)
+                        {
+                            index.SaveSeed<int>();
+                        });
+
+                    index.SaveFailed += new SaveFailed<IndexPropertyPair<int, int>>(delegate(SaveFailureInfo<IndexPropertyPair<int, int>> saveFailInfo)
+                        {
+                            index.Rebuild(saveFailInfo.NewRowSize, saveFailInfo.NewDatabaseSize, -1);
+                        });
 
                     for (var i = 0; i < 4096; i++)
                     {
                         var id = seed.Increment();
                         var entity = TestResourceFactory.CreateRandom().WithId(id);
                         transaction.Enlist(Action.Create, id, entity);
-                        results.Add(new TransactionIndexResult<int>(id, Action.Create, id - 999, id - 999));
+                        results.Add(new TransactionIndexResult<int>(id, Action.Create, index.SegmentSeed.Increment(), 0));
                     }
 
-                    index.UpdateFromTransaction(results, transaction);
+                    index.UpdateFromTransaction(results);
+
+                    index.SaveSeed<int>();
                 }
 
-                using (var index = new PrimaryIndexFileManager<int, MockClassA>(_testName + ".index"))
+                using (var index = new IndexFileManager<int, MockClassA>(_testName + ".index"))
                 {
-                    index.Load();
+                    index.Load<int>();
 
                     foreach (var e in transaction.GetEnlistedItems())
                     {
@@ -365,7 +419,6 @@ namespace BESSy.Tests.Indexes
                 }
             }
         }
-
 
         [Test]
         public void IndexReorganizesOnFlush()
@@ -380,26 +433,37 @@ namespace BESSy.Tests.Indexes
             {
                 var transaction = new MockTransaction<int, MockClassA>(tm);
                 var results = new List<TransactionIndexResult<int>>();
-                using (var index = new PrimaryIndexFileManager<int, MockClassA>(_testName + ".index", seed))
+
+                using (var index = new IndexFileManager<int, MockClassA>(_testName + ".index", "Id", new BinConverter32()))
                 {
-                    index.Load();
+                    index.Load<int>();
+
+                    index.Rebuilt += new Rebuild<IndexPropertyPair<int, int>>(delegate(Guid transactionId, int newStride, int newLength, int newSeedStride)
+                    {
+                        index.SaveSeed<int>();
+                    });
+
+                    index.SaveFailed += new SaveFailed<IndexPropertyPair<int, int>>(delegate(SaveFailureInfo<IndexPropertyPair<int, int>> saveFailInfo)
+                    {
+                        index.Rebuild(saveFailInfo.NewRowSize, saveFailInfo.NewDatabaseSize, -1);
+                    });
 
                     for (var i = 0; i < 4096; i++)
                     {
-                        var id = random.Next();
+                        var id = seed.Increment();
                         var entity = TestResourceFactory.CreateRandom().WithId(id);
                         transaction.Enlist(Action.Create, id, entity);
-                        results.Add(new TransactionIndexResult<int>(id, Action.Create, i + 1, i + 1));
+                        results.Add(new TransactionIndexResult<int>(id, Action.Create, index.SegmentSeed.Increment(), -1));
                     }
 
-                    index.UpdateFromTransaction(results, transaction);
+                    index.UpdateFromTransaction(results);
 
                     index.Reorganize(new BinConverter32(), o => o.Value<int>("Id"));
                 }
 
-                using (var index = new PrimaryIndexFileManager<int, MockClassA>(_testName + ".index"))
+                using (var index = new IndexFileManager<int, MockClassA>(_testName + ".index"))
                 {
-                    index.Load();
+                    index.Load<int>();
 
                     var seg = 0;
                     foreach (var e in transaction.GetEnlistedItems().OrderBy(e => e.Id))
@@ -414,4 +478,5 @@ namespace BESSy.Tests.Indexes
             }
         }
     }
+
 }

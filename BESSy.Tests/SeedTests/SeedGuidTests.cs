@@ -11,7 +11,7 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using NUnit.Framework;
 
 namespace BESSy.Tests.SeedTests
@@ -20,11 +20,11 @@ namespace BESSy.Tests.SeedTests
     public class SeedGuidTests
     {
         [Test]
-        public void PeekReturnsEmptyGuid()
+        public void PeekDoesNotReturnsEmptyGuid()
         {
             var seed = new SeedGuid();
 
-            Assert.AreEqual(Guid.Empty, seed.Peek());
+            Assert.AreNotEqual(Guid.Empty, seed.Peek());
         }
 
         [Test]

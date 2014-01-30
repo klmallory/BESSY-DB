@@ -29,8 +29,8 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using BESSy.Json;
+using BESSy.Json.Linq;
 using BESSy.Transactions;
 
 namespace BESSy.Indexes
@@ -40,306 +40,377 @@ namespace BESSy.Indexes
     public interface IIndexFileManager<IndexType, EntityType, SegmentType> : IAtomicFileManager<IndexPropertyPair<IndexType, SegmentType>>, IQueryableFile
     {
         Func<EntityType, IndexType> IndexGet { get; }
-        void UpdateFromTransaction(IList<TransactionIndexResult<IndexType>> indexes, IDisposable transaction);
+        void UpdateFromTransaction(IList<TransactionIndexResult<IndexType>> indexes);
         event UpdateFailed<IndexType> UpdateFailed;
     }
 
-    public class IndexFileManager<IndexType, EntityType> : AtomicFileManager<IndexPropertyPair<IndexType, int>>, IIndexFileManager<IndexType, EntityType, int>
+    public class IndexFileManager<IdType, EntityType> : AtomicFileManager<IndexPropertyPair<IdType, int>>, IIndexFileManager<IdType, EntityType, int>
     {
-        //public IndexFileManager(string fileNamePath, string indexToken)
-        //    : this(fileNamePath, indexToken, TypeFactory.GetBinConverterFor<IndexType>())
-        //{ }
+                public IndexFileManager(string fileNamePath)
+            : this(fileNamePath, new BSONFormatter())
+        { }
 
-        //public IndexFileManager(string fileNamePath, string indexToken, IBinConverter<IndexType> propertyConverter)
-        //    : this(fileNamePath, indexToken, propertyConverter, new BSONFormatter())
-        //{ }
+        public IndexFileManager(string fileNamePath, IQueryableFormatter formatter)
+            : this(fileNamePath, Environment.SystemPageSize.Clamp(2048, 8192), formatter)
+        { }
 
-        //public IndexFileManager(string fileNamePath, string indexToken, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter)
-        //    : this(fileNamePath, indexToken, Environment.SystemPageSize.Clamp(2048, 8192), propertyConverter, formatter)
-        //{ }
+        public IndexFileManager(string fileNamePath, int bufferSize, IQueryableFormatter formatter)
+            : this(fileNamePath, bufferSize, formatter, new RowSynchronizer<int>(new BinConverter32()))
+        { }
 
-        //public IndexFileManager(string fileNamePath, string indexToken, int bufferSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter)
-        //    : this(fileNamePath, indexToken, bufferSize, propertyConverter, formatter, new RowSynchronizer<int>(new BinConverter32()))
-        //{ }
+        public IndexFileManager(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+            : this(fileNamePath, bufferSize, 0, 0, formatter, rowSynchronizer)
+        { }
 
-        //public IndexFileManager(string fileNamePath, string indexToken, int bufferSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
-        //    : this(fileNamePath, indexToken, bufferSize, 0, 0, propertyConverter, formatter, rowSynchronizer)
-        //{ }
-
-        public IndexFileManager(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
-            : base(fileNamePath, bufferSize, startingSize, maximumBlockSize, formatter, rowSynchronizer)
+        public IndexFileManager(string fileNamePath, int bufferSize, int startingSize, int maximumBlockSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+            : this(fileNamePath, null, bufferSize, startingSize, maximumBlockSize, null, formatter, rowSynchronizer)
         {
-            _seed = new Seed32(0);
+
+        }
+
+        public IndexFileManager(string fileNamePath, string indexToken, IBinConverter<IdType> propertyConverter)
+            : this(fileNamePath, indexToken, new BSONFormatter(), propertyConverter)
+        { }
+
+        public IndexFileManager(string fileNamePath, string indexToken, IQueryableFormatter formatter, IBinConverter<IdType> propertyConverter)
+            : this(fileNamePath, indexToken, Environment.SystemPageSize.Clamp(2048, 8192), formatter, propertyConverter)
+        { }
+
+        public IndexFileManager(string fileNamePath, string indexToken, int bufferSize, IQueryableFormatter formatter, IBinConverter<IdType> propertyConverter)
+            : this(fileNamePath, indexToken, bufferSize, formatter, new RowSynchronizer<int>(new BinConverter32()), propertyConverter)
+        { }
+
+        public IndexFileManager(string fileNamePath, string indexToken, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer, IBinConverter<IdType> propertyConverter)
+            : this(fileNamePath, indexToken, bufferSize, 0, 0, formatter, rowSynchronizer, propertyConverter)
+        { }
+
+        public IndexFileManager(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer, IBinConverter<IdType> propertyConverter)
+            : this(fileNamePath, indexToken, bufferSize, startingSize, maximumBlockSize, propertyConverter, formatter, rowSynchronizer)
+        {
+        }
+
+        public IndexFileManager(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IdType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+            : base(fileNamePath, bufferSize, startingSize, maximumBlockSize, new Seed32(0), formatter, rowSynchronizer)
+        {
+            Seed = null;
+           
             _propertyConverter = propertyConverter;
             _indexToken = indexToken;
-            
         }
 
-        string _indexToken;
-        
-        protected IBinConverter<IndexType> _propertyConverter;
+        protected object _syncSeed = new object();
+        protected string _indexToken;
+        protected IBinConverter<IdType> _propertyConverter;
+        protected ISeed<Int32> _indexSeed { get; set; }
 
-        protected override void InitializeSeedFrom(FileStream fileStream)
+        protected override void InitializeSeed<SeedType>()
         {
-            var len = fileStream.Length == 0 ? 0 : (int)((fileStream.Length - SeedPosition) / Stride);
-            _seed = new Seed32(len);
+            _segmentSeed = new Seed32(0);
+            _segmentSeed.IdConverter = _propertyConverter;
+            _segmentSeed.IdProperty = _indexToken;
+            _segmentSeed.Stride = _formatter.FormatObj(new IndexPropertyPair<IdType, int>(_propertyConverter.Max, int.MaxValue)).Length;
+
+            Stride = _segmentSeed.Stride;
+            SeedPosition = _segmentSeed.MinimumSeedStride;
+
+            lock (_syncSeed)
+                _indexSeed = new Seed32(0);
         }
 
-        protected override void InitializeSeed()
+        protected override void InitializeSeedFrom<SeedType>(FileStream fileStream)
         {
-            _seed = new Seed32(0);
+            var seed = LoadSeedFrom<Int32>(fileStream);
+
+            //var len = fileStream.Length == 0 ? 0 : (int)((fileStream.Length - SeedPosition) / Stride);
+
+            Stride = seed.Stride;
+            SeedPosition = seed.MinimumSeedStride;
+            _indexToken = seed.IdProperty;
+            _propertyConverter = (IBinConverter<IdType>)seed.IdConverter;
+            _segmentSeed = seed;
+
+            lock (_syncSeed)
+                _indexSeed = new Seed32(seed.LastSeed);
         }
 
-        protected override void ReinitializeSeed(int recordsWritten)
-        {
-            _seed = new Seed32(recordsWritten);
-        }
+        public Func<EntityType, IdType> IndexGet { get; protected set; }
+        public override int Length { get { return _indexSeed.LastSeed; } }
+        public override int SeedPosition { get { return SegmentSeed.MinimumSeedStride; } protected set { SegmentSeed.MinimumSeedStride = value; } }
+        public override int Stride { get { return SegmentSeed.Stride; } protected set { SegmentSeed.Stride = value; } }
 
-        protected override ISeed<SeedType> GetDefaultSeed<SeedType>()
-        {
-            return TypeFactory.GetSeedFor<SeedType>();
-        }
-
-        protected override long SaveSeed()
-        {
-            return 0;
-        }
-
-        public Func<EntityType, IndexType> IndexGet { get; protected set; }
-        public override int Stride { get; protected set; }
-        public override int SeedPosition {get; protected set;}
-
-        public override int Load()
+        public override int Load<SeedType>()
         {
             Trace.TraceInformation("Index filemanager loading");
 
-            if (_formatter != null && _propertyConverter != null)
-                Stride = _formatter.FormatObj(new IndexPropertyPair<IndexType, int>(_propertyConverter.Max, int.MaxValue)).Length;
+            var len = base.Load<Int32>();
 
-            if (_indexToken != null)
-                IndexGet = (Func<EntityType, IndexType>)Delegate.CreateDelegate(typeof(Func<EntityType, IndexType>), typeof(EntityType).GetProperty(_indexToken).GetGetMethod());
+            IndexGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_indexToken).GetGetMethod());
 
-            var length = base.Load();
-
-            return length;
+            return len;
         }
 
-        public override int SaveSegment(IndexPropertyPair<IndexType, int> obj)
+        public override long SaveSeed()
         {
+            _segmentSeed.MinimumSeedStride = SeedPosition;
+            _segmentSeed.Stride = Stride;
+
+            var seedStream = _formatter.FormatObjStream(_segmentSeed);
+
             try
             {
-                using (var inStream = _formatter.FormatObjStream(obj))
+                if (GetPositionFor(seedStream.Length + SegmentDelimeter.Array.Length) > SeedPosition)
                 {
-                    if (inStream.Length > Stride || _seed.Peek() > MaxLength)
-                        InvokeSaveFailed(obj, _seed.Peek(), GetStrideFor((int)inStream.Length), GetSizeWithGrowthFactor(_seed.Peek()));
+                    Rebuild(Stride, Length, GetPositionFor(seedStream.Length + SegmentDelimeter.Array.Length));
 
-                    var iseg = _seed.Increment();
+                    _segmentSeed.MinimumSeedStride = SeedPosition;
+                    _segmentSeed.Stride = Stride;
 
-                    using (var readLock = _rowSynchronizer.Lock(iseg, FileAccess.Write, FileShare.Read))
-                    {
-                        using (var stream = GetWritableFileStream(iseg, 1))
-                        {
-                            inStream.WriteAllTo(stream);
-
-                            stream.Flush();
-                        }
-                    }
-
-                    return iseg;
+                    seedStream = _formatter.FormatObjStream(_segmentSeed);
                 }
+
+                return SaveSeed(_fileStream, seedStream, SeedPosition);
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
-            catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
+            finally { if (seedStream != null) seedStream.Dispose(); }
         }
 
-        public override void SaveSegment(IndexPropertyPair<IndexType, int> obj, int segment)
+        protected override long SaveSeed(FileStream fileStream, int seedStride)
         {
+            var seedStream = _formatter.FormatObjStream(SegmentSeed);
+
+            return SaveSeed(fileStream, seedStream, seedStride);
+        }
+
+        public override long SaveSeed<SeedType>()
+        {
+            _segmentSeed.MinimumSeedStride = SeedPosition;
+            _segmentSeed.Stride = Stride;
+
+            var seedStream = _formatter.FormatObjStream(_segmentSeed);
+
             try
             {
-                using (var inStream = _formatter.FormatObjStream(obj))
+                if (GetPositionFor(seedStream.Length + SegmentDelimeter.Array.Length) > SeedPosition)
                 {
-                    if (inStream.Length > Stride || segment > MaxLength)
-                        InvokeSaveFailed(obj, segment, GetStrideFor((int)inStream.Length), GetSizeWithGrowthFactor(segment));
+                    Rebuild(Stride, Length, GetPositionFor(seedStream.Length + SegmentDelimeter.Array.Length));
 
-                    using (var readLock = _rowSynchronizer.Lock(segment, FileAccess.Write, FileShare.Read))
-                    {
-                        using (var stream = GetWritableFileStream(segment, 1))
-                        {
-                            inStream.WriteAllTo(stream);
+                    _segmentSeed.MinimumSeedStride = SeedPosition;
+                    _segmentSeed.Stride = Stride;
 
-                            stream.Flush();
-                        }
-                    }
+                    seedStream = _formatter.FormatObjStream(_segmentSeed);
                 }
+
+                return SaveSeed(_fileStream, seedStream, SeedPosition);
             }
-            catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
-            catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
+            finally { if (seedStream != null) seedStream.Dispose(); GC.Collect(); }
         }
 
-        public override void DeleteSegment(int segment)
-        {
-            try
-            {
-                if (segment > Length)
-                    return;
+        //public override int SaveSegment(IndexPropertyPair<IdType, int> obj)
+        //{
+        //    try
+        //    {
+        //        using (var inStream = _formatter.FormatObjStream(obj))
+        //        {
+        //            if (inStream.Length > Stride || _indexSeed.Peek() > MaxLength)
+        //                InvokeSaveFailed(obj, _indexSeed.Peek(), GetStrideFor((int)inStream.Length), GetSizeWithGrowthFactor(_indexSeed.Peek()));
 
-                using (var readLock = _rowSynchronizer.Lock(segment, FileAccess.Write, FileShare.Read))
-                {
-                    using (var stream = GetWritableFileStream(segment, 1))
-                    {
-                        (new MemoryStream(new byte[Stride])).WriteAllTo(stream);
+        //            lock (_syncSeed)
+        //            {
+        //                var iseg = _indexSeed.Increment();
 
-                        stream.Flush();
-                    }
-                }
-            }
-            catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
-        }
+        //                using (var readLock = _rowSynchronizer.Lock(iseg, FileAccess.Write, FileShare.Read))
+        //                {
+        //                    using (var stream = GetWritableFileStream(iseg, 1))
+        //                    {
+        //                        inStream.WriteAllTo(stream);
 
-        public void UpdateFromTransaction(IList<TransactionIndexResult<IndexType>> indexes, IDisposable transaction)
+        //                        stream.Flush();
+        //                    }
+        //                }
+
+        //                return iseg;
+        //            }
+        //        }
+        //    }
+        //    catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
+        //    catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
+        //    catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
+        //}
+
+        //public override void SaveSegment(IndexPropertyPair<IdType, int> obj, int segment)
+        //{
+        //    try
+        //    {
+        //        using (var inStream = _formatter.FormatObjStream(obj))
+        //        {
+        //            if (inStream.Length > Stride || segment > MaxLength)
+        //                InvokeSaveFailed(obj, segment, GetStrideFor((int)inStream.Length), GetSizeWithGrowthFactor(segment));
+
+        //            using (var readLock = _rowSynchronizer.Lock(segment, FileAccess.Write, FileShare.Read))
+        //            {
+        //                using (var stream = GetWritableFileStream(segment, 1))
+        //                {
+        //                    inStream.WriteAllTo(stream);
+
+        //                    stream.Flush();
+        //                }
+        //            }
+        //        }
+        //    }
+        //    catch (JsonSerializationException jsEx) { Trace.TraceError(String.Format(_serializerError, jsEx.InnerException, jsEx)); throw; }
+        //    catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
+        //    catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
+        //}
+
+        //public override void DeleteSegment(int segment)
+        //{
+        //    try
+        //    {
+        //        if (segment > Length)
+        //            return;
+
+        //        _indexSeed.Open(segment);
+
+        //        using (var readLock = _rowSynchronizer.Lock(segment, FileAccess.Write, FileShare.Read))
+        //        {
+        //            using (var stream = GetWritableFileStream(segment, 1))
+        //            {
+        //                (new MemoryStream(new byte[Stride])).WriteAllTo(stream);
+
+        //                stream.Flush();
+        //            }
+        //        }
+        //    }
+        //    catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
+        //    catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
+        //}
+
+        public void UpdateFromTransaction(IList<TransactionIndexResult<IdType>> indexes)
         {
             Trace.TraceInformation("Index filemanager updating from transaction");
 
             try
             {
-                var indexStreams = new Dictionary<IndexType, Stream>();
+                var streams = new Dictionary<int, Stream>();
 
-                foreach (var res in indexes)
+                for (var i = 0; i < indexes.Count; i++)
                 {
-                    if (res.Action == Action.Delete)
-                        indexStreams.Add(res.Index, new MemoryStream(new byte[Stride]));
+                    var index = indexes[i];
+
+                    if (index.Action != Action.Delete)
+                        streams.Add(i, _formatter.FormatObjStream(new IndexPropertyPair<IdType, int>(index.Index, index.Segment)));
                     else
-                        indexStreams.Add(res.Index, _formatter.FormatObjStream(new IndexPropertyPair<IndexType, int>(res.Index, res.Segment)));
+                        streams.Add(i, new MemoryStream(new byte[Stride]));
                 }
 
                 bool fail = false;
                 int max = 0;
                 int size = 0;
 
-                //prevent new rows from being added until the seed has incremented all new rows.
+                //prevent new rows from being added until the segmentSeed has incremented all new rows.
                 using (var lockAdd = _rowSynchronizer.Lock(new Range<int>(Length, int.MaxValue)))
                 {
                     max = indexes.Where(r => r.Action == Action.Create).Count() + Length;
-                    size = (int)indexStreams.Max(s => s.Value.Length);
+                    size = (int)streams.Max(s => s.Value.Length);
 
                     if (size > Stride || max > MaxLength)
                         fail = true;       
                 }
 
                 if (fail)
-                    //throw new NotSupportedException("Index stride increase not supported.");
-                Rebuild(Guid.NewGuid()
-                    , Math.Max(Stride, GetStrideFor(size))
-                    , Math.Max(MaxLength, GetSizeWithGrowthFactor(max))
-                    , SeedPosition);
-                //InvokeUpdateFailed(indexes, transaction, (int)Math.Max(size, Stride), Math.Max(max, MaxLength));
-
+                {
+                    Rebuild(Guid.NewGuid()
+                        , Math.Max(Stride, GetStrideFor(size))
+                        , Math.Max(MaxLength, GetSizeWithGrowthFactor(max))
+                        , SeedPosition);
+                }
                 using (var lockSeg = _rowSynchronizer.LockAll())
                 {
                     for (var x = 0; x < indexes.Count; x++)
                     {
                         var i = indexes[x];
+                         
+                        Stream indexStream = null;
 
                         if (i.Action == Action.Create)
-                            i.IndexSegment = _seed.Increment();
+                        {
+                            indexStream = streams[x];
+                            i.IndexSegment = _indexSeed.Increment();
+                        }
+                        else
+                        {
+                            indexStream = streams[x];
+                        }
+
+                        var trimLen = indexStream.Length;
+                        i.Stream = indexStream;
+                        indexes[x] = i;
 
                         if (i.IndexSegment <= 0)
-                            throw new InvalidOperationException(string.Format("Index dbSegment not set {0}", i.IndexSegment));
+                            continue;
 
                         if (i.IndexSegment > MaxLength)
                             throw new InvalidOperationException("Database length is to short for this transaction, rebuild the database first.");
 
                         using (var stream = GetWritableFileStream(i.IndexSegment, 1))
                         {
-                            indexStreams[i.Index].WriteAllTo(stream);
+                            indexStream.WriteAllTo(stream, Stride);
 
                             stream.Flush();
                         }
+                        
+                        if (_formatter.Trim)
+                            indexStream.SetLength(trimLen);
                     }
                 }
+
+                SaveSeed<Int32>();
             }
 
             catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
             catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
         }
 
-        /// <summary>
-        /// Rebuilds the index from the primary database file.
-        /// </summary>
-        /// <param name="fileMananger"></param>
-        public void Rebuild(IQueryableFile fileMananger, int dbLength)
+        public override void ReinitializeSeed<IndexType>(int recordsWritten)
         {
-            //Trace.TraceInformation("Index filemanager rebuilding");
+            lock (_syncRoot)
+            {
+                using (var l = _rowSynchronizer.LockAll())
+                {
+                    _segmentSeed = new Seed32(recordsWritten)
+                    {
+                        Stride = _segmentSeed.Stride,
+                        MinimumSeedStride = _segmentSeed.MinimumSeedStride,
+                        IdProperty = _segmentSeed.IdProperty,
+                        IdConverter = _segmentSeed.IdConverter,
+                        PropertyConverter = _segmentSeed.PropertyConverter,
+                        CategoryIdProperty = _segmentSeed.CategoryIdProperty,
+                        LastReplicatedTimeStamp = _segmentSeed.LastReplicatedTimeStamp
+                    };
 
-            //if (fileMananger == null)
-            //    throw new ArgumentNullException();
+                    _indexSeed = new Seed32(_segmentSeed.LastSeed);
 
-            //using (_rowSynchronizer.Lock(int.MaxValue, FileAccess.Read, FileShare.ReadWrite))
-            //{
-            //    Stride = _formatter.FormatObj(new IndexPropertyPair<IndexType, int>(_propertyConverter.Max, int.MaxValue)).Length;
-
-            //    lock (_syncRoot)
-            //    {
-            //        var newFileName = Guid.NewGuid().ToString() + ".index" + ".rebuild";
-            //        var fi = new FileInfo(newFileName);
-            //        if (!fi.Exists)
-            //        {
-            //            using (var nfs = fi.Create())
-            //            {
-            //                nfs.SetLength(GetFileSizeFor(SeedPosition, dbLength, Stride));
-            //                nfs.Flush();
-            //            }
-            //        }
-
-            //        using (var lockAll = _rowSynchronizer.LockAll())
-            //        {
-            //            using (var fs = GetWritableFileStream(newFileName))
-            //            {
-            //                var seg = 0;
-            //                foreach (var page in fileMananger.AsEnumerable())
-            //                {
-            //                    fs.Position = SeedPosition;
-
-            //                    foreach (var obj in page)
-            //                    {
-            //                        seg++;
-            //                        var index = obj.Value<IndexType>(_indexToken);
-            //                        using (var stream = _formatter.FormatObjStream(new IndexPropertyPair<IndexType, int>(index, seg)))
-            //                        {
-            //                            stream.SetLength(Stride);
-            //                            stream.WriteAllTo(fs);
-            //                        }
-            //                    }
-            //                }
-            //            }
-
-            //            ReinitializeSeed(dbLength);
-            //            ReplaceDataFile(newFileName, Stride, dbLength, SeedPosition);
-            //        }
-            //    }
-            //}
+                    SaveSeed<IndexType>();
+                }
+            }
         }
 
-        public override void Reorganize<PropertyType>(IBinConverter<PropertyType> converter, Func<JObject, PropertyType> idSelector)
+        public override void Reorganize<IndexType>(IBinConverter<IndexType> converter, Func<JObject, IndexType> idSelector)
         {
-            if (!(typeof(PropertyType) == typeof(IndexType)))
-                throw new InvalidOperationException("invalid seed IdType specified.");
+            if (!(typeof(IndexType) == typeof(IdType)))
+                throw new InvalidOperationException("invalid segmentSeed SeedType specified.");
 
-            base.Reorganize<PropertyType>(converter, idSelector);
+            base.Reorganize<IndexType>(converter, idSelector);
         }
 
         #region UpdateFailed Event
 
-        protected void InvokeUpdateFailed(IList<TransactionIndexResult<IndexType>> indexes, IDisposable transaction, int newStride, int newLength)
+        protected void InvokeUpdateFailed(IList<TransactionIndexResult<IdType>> indexes, IDisposable transaction, int newStride, int newLength)
         {
             if (UpdateFailed != null)
                 UpdateFailed(indexes, transaction, newStride, newLength);
         }
 
-        public event UpdateFailed<IndexType> UpdateFailed;
+        public event UpdateFailed<IdType> UpdateFailed;
 
         #endregion
     }

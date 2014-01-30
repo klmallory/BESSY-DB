@@ -8,6 +8,7 @@ using BESSy.Crypto;
 using BESSy.Serialization;
 using BESSy.Transactions;
 using System.Threading;
+using System.Security;
 
 namespace BESSy.Replication
 {
@@ -31,7 +32,7 @@ namespace BESSy.Replication
 
         }
 
-        public Subscriber(AbstractTransactionalDatabase<IdType, EntityType> database, string replicationFolder, TimeSpan interval, ICrypto crypto, object[] hash) 
+        public Subscriber(AbstractTransactionalDatabase<IdType, EntityType> database, string replicationFolder, TimeSpan interval, ICrypto crypto, SecureString hash) 
             : this(database, replicationFolder, interval)
         {
             if (crypto == null)

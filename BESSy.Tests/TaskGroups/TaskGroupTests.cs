@@ -27,11 +27,22 @@ namespace BESSy.Tests.TaskGroupTests
             Assert.AreEqual(Environment.ProcessorCount, paras.Count());
         }
 
+                [Test]
+        public void TaskGroupingGetsBreakdownForLargeStride()
+        {
+            var newItems = new Dictionary<int, object>();
 
+            Enumerable.Range(0, 2048).ToList().ForEach(e => newItems.Add(e, new object()));
+
+            var paras = TaskGrouping.GetSegmentedTaskGroups(newItems.Count, 4096000);
+
+            Assert.AreEqual(2048, paras.Count());
+        }
+        
         [Test]
         public void TaskGroupingGetBreakdownForLargeList()
         {
-            var expectedCount = System.Environment.Is64BitOperatingSystem ? 34 : 125;
+            var expectedCount = System.Environment.Is64BitOperatingSystem ? 63 : 125;
 
             var newItems = new Dictionary<int, object>();
 
@@ -43,7 +54,7 @@ namespace BESSy.Tests.TaskGroupTests
         [Test]
         public void TaskGroupGetsInsertsForOneHundredThousandRecords()
         {
-            var expectedCount = System.Environment.Is64BitOperatingSystem ? 24 : 88;
+            var expectedCount = System.Environment.Is64BitOperatingSystem ? 44 : 88;
 
             var rnd = new Random();
 

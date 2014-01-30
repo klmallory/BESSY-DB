@@ -28,15 +28,25 @@ using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Serialization;
 using BESSy.Cache;
+using BESSy.Queries;
+using BESSy.Json.Linq;
 
 namespace BESSy
 {
-    public interface IIndexedRepository<T, I> : IRepository<T, I>, IFlush, ILoad
+    public interface IIndexedRepository<T, I> : IRepository<T, I>, IIndexedReadOnlyRepository<T, I>
     {
-        IDictionary<I, T> GetCache();
+
     }
 
-    public abstract class AbstractMappedRepository<EntityType, IdType> : IIndexedRepository<EntityType, IdType>, ILinqRepository<EntityType, IdType>, ICache<EntityType, IdType>
+    public interface IIndexedReadOnlyRepository<T, I> : IReadOnlyRepository<T, I>, IFlush, ILoad
+    {
+        IDictionary<I, T> GetCache();
+
+        IList<T> FetchFromIndex<IndexType>(string name, IndexType indexProperty);
+        IList<T> FetchRangeFromIndexInclusive<IndexType>(string name, IndexType startProperty, IndexType endProperty);
+    }
+
+    public abstract class AbstractMappedRepository<EntityType, IdType> : IIndexedRepository<EntityType, IdType>, IQueryableRepository<EntityType>, ICache<EntityType, IdType>
     {
         /// <summary>
         /// Opens an existing repository with the specified settings.
@@ -47,9 +57,9 @@ namespace BESSy
         /// <param name="fileManager"></param>
         public AbstractMappedRepository(
             int cacheSize
-            ,string fileName
-            , ISafeFormatter mapFormatter
-            , IBatchFileManager<EntityType> fileManager) 
+            , string fileName
+            , IQueryableFormatter mapFormatter
+            , IBatchFileManager<EntityType> fileManager)
         {
             _create = false;
             CacheSize = cacheSize;
@@ -66,7 +76,7 @@ namespace BESSy
         /// </summary>
         /// <param name="cacheSize"></param>
         /// <param name="fileName"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="idConverter"></param>
         /// <param name="mapFormatter"></param>
         /// <param name="fileManager"></param>
@@ -75,29 +85,31 @@ namespace BESSy
             string fileName,
             ISeed<IdType> seed,
             IBinConverter<IdType> idConverter,
-            ISafeFormatter mapFormatter,
-            IBatchFileManager<EntityType> fileManager) : this(cacheSize, fileName, mapFormatter, fileManager)
+            IQueryableFormatter mapFormatter,
+            IBatchFileManager<EntityType> fileManager)
+            : this(cacheSize, fileName, mapFormatter, fileManager)
         {
             _create = true;
 
             if (seed == null)
-                throw new ArgumentNullException("seed is a required parameter for a new repository.");
+                throw new ArgumentNullException("segmentSeed is a required parameter for a new repository.");
 
             _seed = seed;
             _seed.IdConverter = idConverter;
         }
 
-        
+
         List<IdType> _cacheQueue = new List<IdType>();
         IDictionary<IdType, EntityType> _cache = new Dictionary<IdType, EntityType>();
         List<IDictionary<IdType, EntityType>> _stagingCache = new List<IDictionary<IdType, EntityType>>();
         Queue<long> _fileFlushQueue = new Queue<long>();
 
         bool _inFlush;
-        string _fileName;
         bool _create;
 
-        protected ISafeFormatter _mapFormatter;
+        protected string _fileName;
+        protected string _idToken;
+        protected IQueryableFormatter _mapFormatter;
         protected IBatchFileManager<EntityType> _fileManager;
         protected IIndexedEntityMapManager<EntityType, IdType> _mapFileManager;
 
@@ -109,6 +121,7 @@ namespace BESSy
         protected object _syncFileQueue = new object();
         protected object _syncFileFlush = new object();
 
+        
         protected abstract IdType GetIdFrom(EntityType item);
         protected abstract void SetIdFor(EntityType item, IdType id);
 
@@ -118,6 +131,9 @@ namespace BESSy
 
             try
             {
+                if (itemsFlushed == null || itemsFlushed.Count <= 0)
+                    return;
+
                 if (_mapFileManager.Stride > _seed.Stride)
                     _seed.Stride = _mapFileManager.Stride;
 
@@ -135,9 +151,14 @@ namespace BESSy
             catch (Exception ex)
             { Trace.TraceError(ex.ToString()); throw; }
         }
-        
+
         protected virtual void UpdateCache(IdType id, EntityType item, bool dirtyOperation, bool forceCache)
         {
+            IdType newId = id;
+
+            if (item != null)
+                newId = GetIdFrom(item);
+                
             lock (_syncCache)
             {
                 _cacheIsDirty |= dirtyOperation;
@@ -147,13 +168,19 @@ namespace BESSy
                         Sweep();
 
                 if (_cache.ContainsKey(id))
-                    _cache[id] = item;
-                else if (_cacheQueue.Contains(id))
-                    _cache.Add(id, item);
+                    if (_idConverter.Compare(newId, id) != 0)
+                    {
+                        _cache.Remove(id);
+                        _cache.Add(newId, item);
+                    }
+                    else
+                        _cache[newId] = item;
+                else if (_cacheQueue.Contains(newId))
+                    _cache.Add(newId, item);
                 else if (forceCache || AutoCache)
                 {
-                    _cacheQueue.Add(id);
-                    _cache.Add(id, item);
+                    _cacheQueue.Add(newId);
+                    _cache.Add(newId, item);
                 }
             }
         }
@@ -251,9 +278,9 @@ namespace BESSy
                 CacheSize = Caching.DetermineOptimumCacheSize(seed.Stride);
 
             _seed = seed;
-            
+
             _idConverter = (IBinConverter<IdType>)_seed.IdConverter;
-            
+
             _mapFileManager = new IndexedEntityMapManager<EntityType, IdType>(_idConverter, _mapFormatter);
             _mapFileManager.OnFlushCompleted += new FlushCompleted<EntityType, IdType>(HandleOnFlushCompleted);
             _mapFileManager.OpenOrCreate(_fileName, count, _seed.Stride);
@@ -359,9 +386,13 @@ namespace BESSy
 
                         List<EntityType> batch = new List<EntityType>();
 
-                        foreach (var item in _mapFileManager)
+                        foreach (var item in _mapFileManager.AsEnumerable())
                         {
-                            batch.Add(item);
+                            if (item == null)
+                                continue;
+
+                            foreach(var e in item)
+                                batch.Add(LoadFrom(e));
 
                             if (batch.Count > _fileManager.BatchSize)
                             {
@@ -399,6 +430,8 @@ namespace BESSy
             }
         }
 
+        protected abstract EntityType LoadFrom(JObject token);
+
         public virtual IdType Add(EntityType item)
         {
             var id = GetNextIdFor(item);
@@ -415,16 +448,16 @@ namespace BESSy
 
         protected virtual IdType GetNextIdFor(EntityType item)
         {
-            //how much seed could a woodchuck chuck, if a woodchuck could chuck seed?
-            //This seed is not a passthrough (auto)
+            //how much segmentSeed could a woodchuck chuck, if a woodchuck could chuck segmentSeed?
+            //This segmentSeed is not a passthrough (auto)
             if (_idConverter.Compare(_seed.Peek(), _seed.LastSeed) != 0)
                 return _seed.Increment();
 
-            //This seed is a passthrough (manual)
+            //This segmentSeed is a passthrough (manual)
             return GetIdFrom(item);
         }
 
-        public void AddOrUpdate(EntityType item, IdType id = default(IdType))
+        public IdType AddOrUpdate(EntityType item, IdType id = default(IdType))
         {
             var newId = GetIdFrom(item);
 
@@ -438,6 +471,8 @@ namespace BESSy
                 Delete(id);
 
             UpdateCache(newId, item, true, true);
+
+            return newId;
         }
 
         public void Update(EntityType item, IdType id = default(IdType))
@@ -489,154 +524,6 @@ namespace BESSy
             }
         }
 
-        #region ILinqRepository<EntityType,IdType> Members
-
-        public IEnumerable<EntityType> Take(int count)
-        {
-            lock (_syncFileFlush)
-                lock (_syncCache)
-                    lock (_syncStaging)
-                        return _mapFileManager
-                            .Union(_cache.Values)
-                            .Union(_stagingCache.SelectMany(s => s.Values))
-                            .Take(count);
-        }
-
-        public IEnumerable<EntityType> Skip(int count)
-        {
-            lock (_syncFileFlush)
-                lock (_syncCache)
-                    lock (_syncStaging)
-                        return _mapFileManager
-                            .Union(_cache.Values)
-                            .Union(_stagingCache.SelectMany(s => s.Values))
-                            .Skip(count);
-        }
-
-        public IEnumerable<EntityType> Where(Func<EntityType, bool> query)
-        {
-            lock (_syncFileFlush)
-                lock (_syncCache)
-                    lock (_syncStaging)
-                        return Enumerable.Where(_mapFileManager, query)
-                            .Union(_cache.Values.Where(query))
-                            .Union(_stagingCache.SelectMany(s => s.Values.Where(query)));
-        }
-
-        public EntityType First(Func<EntityType, bool> query)
-        {
-            EntityType first;
-
-            lock (_syncCache)
-                first = _cache.Values.FirstOrDefault(query);
-
-            if (!object.Equals(first, default(EntityType)))
-                return first;
-
-            lock (_syncStaging)
-            {
-                var select = _stagingCache.SelectMany(s => s.Values.Where(query)).ToList();
-
-                if (select.Count() > 0)
-                   return select.First(query);
-            }
-
-            lock (_syncFileFlush)
-                return Enumerable.First(_mapFileManager, query);
-        }
-
-        public EntityType FirstOrDefault(Func<EntityType, bool> query)
-        {
-            EntityType first;
-
-            lock (_syncCache)
-                first = _cache.Values.FirstOrDefault(query);
-
-            if (!object.Equals(first, default(EntityType)))
-                return first;
-
-            lock (_syncStaging)
-            {
-                var select = _stagingCache.SelectMany(s => s.Values.Where(query)).ToList();
-
-                if (select.Count() > 0)
-                    return select.First(query);
-            }
-            
-            lock (_syncFileFlush)
-                return Enumerable.FirstOrDefault(_mapFileManager, query);
-        }
-
-        public EntityType Last(Func<EntityType, bool> query)
-        {
-            EntityType last;
-
-            lock (_syncCache)
-                last = _cache.Values.LastOrDefault(query);
-
-            if (!object.Equals(last, default(EntityType)))
-                return last;
-
-            lock (_syncStaging)
-            {
-                var select = _stagingCache.SelectMany(s => s.Values.Where(query));
-
-                last = select.LastOrDefault(query);
-            }
-
-            if (!object.Equals(last, default(EntityType)))
-                return last;
-
-            lock (_syncFileFlush)
-                return Enumerable.Last(_mapFileManager, query);
-        }
-
-        public EntityType LastOrDefault(Func<EntityType, bool> query)
-        {
-            EntityType last;
-
-            lock (_syncCache)
-                last = _cache.Values.LastOrDefault(query);
-
-            if (!object.Equals(last, default(EntityType)))
-                return last;
-
-            lock (_syncStaging)
-            {
-                var select = _stagingCache.SelectMany(s => s.Values.Where(query));
-
-                last = select.LastOrDefault(query);
-            }
-
-            if (!object.Equals(last, default(EntityType)))
-                return last;
-
-            lock (_syncFileFlush)
-                return Enumerable.LastOrDefault(_mapFileManager, query);
-        }
-
-        public IEnumerable<TResult> OfType<TResult>()
-        {
-            lock (_syncFileFlush)
-                lock (_syncCache)
-                    lock (_syncStaging)
-                        return Enumerable.OfType<TResult>(_mapFileManager)
-                            .Union(_cache.Values.OfType<TResult>())
-                            .Union(_stagingCache.SelectMany(s => s.Values.OfType<TResult>()));
-        }
-
-        public IQueryable<EntityType> AsQueryable()
-        {
-            lock (_syncFileFlush)
-                lock (_syncCache)
-                    lock (_syncStaging)
-                        return _mapFileManager.AsQueryable<EntityType>()
-                            .Union(_cache.Values.AsQueryable<EntityType>())
-                            .Union(_stagingCache.SelectMany(s => s.Values.AsQueryable<EntityType>()));
-        }
-
-        #endregion
-
         public virtual void Sweep()
         {
             lock (_syncStaging)
@@ -667,7 +554,7 @@ namespace BESSy
             _mapFileManager.Sweep();
         }
 
-        public int Length 
+        public int Length
         {
             get
             {
@@ -733,6 +620,220 @@ namespace BESSy
                 _cacheQueue.Add(id);
         }
 
+
+
+        public IList<EntityType> FetchFromIndex<IndexType>(string name, IndexType indexProperty)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IList<EntityType> FetchRangeFromIndexInclusive<IndexType>(string name, IndexType startProperty, IndexType endProperty)
+        {
+            throw new NotImplementedException();
+        }
+
+        #region IQueryable Members
+
+        public int Delete(Func<JObject, bool> selector)
+        {
+            int count = 0;
+
+            try
+            {
+                foreach (var page in _mapFileManager.AsEnumerable())
+                {
+                    foreach (var e in page.Where(p => selector(p)))
+                    {
+                        var id = e.Value<IdType>(_idToken);
+
+                        if (_idConverter.Compare(id, default(IdType)) == 0)
+                            continue;
+
+                        count++;
+
+                        _mapFileManager.Save(default(EntityType), id);
+                        _mapFileManager.Detach(id);
+
+                        UpdateCache(id, default(EntityType), true, true);
+
+                        _seed.Open(id);
+                    }
+                }
+            }
+            catch (Exception ex) { throw new QueryExecuteException("Delete Query Execution Failed.", ex); }
+
+            return count;
+        }
+
+        public int Update<UpdateEntityType>(Func<JObject, bool> selector, params Action<UpdateEntityType>[] updates) where UpdateEntityType : EntityType
+        {
+            try
+            {
+                var count = 0;
+
+                var entities = new Dictionary<IdType, UpdateEntityType>();
+
+                var ids = new SortedSet<IdType>(_idConverter);
+
+                lock (_syncCache)
+                {
+                    if (_cache.Count > 0)
+                    {
+                        var items = _cache.Values
+                                .Where(s => s != null)
+                                .Where(o => selector(JObject.FromObject(o, _mapFormatter.Serializer)))
+                                .OfType<UpdateEntityType>().ToList();
+
+                        foreach (var c in items)
+                        {
+                            var id = GetIdFrom(c);
+
+                            if (ids.Contains(id))
+                                continue;
+
+                            foreach (var action in updates)
+                                action.Invoke(c);
+
+                            ids.Add(id);
+                            entities.Add(id, c);
+
+                            UpdateCache(id, c, true, true);
+
+                            count++;
+                        }
+                    }
+                }
+
+                foreach (var page in this._mapFileManager.AsEnumerable())
+                {
+                    foreach (var obj in page.Where(o => selector(o)))
+                    {
+                        //TODO: what if the object is null or not of the right type?
+                        var entity = (UpdateEntityType)LoadFrom(obj);
+
+                        if (entity == null)
+                            continue;
+
+                        var id = GetIdFrom(entity);
+
+                        if (ids.Contains(id))
+                            continue;
+
+                        foreach (var action in updates)
+                            action.Invoke(entity);
+
+                        _mapFileManager.Save(entity, id);
+                        UpdateCache(id, entity, true, true);
+
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+            catch (Exception ex) { throw new QueryExecuteException("Update Query Execution Failed.", ex); }
+        }
+
+        public IList<EntityType> Select(Func<JObject, bool> selector)
+        {
+            try
+            {
+                var list = new List<EntityType>();
+
+                lock (_syncStaging)
+                    if (_stagingCache.Count > 0)
+                        list.AddRange(_stagingCache
+                            .SelectMany(s => s.Values)
+                                .Where(s => s != null)
+                                .Where(o => selector(JObject.FromObject(o, _mapFormatter.Serializer))));
+
+                lock (_syncCache)
+                    if (_cache.Count > 0)
+                        list.AddRange(_cache.Values
+                                .Where(s => s != null)
+                                .Where(o => selector(JObject.FromObject(o, _mapFormatter.Serializer))));
+
+                foreach (var page in _mapFileManager.AsEnumerable())
+                    foreach (var obj in page.Where(o => selector(o)))
+                        list.Add(LoadFrom(obj));
+
+                return list.GroupBy(k => GetIdFrom(k)).Select(f => f.First()).ToList();
+            }
+            catch (Exception ex) { throw new QueryExecuteException("Select Query Execution Failed.", ex); }
+        }
+
+        public IList<EntityType> SelectFirst(Func<JObject, bool> selector, int max)
+        {
+            try
+            {
+                var list = new List<EntityType>();
+
+                lock (_syncStaging)
+                    if (list.Count < max && _stagingCache.Count > 0)
+                        list.AddRange(_stagingCache
+                            .SelectMany(s => s.Values)
+                                .Where(s => s != null)
+                                .Where(o => selector(JObject.FromObject(o, _mapFormatter.Serializer))));
+
+                lock (_syncCache)
+                    if (_cache.Count > 0)
+                        list.AddRange(_cache.Values
+                                .Where(s => s != null)
+                                .Where(o => selector(JObject.FromObject(o, _mapFormatter.Serializer))));
+
+                if (list.Count < max)
+                {
+                    foreach (var page in _mapFileManager.AsEnumerable())
+                    {
+                        list.AddRange(page.Where(o => selector(o)).Select(e => e.ToObject<EntityType>(_mapFormatter.Serializer)));
+
+                        if (list.Count >= max)
+                            break;
+                    }
+                }
+
+                return list.GroupBy(k => GetIdFrom(k)).Select(f => f.First()).Take(Math.Min(list.Count, max)).ToList();
+            }
+            catch (Exception ex) { throw new QueryExecuteException("SelectFirst Query Execution Failed.", ex); }
+        }
+
+        public IList<EntityType> SelectLast(Func<JObject, bool> selector, int max)
+        {
+            try
+            {
+                var list = new List<EntityType>();
+
+                lock (_syncStaging)
+                    if (list.Count < max && _stagingCache.Count > 0)
+                        list.AddRange(_stagingCache.AsEnumerable().Reverse()
+                            .SelectMany(s => s.Values.Reverse())
+                                .Where(s => s != null)
+                                .Where(o => selector(JObject.FromObject(o, _mapFormatter.Serializer))));
+
+                lock (_syncCache)
+                    if (_cache.Count > 0)
+                        list.AddRange(_cache.Values.Reverse()
+                                .Where(s => s != null)
+                                .Where(o => selector(JObject.FromObject(o, _mapFormatter.Serializer))));
+
+                if (list.Count < max)
+                {
+                    foreach (var page in _mapFileManager.AsReverseEnumerable())
+                    {
+                        list.AddRange(page.Where(o => selector(o)).Select(e => e.ToObject<EntityType>(_mapFormatter.Serializer)));
+
+                        if (list.Count >= max)
+                            break;
+                    }
+                }
+
+                return list.GroupBy(k => GetIdFrom(k)).Select(f => f.First()).Take(Math.Min(list.Count, max)).ToList();
+            }
+            catch (Exception ex) { throw new QueryExecuteException("SelectLast Query Execution Failed.", ex); }
+        }
+
+        #endregion IQueryable Members
+
         public void Detach(IdType id)
         {
             lock (_syncCache)
@@ -764,8 +865,9 @@ namespace BESSy
             if (_cacheIsDirty)
                 Flush();
 
-            while (FileFlushQueueActive)
-                Thread.Sleep(100);
+            if (_mapFileManager != null)
+                while (FileFlushQueueActive)
+                    Thread.Sleep(100);
 
             Clear();
 

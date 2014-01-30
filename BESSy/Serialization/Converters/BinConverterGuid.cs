@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using BESSy.Json;
 
 namespace BESSy.Serialization.Converters
 {
@@ -45,9 +46,11 @@ namespace BESSy.Serialization.Converters
             return FromBytes(bytes);
         }
 
+        [JsonIgnore]
         public Guid Min { get { return Guid.Empty; } }
+        [JsonIgnore]
         public Guid Max { get { return _maxGuid; } }
-
+        [JsonIgnore]
         public int Length
         {
             get { return 16; }

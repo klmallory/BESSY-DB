@@ -47,11 +47,13 @@ namespace BESSy.Transactions
             Action = action;
             Segment = segment;
             IndexSegment = indexSegment;
+            Stream = null;
         }
 
         public IndexType Index { get; set; }
         public Action Action { get; set; }
         public int Segment { get; set; }
         public int IndexSegment { get; set; }
+        public Stream Stream { get; set; }
     }
 }

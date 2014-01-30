@@ -16,12 +16,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 using System;
 using System.IO;
 using System.Collections.Generic;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
+using BESSy.Json;
 
 namespace BESSy.Serialization
 {
     public interface IQueryableFormatter : ISafeFormatter
     {
+        JsonSerializer Serializer { get; }
         JObject Parse(Stream inStream);
     }
 
@@ -44,6 +46,7 @@ namespace BESSy.Serialization
         Stream FormatObjStream<T>(T obj);
         T UnformatObj<T>(byte[] buffer);
         T UnformatObj<T>(Stream inStream);
+        bool Trim { get; }
     }
 
     public interface IBinFormatter

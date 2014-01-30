@@ -24,9 +24,11 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using BESSy.Cache;
 using BESSy.Factories;
+using System.Security;
+using BESSy.Relational;
 
 namespace BESSy.Tests
 {
@@ -57,25 +59,41 @@ namespace BESSy.Tests
             byte[] vector = new byte[8];
             random.NextBytes(vector);
 
-            return new RC2Crypto(vector);
+            var s = new SecureString();
+
+            foreach (var b in vector) { s.AppendChar(Convert.ToChar(b)); }
+
+            return new RC2Crypto(s);
         }
 
-        internal static ISafeFormatter CreateZipFormatter()
+        internal static SecureString CreateSecureString()
         {
-            return new QuickZipFormatter(CreateBsonFormatter(), QuickZipFormatter.DefaultProperties);
+            byte[] vector = new byte[8];
+            random.NextBytes(vector);
+
+            var s = new SecureString();
+
+            foreach (var b in vector) { s.AppendChar(Convert.ToChar(b)); }
+
+            return s;
         }
 
-        internal static ISafeFormatter CreateCryptoFormatter()
+        internal static IQueryableFormatter CreateZipFormatter()
         {
-            return new CryptoFormatter(CreateCrypto(), CreateZipFormatter(), QuickZipFormatter.DefaultProperties.Values.ToArray());
+            return new QueryZipFormatter(CreateBsonFormatter(), QuickZipFormatter.DefaultProperties);
         }
 
-        internal static IBatchFileManager<EntityType> CreateBatchFileManager<EntityType>(ISafeFormatter formatter)
+        internal static IQueryableFormatter CreateCryptoFormatter()
+        {
+            return new  QueryCryptoFormatter(CreateCrypto(), CreateZipFormatter(), CreateSecureString());
+        }
+
+        internal static IBatchFileManager<EntityType> CreateBatchFileManager<EntityType>(IQueryableFormatter formatter)
         {
             return new BatchFileManager<EntityType>(512, 4096, formatter);
         }
 
-        internal static IIndexedEntityMapManager<EntityType, IdType> CreateIndexedMapManager<EntityType, IdType>(ISafeFormatter formatter, IBinConverter<IdType> idConverter)
+        internal static IIndexedEntityMapManager<EntityType, IdType> CreateIndexedMapManager<EntityType, IdType>(IQueryableFormatter formatter, IBinConverter<IdType> idConverter)
         {
             return new IndexedEntityMapManager<EntityType, IdType>(idConverter, formatter);
         }
@@ -145,7 +163,19 @@ namespace BESSy.Tests
             };
         }
 
-        internal static MockClassD CreateRandomRelation(IRepository<RelationshipEntity<int>, int> repo)
+        internal static IList<MockClassA> GetMockClassAObjects(int count)
+        {
+            var mocks = new List<MockClassA>();
+
+            Enumerable.Range(0, count)
+                .ToList()
+                .ForEach(i => mocks.Add(CreateRandom()));
+
+
+            return mocks;
+        }
+
+        internal static MockClassE CreateRandomRelation(IRepository<RelationshipEntity<int>, int> repo)
         {
             return new MockClassE(repo)
             {
@@ -162,35 +192,28 @@ namespace BESSy.Tests
                 ReplicationID = Guid.NewGuid(),
                 NamesOfStuff = new string[] { Guid.NewGuid().ToString(), Guid.NewGuid().ToString() },
                 TPSCoverSheet = Guid.NewGuid().ToString(),
-                Es = new Dictionary<int, MockClassE>() { 
-                    { random.Next(), (MockClassE)CreateRandomRelation(repo) },
-                    { random.Next(), (MockClassE)CreateRandomRelation(repo)},
-                 }
+                HiC = null,
+                LowBall = null,
+                Parent = null
             };
         }
 
-        internal static IList<MockClassA> GetMockClassAObjects(int count)
+        internal static IList<MockClassE> GetMockClassDObjects(int count, IRepository<RelationshipEntity<int>, int> repo)
         {
-            var mocks = new List<MockClassA>();
-
-            Enumerable.Range(0, count)
-                .ToList()
-                .ForEach(i => mocks.Add(CreateRandom()));
-
-
-            return mocks;
-        }
-
-        internal static IList<MockClassD> GetMockClassDObjects(int count, IRepository<RelationshipEntity<int>, int> repo)
-        {
-            var mocks = new List<MockClassD>();
+            var mocks = new List<MockClassE>();
 
             Enumerable.Range(0, count)
                 .ToList()
                 .ForEach(i => mocks.Add(CreateRandomRelation(repo)));
 
+            foreach (var m in mocks)
+            {
+                m.HiC = CreateRandomRelation(repo);
+                m.LowBall = new List<MockClassD> { CreateRandomRelation(repo), CreateRandomRelation(repo) };
+                m.Parent = CreateRandomRelation(repo) as MockClassE;
+            }
 
-            return mocks;
+            return mocks.ToList();
         }
     }
 }

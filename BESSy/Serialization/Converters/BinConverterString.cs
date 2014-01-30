@@ -18,31 +18,35 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using BESSy.Json;
 
 namespace BESSy.Serialization.Converters
 {
     [Serializable]
     public class BinConverterString : IBinConverter<String>
     {
-        public BinConverterString() : this(50)
+        public BinConverterString()
+            : this(50)
         {
-
+            
         }
-
-        private char[] trimChararcters = new char[] { '\0' };
 
         public BinConverterString(int maxLength)
         {
             maxLen = maxLength;
 
-            var litmus = new string('Z', maxLen);
+            _max = new string(char.MaxValue, maxLen);
 
-            var b = Encoding.ASCII.GetBytes(litmus);
+            var b = Encoding.Unicode.GetBytes(_max);
 
             Length = b.Length;
         }
 
-        int maxLen {get; set;}
+        char[] trimChararcters = new char[] { '\0' };
+        string _max;
+
+        [JsonProperty]
+        int maxLen { get; set; }
 
         public byte[] ToBytes(string item)
         {
@@ -70,10 +74,13 @@ namespace BESSy.Serialization.Converters
             return FromBytes(bytes);
         }
 
+        [JsonIgnore]
         public string Min { get { return String.Empty; } }
-        public string Max { get { return new string(char.MaxValue, maxLen); } }
+        [JsonIgnore]
+        public string Max { get { return _max; } }
 
-        public int Length {get; private set;}
+        [JsonProperty]
+        public int Length { get; private set; }
 
         /// <summary>
         /// Compares string item1 against string item2.
@@ -90,7 +97,7 @@ namespace BESSy.Serialization.Converters
             if (item1 != null && item2 == null)
                 return 1;
 
-            return string.Compare(item1, 0, item2, 0, maxLen, false); 
+            return string.Compare(item1, 0, item2, 0, maxLen, false);
         }
 
     }

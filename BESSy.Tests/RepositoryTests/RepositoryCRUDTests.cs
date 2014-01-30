@@ -10,7 +10,7 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using NUnit.Framework;
 
 namespace BESSy.Tests.RepositoryTests

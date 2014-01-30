@@ -30,7 +30,7 @@ namespace BESSy
 {
     public class Catalog<EntityType, IdType, PropertyType> : AbstractMappedCatalog<EntityType, IdType, PropertyType>
     {
-        static ISafeFormatter DefaultFormatter { get { return new BSONFormatter(); } }
+        static IQueryableFormatter DefaultFormatter { get { return new BSONFormatter(); } }
         static IBatchFileManager<IndexPropertyPair<IdType, PropertyType>> DefaultIndexFileManager { get { return new BatchFileManager<IndexPropertyPair<IdType, PropertyType>>(DefaultFormatter); } }
         static IBatchFileManager<EntityType> DefaultRepositoryFileManager { get { return new BatchFileManager<EntityType>(DefaultFormatter); } }
         static IIndexRepositoryFactory<IdType, PropertyType> DefaultIndexFactory { get { return new IndexRepositoryFactory<IdType, PropertyType>(); } }
@@ -61,7 +61,7 @@ namespace BESSy
             (string indexFileName
             , string workingFolder
             , int repositoryCacheSize
-            , ISafeFormatter mapFormatter
+            , IQueryableFormatter mapFormatter
             , IBatchFileManager<EntityType> repositoryFileManager
             , IRepositoryCacheFactory cacheFactory
             , IIndexRepositoryFactory<IdType, PropertyType> indexFactory)
@@ -131,7 +131,7 @@ namespace BESSy
             , IBinConverter<PropertyType> propertyConverter
             , string idPropertyName
             , string categoryIdPropertyName
-            , ISafeFormatter mapFormatter
+            , IQueryableFormatter mapFormatter
             , IBatchFileManager<EntityType> repositoryFileManager
             , IRepositoryCacheFactory cacheFactory
             , IIndexRepositoryFactory<IdType, PropertyType> indexFactory)

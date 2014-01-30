@@ -19,8 +19,8 @@ using System.Linq;
 using System.Text;
 using System.Runtime;
 using System.Threading;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
+using BESSy.Json.Linq;
+using BESSy.Json;
 
 namespace BESSy.Transactions
 {
@@ -96,8 +96,8 @@ namespace BESSy.Transactions
                 if (_isCommitted) return;
 
                 _isCommitted = true;
-                _transactionManager.Commit(this);
             }
+                _transactionManager.Commit(this);
         }
 
         public int EnlistCount { get { return _enlistedActions.Count; } }
@@ -160,10 +160,11 @@ namespace BESSy.Transactions
 
         public void Commit()
         {
-            if (IsComplete) throw new TransactionStateException("Transaction is no longer active. There is nothing to commit.");
-
             lock (_syncRoot)
             {
+                if (_isCommitted) return;
+                if (IsComplete) throw new TransactionStateException("Transaction is no longer active. There is nothing to commit.");
+
                 _isCommitted = true;
                 _transactionManager.Commit(this);
             }

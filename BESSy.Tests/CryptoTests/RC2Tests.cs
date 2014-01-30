@@ -10,7 +10,7 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using NUnit.Framework;
 using BESSy.Crypto;
 
@@ -20,7 +20,7 @@ namespace BESSy.Tests.CryptoTests
     public class RC2Tests
     {
         ICrypto _crypto;
-        ISafeFormatter _bsonFormatter;
+        IQueryableFormatter _bsonFormatter;
         byte[] _key = new byte[8];
 
         [TestFixtureSetUp()]

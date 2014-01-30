@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using BESSy.Json;
 
 namespace BESSy.Serialization.Converters
 {
@@ -56,9 +57,11 @@ namespace BESSy.Serialization.Converters
             throw new InvalidOperationException(String.Format("values {0} and {1} could not be compared.", v1, v2));
         }
 
+        [JsonIgnore]
         public int Min { get { return int.MinValue; } }
+        [JsonIgnore]
         public int Max { get { return int.MaxValue; } }
-
+        [JsonIgnore]
         public int Length
         {
             get

@@ -32,7 +32,7 @@ using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using NUnit.Framework;
 
 namespace BESSy.Tests.Indexes
@@ -40,6 +40,9 @@ namespace BESSy.Tests.Indexes
     [TestFixture]
     public class IndexTests : FileTest
     {
+        ISeed<Int32> _seed = new Seed32(999);
+        ISeed<Int32> _segmentSeed = new Seed32(0);
+        IQueryableFormatter _formatter = new BSONFormatter();
 
         [Test]
         public void IndexLoads()
@@ -47,15 +50,17 @@ namespace BESSy.Tests.Indexes
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", new BSONFormatter()))
+            IDictionary<int, int> segments = new Dictionary<int, int>();
+
+            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
             {
-                db.Load();
+                db.Load<int>();
 
                 var seed = new Seed32();
                 var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
                 objs.ForEach(a => a.WithId(seed.Increment()));
 
-                using (var index = new Index<int, MockClassA>
+                using (var index = new PrimaryIndex<int, MockClassA>
                     (_testName + ".test.index"
                     , "Id"
                     , new BinConverter32()
@@ -66,9 +71,14 @@ namespace BESSy.Tests.Indexes
                 {
                     index.Load();
 
-                    objs.ForEach(a => index.Add(a.Id, db.SaveSegment(a)));
-
                     index.Register(db);
+
+                    using (var t = new MockTransaction<int, MockClassA>())
+                    {
+                        objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
+
+                        segments = db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
+                    }
                 }
             }
         }
@@ -79,17 +89,17 @@ namespace BESSy.Tests.Indexes
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", new BSONFormatter()))
+            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
             {
-                db.Load();
+                db.Load<int>();
 
                 var seed = new Seed32();
                 var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
-                var segments = new Dictionary<int, int>();
+                IDictionary<int, int> segments = new Dictionary<int, int>();
 
                 objs.ForEach(a => a.WithId(seed.Increment()));
 
-                using (var index = new Index<int, MockClassA>
+                using (var index = new PrimaryIndex<int, MockClassA>
                     (_testName + ".test.index"
                     , "Id"
                     , new BinConverter32()
@@ -100,14 +110,33 @@ namespace BESSy.Tests.Indexes
                 {
                     index.Load();
 
-                    objs.ForEach(a => segments.Add(a.Id, index.Add(a.Id, db.SaveSegment(a))));
-
-                    index.Update(segments.Last().Key, segments.Last().Value);
-
                     index.Register(db);
+
+                    using (var t = new MockTransaction<int, MockClassA>())
+                    {
+                        objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
+
+                        segments = db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
+                    }
+
+                    using (var t = new MockTransaction<int, MockClassA>())
+                    {
+                        var update = objs.Where(o => o.Id == segments.Last().Key).FirstOrDefault();
+                        update.Name = "Hello Kitty";
+
+                        t.Enlist(Action.Update, segments.Last().Key, update);
+
+                        db.CommitTransaction(t, new Dictionary<int, int>() { { segments.Last().Key, segments.Last().Value } });
+                    }
+
+                    while (db.FileFlushQueueActive)
+                        Thread.Sleep(100);
+
+                    Assert.AreEqual(segments.Last().Value, index.Fetch(segments.Last().Key));
                 }
             }
         }
+    
 
         [Test]
         public void IndexDeletesSegment()
@@ -115,17 +144,17 @@ namespace BESSy.Tests.Indexes
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", new BSONFormatter()))
+            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
             {
-                db.Load();
+                db.Load<int>();
 
                 var seed = new Seed32();
                 var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
-                var segments = new Dictionary<int, int>();
+                IDictionary<int, int> segments = new Dictionary<int, int>();
 
                 objs.ForEach(a => a.WithId(seed.Increment()));
 
-                using (var index = new Index<int, MockClassA>
+                using (var index = new PrimaryIndex<int, MockClassA>
                     (_testName + ".test.index"
                     , "Id"
                     , new BinConverter32()
@@ -138,11 +167,24 @@ namespace BESSy.Tests.Indexes
 
                     index.Register(db);
 
-                    objs.ForEach(a => segments.Add(a.Id, index.Add(a.Id, db.SaveSegment(a))));
+                    using (var t = new MockTransaction<int, MockClassA>())
+                    {
+                        objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
 
-                    index.Delete(segments.Last().Key);
+                        segments = db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
+                    }
 
-                    Assert.AreEqual(0, index.Fetch(segments.Last().Key));
+                    var deleteId = segments.Last().Key;
+                    var deleteSegment = segments.Last().Value;
+
+                    using (var t = new MockTransaction<int, MockClassA>())
+                    {
+                        t.Enlist(Action.Delete, deleteId, null);
+
+                        db.CommitTransaction(t, new Dictionary<int, int>() { { deleteId, deleteSegment } });
+                    }
+
+                    Assert.AreEqual(0, index.Fetch(deleteId));
                 }
             }
         }
@@ -155,15 +197,15 @@ namespace BESSy.Tests.Indexes
 
             var sw = new Stopwatch();
 
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", new BSONFormatter()))
+            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
             {
-                db.Load();
+                db.Load<int>();
 
                 var seed = new Seed32();
                 var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
                 objs.ForEach(a => a.WithId(seed.Increment()));
 
-                using (var index = new Index<int, MockClassA>
+                using (var index = new PrimaryIndex<int, MockClassA>
                     (_testName + ".test.index"
                     , "Id"
                     , new BinConverter32()
@@ -174,9 +216,12 @@ namespace BESSy.Tests.Indexes
                 {
                     index.Load();
 
-                    objs.ForEach(a => index.Add(a.Id, db.SaveSegment(a)));
+                    var t = new MockTransaction<int, MockClassA>();
+                    objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
 
                     index.Register(db);
+
+                    db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
 
                     sw.Reset();
                     sw.Start();
@@ -185,8 +230,61 @@ namespace BESSy.Tests.Indexes
 
                     sw.Stop();
 
-                    Console.WriteLine("Index reorganization took {0} seconds for {1} records.", sw.ElapsedMilliseconds / 1000.00, objs.Count); 
+                    Console.WriteLine("PrimaryIndex reorganization took {0} seconds for {1} records.", sw.ElapsedMilliseconds / 1000.00, objs.Count); 
                 }
+            }
+        }
+
+        [Test]
+        public void DatabaseDoesNotDuplicateOnAddOrUpdate()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objs = TestResourceFactory.GetMockClassAObjects(25);
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32()))
+            {
+                db.Load();
+
+                using (var t = db.BeginTransaction())
+                {
+                    foreach (var o in objs)
+                        o.Id = db.Add(o);
+
+                    t.Commit();
+                }
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32()))
+            {
+                db.Load();
+
+                using (var t = db.BeginTransaction())
+                {
+                    var update = db.Fetch(3);
+
+                    update.Name = "updated";
+
+                    db.AddOrUpdate(update, 3);
+
+                    t.Commit();
+                }
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32()))
+            {
+                db.Load();
+
+                var check = db.Fetch(3);
+
+                Assert.AreEqual("updated", check.Name);
+
+                var allChecks = db.Select(s => s.Value<string>("Name") == "updated");
+
+                Assert.IsNotNull(allChecks);
+                Assert.AreEqual(1, allChecks.Count());
+
             }
         }
     }

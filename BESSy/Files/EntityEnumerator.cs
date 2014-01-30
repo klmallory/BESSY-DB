@@ -41,7 +41,7 @@ namespace BESSy.Files
 
         public void SetIndex(int segment) { _currentSegment = segment; }
 
-        #region IEnumerator<T> Members
+        #region IEnumerator<ResourceType> Members
 
         public EntityType Current
         {

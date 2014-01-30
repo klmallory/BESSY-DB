@@ -18,7 +18,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
+using BESSy.Files;
 
 namespace BESSy
 {
@@ -32,7 +33,7 @@ namespace BESSy
     public interface IQueryableRepository<EntityType> : IQueryableReadOnlyRepository<EntityType>
     {
         int Delete(Func<JObject, bool> selector);
-        int Update(Func<JObject, bool> selector, params Action<EntityType>[] updates);
+        int Update<UpdateEntityType>(Func<JObject, bool> selector, params Action<UpdateEntityType>[] updates) where UpdateEntityType : EntityType;
     }
 
     public interface IQueryableReadOnlyRepository<EntityType>
@@ -55,6 +56,8 @@ namespace BESSy
         IQueryable<T> AsQueryable();
     }
 
+    public interface ILoadAndRegister<EntityType> : ILoad, IRegisterDatabaseFile<EntityType> { }
+
     /// <summary>
     /// Contract for a repository that requires initialization.
     /// </summary>
@@ -65,6 +68,19 @@ namespace BESSy
         /// </summary>
         /// <returns>The amount of records contained in this repository's underlying device.</returns>
         int Load();
+    }
+
+    /// <summary>
+    /// Contract for database file event subscription.
+    /// </summary>
+    public interface IRegisterDatabaseFile<EntityType>
+    {
+        /// <summary>
+        /// register the database file to watch for events related to rebuilding, transaction completion, and reorganizing.
+        /// </summary>
+        /// <typeparam name="EntityType"></typeparam>
+        /// <param name="databaseFile"></param>
+        void Register(IAtomicFileManager<EntityType> databaseFile);
     }
 
     /// <summary>
@@ -89,12 +105,12 @@ namespace BESSy
     /// <summary>
     /// Contract for a repository that supports basic CRUD operations.
     /// </summary>
-    /// <typeparam name="T">Stored Type</typeparam>
+    /// <typeparam name="ResourceType">Stored Type</typeparam>
     /// <typeparam name="I">Key Type</typeparam>
     public interface IRepository<T, I> : IReadOnlyRepository<T, I>
     {
         I Add(T item);
-        void AddOrUpdate(T item, I id);
+        I AddOrUpdate(T item, I id);
         void Update(T item, I id);
         void Delete(I id);
     }
@@ -102,7 +118,7 @@ namespace BESSy
     /// <summary>
     /// Contract for a repository that supports basic read operations.
     /// </summary>
-    /// <typeparam name="T">Stored Type</typeparam>
+    /// <typeparam name="ResourceType">Stored Type</typeparam>
     /// <typeparam name="I">Key Type</typeparam>
     public interface IReadOnlyRepository<T, I> : IDisposable
     {

@@ -23,24 +23,25 @@ using BESSy.Serialization.Converters;
 using BESSy.Files;
 using BESSy.Serialization;
 using System.Reflection;
+using BESSy.Json.Linq;
 
 namespace BESSy
 {
     public class Repository<EntityType, IdType> : AbstractMappedRepository<EntityType, IdType>
     {
         // Default settings.
-        static ISafeFormatter DefaultFileFormatter { get { return new BSONFormatter(); } }
+        static IQueryableFormatter DefaultFileFormatter { get { return new BSONFormatter(); } }
         static IBatchFileManager<EntityType> DefaultBatchFileManager { get { return new BatchFileManager<EntityType>(DefaultFileFormatter); } }
         static ISeed<IdType> DefaultSeed { get { return TypeFactory.GetSeedFor<IdType>(); } }
         static IBinConverter<IdType> DefaultBinConverter { get { return TypeFactory.GetBinConverterFor<IdType>(); } }
 
         /// <summary>
-        /// Creates or opens a new repository with the specified settings. Requires the seed to have already been properly configured.
+        /// Creates or opens a new repository with the specified settings. Requires the segmentSeed to have already been properly configured.
         /// </summary>
         /// <param name="cacheSize"></param>
         /// <param name="fileName"></param>
         /// <param name="autoCache"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="idConverter"></param>
         /// <param name="mapFormatter"></param>
         /// <param name="fileManager"></param>
@@ -50,7 +51,7 @@ namespace BESSy
             , bool autoCache
             , ISeed<IdType> seed
             , IBinConverter<IdType> idConverter
-            , ISafeFormatter mapFormatter
+            , IQueryableFormatter mapFormatter
             , IBatchFileManager<EntityType> fileManager)
             : base(cacheSize, fileName, seed, idConverter, mapFormatter, fileManager)
         {
@@ -85,7 +86,7 @@ namespace BESSy
         /// <param name="cacheSize"></param>
         /// <param name="fileName"></param>
         /// <param name="autoCache"></param>
-        /// <param name="seed"></param>
+        /// <param name="segmentSeed"></param>
         /// <param name="idConverter"></param>
         /// <param name="mapFormatter"></param>
         /// <param name="fileManager"></param>
@@ -97,10 +98,9 @@ namespace BESSy
             bool autoCache,
             ISeed<IdType> seed,
             IBinConverter<IdType> idConverter,
-            ISafeFormatter mapFormatter,
+            IQueryableFormatter mapFormatter,
             IBatchFileManager<EntityType> fileManager,
             string idPropertyName)
-
             : base(cacheSize, fileName, seed, idConverter, mapFormatter, fileManager)
         {
             AutoCache = autoCache;
@@ -111,12 +111,19 @@ namespace BESSy
         Func<EntityType, IdType> _getUniqueId;
         Action<EntityType, IdType> _setUniqueId;
 
+        protected override EntityType LoadFrom(JObject token)
+        {
+            return token.ToObject<EntityType>(_mapFormatter.Serializer);
+        }
+
         protected override void InitializeDatabase(ISeed<IdType> seed, int count)
         {
             base.InitializeDatabase(seed, count);
 
             _getUniqueId = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(seed.IdProperty).GetGetMethod());
             _setUniqueId = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(seed.IdProperty).GetSetMethod());
+
+            _idToken = seed.IdProperty;
         }
 
         protected override IdType GetIdFrom(EntityType item)

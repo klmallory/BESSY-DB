@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.Security;
 
 namespace BESSy.Crypto
 {
@@ -35,7 +36,7 @@ namespace BESSy.Crypto
         /// <param name="hash"></param>
         /// <param name="keySize"></param>
         /// <returns></returns>
-        byte[] GetKey(object[] hash, int keySize);
+        byte[] GetKey(SecureString hash, int keySize);
 
         /// <summary>
         /// Encrypts the specified value.

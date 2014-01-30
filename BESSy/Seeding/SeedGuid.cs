@@ -13,7 +13,7 @@ namespace BESSy.Seeding
     {
         public SeedGuid() : base()
         {
-            MinimumSeedStride = 1024;
+            MinimumSeedStride = 10240;
         }
 
         public override Guid Increment()
@@ -23,12 +23,7 @@ namespace BESSy.Seeding
 
         public override Guid Peek()
         {
-            return Guid.Empty;
-        }
-
-        public override void Open(Guid id)
-        {
-            return;
+            return Guid.NewGuid();
         }
     }
 }

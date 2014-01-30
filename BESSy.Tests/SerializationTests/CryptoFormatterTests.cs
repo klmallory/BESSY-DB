@@ -25,6 +25,7 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
 using NUnit.Framework;
+using System.Security;
 
 
 namespace BESSy.Tests.SerializationTests
@@ -33,13 +34,15 @@ namespace BESSy.Tests.SerializationTests
     public class CryptoFormatterTests
     {
         IList<MockClassA> _testEntities;
-        object[] _keys;
+        SecureString _keys = new SecureString();
 
         [SetUp]
         public void Setup()
         {
             _testEntities = TestResourceFactory.GetMockClassAObjects(12);
-            _keys = _testEntities.ToList().ToArray();
+            byte[] bytes = new byte[24];
+            new Random(12).NextBytes(bytes);
+            foreach (var b in bytes) { _keys.AppendChar(Convert.ToChar(b)); }
         }
 
         [Test]

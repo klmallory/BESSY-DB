@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json;
+using BESSy.Json;
 
 namespace BESSy.Seeding
 {
@@ -41,6 +41,7 @@ namespace BESSy.Seeding
         [JsonProperty]
         public Guid Source { get; protected set; }
 
+        public ISeed<int> SegmentSeed { get; set; }
         public long LastReplicatedTimeStamp { get; set; }
         public object PropertyConverter { get; set; }
         public object IdConverter { get; set; }

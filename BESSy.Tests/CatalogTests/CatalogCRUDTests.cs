@@ -15,7 +15,7 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json;
+using BESSy.Json;
 using NUnit.Framework;
 using BESSy.Cache;
 
@@ -26,7 +26,7 @@ namespace BESSy.Tests.CatalogTests
         ISeed<int> _seed;
         IBinConverter<int> _idConverter;
         IBinConverter<string> _propertyConverter;
-        ISafeFormatter _bsonFormatter;
+        IQueryableFormatter _bsonFormatter;
         IBatchFileManager<IndexPropertyPair<int, string>> _indexBatchManager;
         IBatchFileManager<IndexPropertyPair<string, string>> _stringBatchManager;
         IBatchFileManager<MockClassA> _bsonManager;

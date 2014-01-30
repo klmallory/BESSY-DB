@@ -28,6 +28,7 @@ using BESSy.Tests.Mocks;
 using BESSy.Indexes;
 using BESSy.Synchronization;
 using BESSy.Files;
+using BESSy.Transactions;
 
 namespace BESSy.Tests.Indexes
 {
@@ -53,11 +54,14 @@ namespace BESSy.Tests.Indexes
                 , new RowSynchronizer<int>(new BinConverter32())))
                 
             {
-                index.Load();
+                index.Load<int>();
 
-                index.SaveSegment(new IndexPropertyPair<string, int>() { Id = "C", Property = 1 });
-                index.SaveSegment(new IndexPropertyPair<string, int>() { Id = "A", Property = 2 });
-                index.SaveSegment(new IndexPropertyPair<string, int>() { Id = "_", Property = 3 });
+                index.UpdateFromTransaction(new List<TransactionIndexResult<string>>()
+                {
+                    new TransactionIndexResult<string>("C", Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<string>("A", Action.Create, index.SegmentSeed.Increment(), 0),
+                    new TransactionIndexResult<string>("_", Action.Create, index.SegmentSeed.Increment(), 0)
+                });
 
                 var pair = index.LoadSegmentFrom(2);
 

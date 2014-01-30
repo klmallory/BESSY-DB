@@ -122,7 +122,7 @@ namespace BESSy.Tests.SerializationTests.ConverterTests
             Assert.AreEqual(text, bin.FromBytes(bytes));
             Assert.AreEqual(text, bin.FromStream(new MemoryStream(bytes)));
             Assert.AreEqual(bytes.Length, bin.Length);
-            Assert.AreEqual(50, bin.Length);
+            Assert.AreEqual(100, bin.Length);
             Assert.AreEqual(1, bin.Compare("Z", "a"));
             Assert.AreEqual(1, bin.Compare("a", null));
             Assert.AreEqual(-1, bin.Compare("a", "Z"));

@@ -28,7 +28,7 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using NUnit.Framework;
 
 namespace BESSy.Tests.AtomicFileManagerTests
@@ -39,6 +39,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
         string _testName;
         ISeed<int> _seed;
         IQueryableFormatter _formatter;
+
 
         [SetUp]
         public void Setup()
@@ -70,9 +71,9 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
             IDictionary<int, int> returnSegments = null;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, new Seed32(0)))
             {
-                afm.Load();
+                afm.Load<int>();
 
                 using (var manager = new TransactionManager<int, MockClassA>
                     (new MockTransactionFactory<int, MockClassA>()

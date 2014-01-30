@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 
 namespace BESSy.Files
 {
@@ -51,9 +51,9 @@ namespace BESSy.Files
             {
                 currentPage--;
 
-                if (currentPage <= 0)
+                if (currentPage < 0)
                 {
-                    currentPage = _file.Pages;
+                    currentPage = _file.Pages + 1;
                     return false;
                 }
 
@@ -64,7 +64,7 @@ namespace BESSy.Files
         public void Reset()
         {
             lock (_syncRoot)
-                currentPage = _file.Pages;
+                currentPage = _file.Pages + 1;
         }
 
         public void Dispose()

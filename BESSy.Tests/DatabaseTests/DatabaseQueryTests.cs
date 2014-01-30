@@ -29,6 +29,7 @@ using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
 using NUnit.Framework;
+using BESSy.Json.Linq;
 
 namespace BESSy.Tests.DatabaseTests
 {
@@ -54,7 +55,7 @@ namespace BESSy.Tests.DatabaseTests
 
             var stopWatch = new Stopwatch();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed))
             {
                 db.Load();
 
@@ -104,7 +105,7 @@ namespace BESSy.Tests.DatabaseTests
 
             var stopWatch = new Stopwatch();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed))
             {
                 db.Load();
 
@@ -126,6 +127,8 @@ namespace BESSy.Tests.DatabaseTests
 
                 foreach (var item in gets)
                     Assert.Greater(item.Id, 23999);
+
+                db.FlushAll();
             }
 
             using (var db = new Database<int, MockClassA>(_testName + ".database"))
@@ -143,6 +146,54 @@ namespace BESSy.Tests.DatabaseTests
 
                 foreach (var item in gets)
                     Assert.Greater(item.Id, 23999);
+            }
+        }
+
+        [Test]
+        public void DatabaseFetchesUpdatesAndDeletesWithQueries()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
+            var ids = new List<int>();
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32(0), new BinConverter32(), new JSONFormatter()))
+            {
+                db.Load();
+
+                objs.ToList().ForEach(o => ids.Add(db.Add(o.WithId(_seed.Increment()))));
+
+                db.FlushAll();
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", new JSONFormatter()))
+            {
+                db.Load();
+
+                var last = db.SelectLast(s => true, 1).LastOrDefault();
+
+                Assert.IsNotNull(last);
+
+                db.Update(s => s.Value<string>("Name") == last.Name
+                    , new System.Action<MockClassA>(a => a.Name = "last"));
+
+                db.Delete(s => true);
+
+                db.FlushAll();
+
+                var selected = db.Select(s => true);
+
+                Assert.AreEqual(0, selected.Count);
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", new JSONFormatter()))
+            {
+                db.Load();
+
+                var selected = db.Select(s => true);
+
+                Assert.AreEqual(0, selected.Count);
             }
         }
     }

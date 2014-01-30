@@ -28,27 +28,27 @@ namespace BESSy.Factories
 {
     public interface IIndexFileFactory
     {
-         IIndexFileManager<IndexType, EntityType, int> Create<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
+        IIndexFileManager<IndexType, EntityType, int> Create<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
 
-        IPrimaryIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
-        IPrimaryIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, ISeed<IndexType> seed, IRowSynchronizer<int> rowSynchronizer);
+        IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
+        IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
     }
 
-    public class IndexFileFactory : BESSy.Factories.IIndexFileFactory 
+    public class IndexFileFactory : BESSy.Factories.IIndexFileFactory
     {
         public IIndexFileManager<IndexType, EntityType, int> Create<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
         {
             return new IndexFileManager<IndexType, EntityType>(fileNamePath, indexToken, bufferSize, startingSize, maximumBlockSize, propertyConverter, formatter, rowSynchronizer);
         }
 
-        public IPrimaryIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+        public IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
         {
-            return new PrimaryIndexFileManager<IndexType, EntityType>(fileNamePath, bufferSize, formatter, rowSynchronizer);
+            return new IndexFileManager<IndexType, EntityType>(fileNamePath, bufferSize, formatter, rowSynchronizer);
         }
 
-        public IPrimaryIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, ISeed<IndexType> seed, IRowSynchronizer<int> rowSynchronizer)
+        public IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
         {
-            return new PrimaryIndexFileManager<IndexType, EntityType>(fileNamePath, bufferSize, formatter, seed, rowSynchronizer);
+            return new IndexFileManager<IndexType, EntityType>(fileNamePath, indexToken, bufferSize, startingSize, maximumBlockSize, formatter, rowSynchronizer, propertyConverter);
         }
     }
 }

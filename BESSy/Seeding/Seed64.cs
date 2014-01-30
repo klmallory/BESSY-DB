@@ -21,7 +21,7 @@ namespace BESSy.Seeding
         {
             lock (_syncRoot)
             {
-                if (OpenIds.Count > 0)
+                if (OpenIds.Count > 0 && OpenIds[0] > 0)
                 {
                     var id = OpenIds[0];
                     OpenIds.RemoveAt(0);
@@ -32,6 +32,14 @@ namespace BESSy.Seeding
 
                 return LastSeed;
             }
+        }
+
+        public override void Open(long id)
+        {
+            if (id <= 0)
+                return;
+
+            base.Open(id);
         }
 
         public override long Peek()

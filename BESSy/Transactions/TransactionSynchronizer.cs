@@ -31,9 +31,9 @@ namespace BESSy.Transactions
     {
         bool HasLocks();
 
-        //TransactionLock<IdType, EntityType> LockAll();
-        //TransactionLock<IdType, EntityType> LockAll(int milliseconds);
-        //bool TryLockAll(int milliseconds, out TransactionLock<IdType, EntityType> rowLock);
+        //TransactionLock<SeedType, EntityType> LockAll();
+        //TransactionLock<SeedType, EntityType> LockAll(int milliseconds);
+        //bool TryLockAll(int milliseconds, out TransactionLock<SeedType, EntityType> rowLock);
 
         TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transaction);
         TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transaction, int milliseconds);

@@ -23,6 +23,31 @@ namespace BESSy.Extensions
 {
     public static class StreamExtensions
     {
+        public static void Trim(this Stream inStream)
+        {
+            var buffer = new byte[Environment.SystemPageSize];
+
+            var lastNonZeroIndex = -1;
+            var total = 0;
+
+            var read = inStream.Read(buffer, 0, buffer.Length);
+
+            while (read > 0)
+            {
+                var last = Array.FindLastIndex(buffer, b => b != 0);
+                if (last >= 0)
+                    lastNonZeroIndex = total + last;
+
+                total += read;
+
+                read = inStream.Read(buffer, 0, buffer.Length);
+            }
+
+
+            if (lastNonZeroIndex >= 0)
+                inStream.SetLength(lastNonZeroIndex + 1);
+        }
+
         public static void WriteAllTo(this Stream inStream, Stream outStream)
         {
             var buffer = new byte[Environment.SystemPageSize];
@@ -55,7 +80,7 @@ namespace BESSy.Extensions
 
         public static bool WriteSegmentTo(this Stream inStream, Stream outStream, int bufferSize, int newStride, int oldStride)
         {
-            bool isEmpty = false;
+            bool isEmpty = true;
             int total = 0;
             var buffer = new byte[bufferSize];
 
@@ -63,11 +88,39 @@ namespace BESSy.Extensions
 
             while (read > 0)
             {
-                isEmpty |= Array.TrueForAll(buffer, a => a == 0);
+                isEmpty &= Array.TrueForAll(buffer, a => a == 0);
                 outStream.Write(buffer, 0, read);
                 total += read;
 
-                Array.Resize(ref buffer, total - oldStride > bufferSize ? bufferSize : total - oldStride);
+                Array.Resize(ref buffer, oldStride - total > bufferSize ? bufferSize : oldStride - total);
+                read = inStream.Read(buffer, 0, buffer.Length);
+            }
+
+            outStream.Position = outStream.Position + (newStride - oldStride);
+
+            return !isEmpty;
+        }
+
+        public static bool WriteSegmentToWithTrim(this Stream inStream, Stream outStream, int bufferSize, int newStride, int oldStride, out int lastNonZeroIndex)
+        {
+            lastNonZeroIndex = -1;
+            bool isEmpty = true;
+            int total = 0;
+            var buffer = new byte[bufferSize];
+
+            var read = inStream.Read(buffer, 0, buffer.Length);
+
+            while (read > 0)
+            {
+                isEmpty &= Array.TrueForAll(buffer, a => a == 0);
+                var last = Array.FindLastIndex(buffer, b => b != 0);
+                if (last >= 0)
+                    lastNonZeroIndex = total + last;
+
+                outStream.Write(buffer, 0, read);
+                total += read;
+
+                Array.Resize(ref buffer, oldStride - total > bufferSize ? bufferSize : oldStride - total);
                 read = inStream.Read(buffer, 0, buffer.Length);
             }
 

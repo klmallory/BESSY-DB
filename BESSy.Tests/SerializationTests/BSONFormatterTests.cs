@@ -26,9 +26,9 @@ using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Tests.Mocks;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using NUnit.Framework;
-using Newtonsoft.Json.Bson;
+using BESSy.Json.Bson;
 
 namespace BESSy.Tests.SerializationTests
 {
@@ -213,7 +213,7 @@ namespace BESSy.Tests.SerializationTests
         public void BSONParsesJObjectFromStream()
         {
             var arraySettings = BSONFormatter.GetDefaultSettings();
-            arraySettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Objects;
+            arraySettings.TypeNameHandling = BESSy.Json.TypeNameHandling.Objects;
 
             var test = TestResourceFactory.CreateRandom() as MockClassC;
 

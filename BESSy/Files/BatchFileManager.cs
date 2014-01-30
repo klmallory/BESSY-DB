@@ -21,7 +21,7 @@ using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Text;
-using Newtonsoft.Json;
+using BESSy.Json;
 using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Extensions;
@@ -67,11 +67,11 @@ namespace BESSy.Files
             _formatter = formatter;
         }
 
-        object _syncRoot = new object();
-        IFormatter _formatter;
-        int _bufferSize = 4096;
-        string _error = "File name {0}, could not be found or accessed: {1}.";
-        IBinConverter<int> _batchConverter = new BinConverter32();
+        protected object _syncRoot = new object();
+        protected IFormatter _formatter;
+        protected int _bufferSize = 4096;
+        protected string _error = "File name {0}, could not be found or accessed: {1}.";
+        protected IBinConverter<int> _batchConverter = new BinConverter32();
 
         protected void FindBatchStart(Stream stream)
         {
@@ -120,7 +120,7 @@ namespace BESSy.Files
                 , FileShare.Read, _bufferSize, FileOptions.SequentialScan);
         }
 
-        #region IBatchedFileManager<T> Members
+        #region IBatchedFileManager<ResourceType> Members
 
         public int GetBatchedSegmentCount(Stream stream)
         {
@@ -266,7 +266,7 @@ namespace BESSy.Files
             return default(ISeed<IdType>);
         }
 
-        public IList<T> LoadBatchFrom(Stream stream)
+        public virtual IList<T> LoadBatchFrom(Stream stream)
         {
             try
             {
@@ -351,7 +351,7 @@ namespace BESSy.Files
 
 #if DEBUG
             if (object.Equals(seed, default(ISeed<IdType>)))
-                throw new ArgumentNullException("seed");
+                throw new ArgumentNullException("segmentSeed");
 #endif
 
             try
@@ -390,7 +390,7 @@ namespace BESSy.Files
             catch (Exception ex) { Trace.TraceError(String.Format(_error, "", ex)); throw; }
         }
 
-        public long SaveBatch(Stream stream, IList<T> objs, long atPosition)
+        public virtual long SaveBatch(Stream stream, IList<T> objs, long atPosition)
         {
 #if DEBUG
             if (objs == null)

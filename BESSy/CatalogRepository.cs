@@ -32,7 +32,7 @@ namespace BESSy
             bool autoCache,
             ISeed<IdType> seed,
             IBinConverter<IdType> idConverter,
-            ISafeFormatter mapFormatter,
+            IQueryableFormatter mapFormatter,
             IBatchFileManager<EntityType> fileManager)
 
             : base(cacheSize
@@ -61,7 +61,7 @@ namespace BESSy
             base.InitializeDatabase(seed, count);
         }
 
-        //In catalogs, the seed is not managed by the individual repositories.
+        //In catalogs, the segmentSeed is not managed by the individual repositories.
         //TODO: find a better way to do this than parasitical inheritance.
         protected override long SaveSeed(System.IO.Stream f)
         {

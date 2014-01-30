@@ -63,6 +63,16 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap IronAsteroid_NRM {
+            get {
+                object obj = ResourceManager.GetObject("IronAsteroid_NRM", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap Luna_DIFF {
             get {
                 object obj = ResourceManager.GetObject("Luna_DIFF", resourceCulture);

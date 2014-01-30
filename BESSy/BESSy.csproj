@@ -21,6 +21,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <DocumentationFile>bin\Debug\BESSy.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -143,24 +144,28 @@
     <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
     <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
   </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>BESSy.keyfile.pfx</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\Tools\Json.NET.Fork\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="BESSy.Json">
+      <HintPath>..\Tools\Json.NET.Fork\BESSy.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
+    <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Containers\ResourceStreamContainer.cs" />
+    <Compile Include="ContentRepository.cs" />
     <Compile Include="AbstractTransactionalDatabase.cs" />
     <Compile Include="AbstractMappedCatalog.cs" />
     <Compile Include="AbstractMappedRepository.cs" />
-    <Compile Include="AbstractResourceRepository.cs" />
+    <Compile Include="ResourceWrapper\AbstractResourceWrapper.cs" />
     <Compile Include="AbstractFileRepository.cs" />
     <Compile Include="Cache\Caching.cs" />
     <Compile Include="Cache\DatabaseCache.cs" />
@@ -176,29 +181,34 @@
     <Compile Include="Extensions\DictionaryExtensions.cs" />
     <Compile Include="Extensions\EmptyExtensions.cs" />
     <Compile Include="Extensions\FileExtensions.cs" />
-    <Compile Include="Extensions\FluentReplication.cs" />
     <Compile Include="Extensions\JObjectExtensions.cs" />
     <Compile Include="Extensions\StreamExtensions.cs" />
     <Compile Include="Factories\AtomicFileManagerFactory.cs" />
     <Compile Include="Factories\DatabaseCacheFactory.cs" />
+    <Compile Include="Factories\DatabaseFactory.cs" />
     <Compile Include="Factories\IndexedEntityMapManangerFactory.cs" />
     <Compile Include="Factories\IndexFactory.cs" />
     <Compile Include="Factories\IndexFileFactory.cs" />
     <Compile Include="Factories\IndexRepositoryFactory.cs" />
     <Compile Include="Factories\TransactionFactory.cs" />
+    <Compile Include="Files\ContentFileManager.cs" />
+    <Compile Include="Files\IndexedContentMapManager.cs" />
+    <Compile Include="Files\ResourceEnumerator.cs" />
     <Compile Include="Indexes\IndexFileManager.cs" />
-    <Compile Include="Indexes\PrimaryIndex.cs" />
-    <Compile Include="Indexes\PrimaryIndexFileManager.cs" />
+    <Compile Include="Indexes\IndexNotFoundException.cs" />
     <Compile Include="Files\QueryEnumerator.cs" />
     <Compile Include="Files\ReverseQueryEnumerator.cs" />
     <Compile Include="Files\SaveValidation.cs" />
-    <Compile Include="Indexes\Index.cs" />
+    <Compile Include="Indexes\PrimaryIndex.cs" />
+    <Compile Include="Indexes\SecondaryIndex.cs" />
     <Compile Include="Queries\QueryExecuteException.cs" />
-    <Compile Include="RelationshipEntity.cs" />
+    <Compile Include="Relational\RelationalDatabase.cs" />
+    <Compile Include="Relational\RelationshipEntity.cs" />
     <Compile Include="Replication\Publisher.cs" />
     <Compile Include="Replication\ReplicationException.cs" />
     <Compile Include="Replication\Subscriber.cs" />
-    <Compile Include="ResourceContainer.cs" />
+    <Compile Include="Containers\ResourceContainer.cs" />
+    <Compile Include="ResourceWrapper\StreamResourceWrapper.cs" />
     <Compile Include="Seeding\SeedPassive.cs" />
     <Compile Include="Serialization\QueryCryptoFormatter.cs" />
     <Compile Include="Serialization\QueryZipFormatter.cs" />
@@ -227,7 +237,7 @@
     <Compile Include="Repository.cs" />
     <Compile Include="Parallelization\TaskGrouping.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ResourceRepository.cs" />
+    <Compile Include="ResourceWrapper\ResourceWrapper.cs" />
     <Compile Include="Synchronization\RowLock.cs" />
     <Compile Include="Synchronization\RowLockTimeoutException.cs" />
     <Compile Include="Synchronization\RowSynchronizer.cs" />
@@ -267,6 +277,15 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Serialization\Converters\JSON\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="BESSy.nuspec">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="BESSy.keyfile.pfx" />
+    <None Include="ClassDiagram1.cd" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

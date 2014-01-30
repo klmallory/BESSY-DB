@@ -31,7 +31,7 @@ using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Tests.Mocks;
 using BESSy.Transactions;
-using Newtonsoft.Json.Linq;
+using BESSy.Json.Linq;
 using NUnit.Framework;
 using System.Threading.Tasks;
 using BESSy.Queries;
@@ -82,7 +82,7 @@ namespace BESSy.Tests.DatabaseTests
             {
                 db.Load();
 
-                db.Update(u => !u.Value<string>("Name").Contains("Updated"), m => m.Name = "batch " + m.Id);
+                db.Update<MockClassA>(u => !u.Value<string>("Name").Contains("Updated"), m => m.Name = "batch " + m.Id);
 
                 db.FlushAll();
 
@@ -96,6 +96,94 @@ namespace BESSy.Tests.DatabaseTests
                 Assert.AreEqual(11, updates.Count);
                 Assert.AreEqual(1, updates.First().Id);
                 Assert.AreEqual(12, updates.Last().Id);
+            }
+        }
+
+        [Test]
+        public void DatabaseRebuildsWithNewSeedSize()
+        {
+
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objects = TestResourceFactory.GetMockClassAObjects(10000);
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            {
+                db.Load();
+
+                using (var tran = db.BeginTransaction())
+                {
+
+                    foreach (var obj in objects)
+                        obj.Id = db.AddOrUpdate(obj, 0);
+
+                    var update = db.Fetch(3);
+
+                    update.Name = "Updated " + update.Id;
+
+                    db.AddOrUpdate(update, update.Id);
+
+                    tran.Commit();
+                }
+
+                db.FlushAll();
+            }
+
+            var deletes = objects.Skip(5000).Take(2500);
+            var queryDeletes = objects.Skip(7500);
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database"))
+            {
+                db.Load();
+
+                var check = db.Fetch(10000);
+
+                using (var tran = db.BeginTransaction())
+                {
+                    deletes.ToList().ForEach(d => db.Delete(d.Id));
+
+                    db.Delete(s => s.Value<int>("Id") >= objects.First().Id);
+
+                    tran.Commit();
+                }
+            }
+        }
+
+        [Test]
+        public void TransactionResolvesDuplicateActions()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objects = TestResourceFactory.GetMockClassAObjects(12);
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            {
+                db.Load();
+
+                using (var t = db.BeginTransaction())
+                {
+                    objects.ToList().ForEach(o => o.Id = db.Add(o));
+
+                    db.Update(objects[1], objects[1].Id);
+
+                    t.Commit();
+                }
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database"))
+            {
+                db.Load();
+
+                using (var t = db.BeginTransaction())
+                {
+                    db.Update<MockClassA>(s => s.Value<int>("Id") == objects[2].Id, a => a.Name = a.Name + " updated");
+
+                    db.Delete(objects[2].Id);
+
+                    t.Commit();
+                }
             }
         }
 
@@ -134,7 +222,7 @@ namespace BESSy.Tests.DatabaseTests
 
                 db.Delete(d => d.Value<string>("Name").Contains("Updated"));
 
-                db.Update(u => u.Value<string>("Name").Contains("Updated"), m => m.Name = "Should Fail " + m.Id);
+                db.Update<MockClassA>(u => u.Value<string>("Name").Contains("Updated"), m => m.Name = "Should Fail " + m.Id);
 
                 db.Flush();
             }

@@ -15,16 +15,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 */
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
-using System.IO;
-using System.Diagnostics;
-using BESSy.Serialization.Converters;
-using BESSy.Files;
 using System.Threading;
 using BESSy.Cache;
 using BESSy.Factories;
+using BESSy.Files;
 using BESSy.Serialization;
+using BESSy.Serialization.Converters;
 
 namespace BESSy
 {
@@ -53,7 +53,7 @@ namespace BESSy
         protected IRepositoryCache<PropertyType, IIndexedRepository<EntityType, IdType>> _catalogCache;
 
         protected IBatchFileManager<EntityType> _fileManager;
-        protected ISafeFormatter _mapFormatter;
+        protected IQueryableFormatter _mapFormatter;
         protected Func<EntityType, IdType> _getId;
         protected Action<EntityType, IdType> _setId;
         protected Func<EntityType, PropertyType> _getProperty;
@@ -223,7 +223,7 @@ namespace BESSy
             return id;
         }
 
-        public void AddOrUpdate(EntityType item, IdType id)
+        public IdType AddOrUpdate(EntityType item, IdType id)
         {
             IdType newId = GetIdFrom(item);
 
@@ -233,6 +233,8 @@ namespace BESSy
                 UpdateExisiting(id, newId, item, catId);
             else
                 AddNew(item);
+
+            return newId;
         }
 
         public void Update(EntityType item, IdType id)

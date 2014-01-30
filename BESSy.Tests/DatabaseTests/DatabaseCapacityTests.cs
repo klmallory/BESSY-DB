@@ -17,11 +17,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using BESSy.Extensions;
 using BESSy.Files;
 using BESSy.Indexes;
@@ -30,12 +32,10 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Tests.Mocks;
-using BESSy.Transactions;
-using Newtonsoft.Json.Linq;
-using NUnit.Framework;
-using System.Threading.Tasks;
-using System.Drawing;
 using BESSy.Tests.ResourceRepositoryTests.Resources;
+using BESSy.Transactions;
+using BESSy.Json.Linq;
+using NUnit.Framework;
 
 namespace BESSy.Tests.DatabaseTests
 {
@@ -49,7 +49,61 @@ namespace BESSy.Tests.DatabaseTests
         public void Setup()
         {
             _seed = new Seed32(999);
-            _formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            _formatter = TestResourceFactory.CreateJsonFormatter();
+        }
+
+        [Test]
+        public void DatabaseSavesTwentyThousandRecordsAndReorganizes()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objs = TestResourceFactory.GetMockClassAObjects(20000).ToList();
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed, new BinConverter32(), _formatter))
+            {
+                db.Load();
+
+                objs.ToList().ForEach(o => db.Add(o));
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", _formatter))
+            {
+                var len = db.Load();
+
+                Assert.AreEqual(objs.Count(), len);
+
+                var items = db.Select(s => s.Value<int>("Id") < 10000).Cast<MockClassC>();
+
+                Assert.AreEqual(9000, items.Count());
+
+                db.Reorganize();
+
+                Assert.AreEqual(21000, db.Add(TestResourceFactory.CreateRandom()));
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", _formatter))
+            {
+                db.Load();
+
+                var items = db.Select(s => s.Value<int>("Id") < 10000);
+
+                foreach (var obj in items)
+                {
+                    var item = obj as MockClassC;
+                    var orig = db.Fetch(obj.Id) as MockClassC;
+
+                    Assert.AreEqual(item.Id, orig.Id);
+                    Assert.AreEqual(item.Name, orig.Name);
+                    Assert.AreEqual(item.GetSomeCheckSum[0], orig.GetSomeCheckSum[0]);
+                    Assert.AreEqual(item.Location.X, orig.Location.X);
+                    Assert.AreEqual(item.Location.Y, orig.Location.Y);
+                    Assert.AreEqual(item.Location.Z, orig.Location.Z);
+                    Assert.AreEqual(item.Location.W, orig.Location.W);
+                    Assert.AreEqual(item.ReferenceCode, orig.ReferenceCode);
+                    Assert.AreEqual(item.ReplicationID, orig.ReplicationID);
+                }
+            }
         }
 
         [Test]
@@ -60,7 +114,7 @@ namespace BESSy.Tests.DatabaseTests
 
             var objs = TestResourceFactory.GetMockClassAObjects(10000).ToList();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed))
             {
                 db.Load();
 
@@ -81,34 +135,81 @@ namespace BESSy.Tests.DatabaseTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            var img = new ImageConverter();
-            var lunaDiff = (byte[])img.ConvertTo(testRes.Luna_DIFF, typeof(byte[]));
-            var lunaMat = (byte[])img.ConvertTo(testRes.Luna_MAT, typeof(byte[]));
-            var lunaNrm = (byte[])img.ConvertTo(testRes.Luna_NRM, typeof(byte[]));
-
-            using (var db = new Database<string, ResourceContainer<byte[]>>(_testName + ".database", "Name"))
+            using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name"))
             {
                 db.Load();
 
                 using (var tran = db.BeginTransaction())
                 {
-                    db.Add(new ResourceContainer<byte[]>() { Name = "Luna_DIFF", Value = lunaDiff });
-                    db.Add(new ResourceContainer<byte[]>() { Name = "Luna_MAT", Value = lunaMat });
-                    db.Add(new ResourceContainer<byte[]>() { Name = "Luna_NRM", Value = lunaNrm });
+                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF" });
+                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT" });
+                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM" });
 
                     tran.Commit();
                 }
             }
 
-            using (var db = new Database<string, ResourceContainer<byte[]>>(_testName + ".database"))
+            using (var db = new Database<string, ResourceContainer>(_testName + ".database"))
             {
                 var len = db.Load();
 
                 Assert.AreEqual(3, len);
 
-                Assert.AreEqual(db.Fetch("Luna_DIFF").Value.Length, lunaDiff.Length);
-                Assert.AreEqual(db.Fetch("Luna_MAT").Value.Length, lunaMat.Length);
-                Assert.AreEqual(db.Fetch("Luna_NRM").Value.Length, lunaNrm.Length);
+                Assert.AreEqual(db.Fetch("Luna_DIFF").GetResource<Bitmap>().Width, testRes.Luna_DIFF.Width);
+                Assert.AreEqual(db.Fetch("Luna_MAT").GetResource<Bitmap>().Width, testRes.Luna_MAT.Width);
+                Assert.AreEqual(db.Fetch("Luna_NRM").GetResource<Bitmap>().Width, testRes.Luna_NRM.Width);
+            }
+        }
+
+        [Test]
+        public void DatabaseRebuildsWithLargeFile()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name"))
+            {
+                db.Load();
+
+                using (var tran = db.BeginTransaction())
+                {
+                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF" });
+                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF1" });
+                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF2" });
+                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF3" });
+                    tran.Commit();
+                }
+
+                using (var tran = db.BeginTransaction())
+                {
+                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT" });
+                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT1" });
+                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT2" });
+                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT3" });
+
+                    tran.Commit();
+                }
+
+                using (var tran = db.BeginTransaction())
+                {
+                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM" });
+                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM1" });
+                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM2" });
+                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM3" });
+
+                    tran.Commit();
+                }
+            }
+
+            using (var db = new Database<string, ResourceContainer>(_testName + ".database"))
+            {
+                var len = db.Load();
+
+                Assert.AreEqual(12, len);
+
+                Assert.AreEqual(db.Fetch("Luna_DIFF").GetResource<Bitmap>().Width, testRes.Luna_DIFF.Width);
+                Assert.AreEqual(db.Fetch("Luna_MAT").GetResource<Bitmap>().Width, testRes.Luna_MAT.Width);
+                Assert.AreEqual(db.Fetch("Luna_NRM").GetResource<Bitmap>().Width, testRes.Luna_NRM.Width);
             }
         }
 

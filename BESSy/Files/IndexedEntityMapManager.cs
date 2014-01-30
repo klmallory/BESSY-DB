@@ -29,7 +29,8 @@ using BESSy.Parallelization;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
-using Newtonsoft.Json;
+using BESSy.Json;
+using BESSy.Json.Linq;
 
 namespace BESSy.Files
 {
@@ -41,10 +42,9 @@ namespace BESSy.Files
         : IIndexedMapManager<EntityType, IdType>
         , IEntityMapManager<EntityType>
         , ICache<int, IdType>
-        , IEnumerable<EntityType>
+        , IQueryableFile
     {
         IRowSynchronizer<int> IndexSynchronizer { get; }
-        EntityEnumerator<EntityType, IdType> GetEntityEnumerator();
         List<IndexingCPUGroup<IdType>> LookupGroups { get; }
     }
 
@@ -52,7 +52,7 @@ namespace BESSy.Files
         : MapManager<EntityType>
         , IIndexedEntityMapManager<EntityType, IdType>  
     {
-        public IndexedEntityMapManager(IBinConverter<IdType> idConverter, ISafeFormatter formatter)
+        public IndexedEntityMapManager(IBinConverter<IdType> idConverter, IQueryableFormatter formatter)
             : base(formatter)
         {
             _idConverter = idConverter;
@@ -380,7 +380,7 @@ namespace BESSy.Files
             return subsets;
         }
 
-        protected IDictionary<IdType, Stream> GetFormattedFrom(List<KeyValuePair<int, int>> groups, IDictionary<IdType, EntityType> queue, out int rowSize)
+        protected virtual IDictionary<IdType, Stream> GetFormattedFrom(List<KeyValuePair<int, int>> groups, IDictionary<IdType, EntityType> queue, out int rowSize)
         {
             var sync = new object();
             rowSize = Stride;
@@ -408,6 +408,11 @@ namespace BESSy.Files
             rowSize = (int)(((streams.Values.Max(v => v.Length) / 256) + 1) * 256);
 
             return streams;
+        }
+
+        protected virtual EntityType LoadFrom(JObject token)
+        {
+            return token.ToObject<EntityType>(_formatter.Serializer);
         }
 
         public void Flush(IDictionary<IdType, EntityType> items)
@@ -594,14 +599,14 @@ namespace BESSy.Files
                                                                     //read nextId until valid Id is found.
                                                                     while (read > 0 && _idConverter.Compare(nextId, default(IdType)) == 0 && segment <= group.EndSegment)
                                                                     {
+                                                                        segment++;
+                                                                        newSegment++;
+
                                                                         read = indexView.Read(idReadBuffer, 0, idReadBuffer.Length);
                                                                         //skip dbSegment
                                                                         indexView.Position += _segConverter.Length;
 
                                                                         nextId = _idConverter.FromBytes(idReadBuffer);
-
-                                                                        segment++;
-                                                                        newSegment++;
                                                                     }
 
                                                                     //insert between.
@@ -623,7 +628,8 @@ namespace BESSy.Files
                                                                     }
                                                                 }
 
-                                                                id = nextId;
+                                                                if (_idConverter.Compare(nextId, default(IdType)) != 0)
+                                                                    id = nextId;
                                                             }
                                                             else
                                                             {
@@ -744,7 +750,7 @@ namespace BESSy.Files
             , Stream newIndexView
             , int newStride)
         {
-            //write new Index
+            //write new PrimaryIndex
             newIndexView.Write(idReadBuffer, 0, idReadBuffer.Length);
             newIndexView.Write(newSegmentBuffer, 0, newSegmentBuffer.Length);
 
@@ -782,7 +788,7 @@ namespace BESSy.Files
             , Stream newIndexView
             , int newStride)
         {
-            //write new Index
+            //write new PrimaryIndex
             newIndexView.Write(idReadBuffer, 0, idReadBuffer.Length);
             newIndexView.Write(newSegmentBuffer, 0, newSegmentBuffer.Length);
 
@@ -1180,6 +1186,16 @@ namespace BESSy.Files
             return segmentFound;
         }
 
+        protected Stream GetWritableFileStream(int segment, int count)
+        {
+            return _file.CreateViewStream((segment * Stride), count * Stride, MemoryMappedFileAccess.Write);
+        }
+
+        protected Stream GetReadableFileStream(int segment, int count)
+        {
+            return _file.CreateViewStream((segment * Stride), count * Stride, MemoryMappedFileAccess.Read);
+        }
+
         public virtual bool Save(EntityType obj, IdType id)
         {
             //Note the order of the locks matches the order in the flush method. 
@@ -1285,7 +1301,7 @@ namespace BESSy.Files
                         view.Flush();
                     }
 
-                    return base.SaveBatchToFile(objs.Values.ToList(), segmentStart);
+                    return SaveBatchToFile(objs.Values.ToList(), segmentStart);
                 }
             }
         }
@@ -1364,35 +1380,69 @@ namespace BESSy.Files
         public void Sweep()
         {
             lock (_syncCache)
-                if (_indexCache.Count >= TaskGrouping.ReadLimit)
-                    foreach (var k in _indexCache.Keys.Skip(TaskGrouping.ReadLimit))
+                if (_indexCache.Count >= TaskGrouping.ReadLimit /2)
+                    foreach (var k in _indexCache.Keys.Skip(TaskGrouping.ReadLimit / 2))
                         _indexCache.Remove(k);
         }
 
         #endregion
 
-        #region IEnumerable<T> Members
+        #region IQueryableFile Members
 
-        public IEnumerator<EntityType> GetEnumerator()
+        public int Pages
         {
-            return GetEntityEnumerator();
+            get { return LookupGroups.Count; }
+        }
+
+        public JObject[] GetPage(int page)
+        {
+            List<JObject> queryPage = new List<JObject>();
+
+            //Trace.TraceInformation("Filemanager retreiving page {0}", page);
+            IndexingCPUGroup<IdType> group;
+
+            lock (_flushQueue)
+            {
+                if (page >= LookupGroups.Count)
+                    return queryPage.ToArray();
+
+                group = LookupGroups[page];
+
+                if (group.StartSegment > Length)
+                    return queryPage.ToArray();
+            }
+
+            using (var lck = IndexSynchronizer.Lock(new Range<int>(group.StartSegment, group.EndSegment)))
+            {
+                var bufferSize = Stride > Environment.SystemPageSize ? Environment.SystemPageSize : Stride;
+
+                using (var stream = GetReadableFileStream(group.StartSegment, (group.EndSegment + 1) - group.StartSegment))
+                {
+                    for (var i = (group.StartSegment); i <= group.EndSegment; i++)
+                    {
+                        using (var outStream = new MemoryStream())
+                        {
+                            if (stream.WriteSegmentTo(outStream, bufferSize, Stride, Stride))
+                                queryPage.Add(_formatter.Parse(outStream).Add<int>("$segment", i));
+                        }
+                    }
+                }
+            }
+
+            return queryPage.ToArray();
+        }
+
+        public IEnumerable<JObject[]> AsEnumerable()
+        {
+            return new QueryEnumerator(this);
+        }
+
+        public IEnumerable<JObject[]> AsReverseEnumerable()
+        {
+            return new ReverseQueryEnumerator(this);
         }
 
         #endregion
-
-        #region IEnumerable Members
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        #endregion
-
-        public EntityEnumerator<EntityType, IdType> GetEntityEnumerator()
-        {
-            return new EntityEnumerator<EntityType,IdType>(this, _idConverter);
-        }
 
         #region OnFlushCompleted Event
 
@@ -1427,6 +1477,8 @@ namespace BESSy.Files
                 base.Dispose();
             }
         }
+
+
     }
 }
 
