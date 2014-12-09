@@ -20,6 +20,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using BESSy.Serialization.Converters;
+using BESSy.Parallelization;
+using System.Diagnostics;
 
 namespace BESSy.Synchronization
 {
@@ -57,6 +59,9 @@ namespace BESSy.Synchronization
 
     public class RowSynchronizer<RowType> : IRowSynchronizer<RowType>
     {
+        [ThreadStatic]
+        static int _threadId = Thread.CurrentThread.ManagedThreadId;
+
         public RowSynchronizer(IBinConverter<RowType> rowIdConverter)
         {
             _rowIdConverter = rowIdConverter;
@@ -66,8 +71,12 @@ namespace BESSy.Synchronization
         string _rowLockError = "Could not get a lock on rows: {0} through {1} in the {2} milliseconds allotted.";
 
         object _syncRoot = new object();
+        object _syncLock = new object();
+
         IBinConverter<RowType> _rowIdConverter;
+        IDictionary<int, List<Guid>> _lockedThreads = new Dictionary<int, List<Guid>>(TaskGrouping.ArrayLimit);
         IDictionary<Guid, RowLock<RowType>> _currentLocks = new Dictionary<Guid, RowLock<RowType>>();
+        //LinkedList<EntityType>  _tq    hreadIds = new Dictionary<Guid, int>();
         
         bool Intersects(Range<RowType> range, Range<RowType> other)
         {
@@ -90,13 +99,15 @@ namespace BESSy.Synchronization
 
         bool IsLockedFor(Range<RowType> rows, FileAccess access)
         {
-            bool locked = (_exclusiveLock.HasValue && _exclusiveLock.Value != Thread.CurrentThread.ManagedThreadId)
+            lock (_syncRoot)
+            {
+                bool locked = (_exclusiveLock.HasValue && _exclusiveLock.Value != _threadId)
+                    || _lockedThreads.Where(t => t.Key != _threadId)
+                    .Any(lt => lt.Value.Any(v => Intersects(rows, _currentLocks[v].Rows)
+                        && Conflicts(access, _currentLocks[v].Share)));
 
-                || (_currentLocks.Where(t => t.Value.ThreadId != Thread.CurrentThread.ManagedThreadId)
-                    .Any(d => Intersects(rows, d.Value.Rows) 
-                        && Conflicts(access, d.Value.Share)));
-
-            return locked;
+                return locked;
+            }
         }
 
         bool Conflicts(FileAccess accessRequest, FileShare sharing)
@@ -114,9 +125,16 @@ namespace BESSy.Synchronization
 
         RowLock<RowType> AddNewLock(Range<RowType> rows)
         {
-            var rowLock = new RowLock<RowType>(this, rows, Thread.CurrentThread.ManagedThreadId);
+            var rowLock = new RowLock<RowType>(this, rows, _threadId);
 
-            _currentLocks.Add(rowLock.Id, rowLock);
+            lock (_syncRoot)
+            {
+                _currentLocks.Add(rowLock.Id, rowLock);
+                if (_lockedThreads.ContainsKey(_threadId))
+                    _lockedThreads[_threadId].Add(rowLock.Id);
+                else
+                    _lockedThreads.Add(_threadId, new List<Guid>(new Guid[] { rowLock.Id }));
+            }
 
             return rowLock;
         }
@@ -135,7 +153,7 @@ namespace BESSy.Synchronization
             try
             {
                 lock (_syncRoot)
-                    _exclusiveLock = Thread.CurrentThread.ManagedThreadId;
+                    _exclusiveLock = _threadId;
 
                 return Lock(new Range<RowType>(_rowIdConverter.Min, _rowIdConverter.Max));
             }
@@ -150,7 +168,7 @@ namespace BESSy.Synchronization
             try
             {
                 lock (_syncRoot)
-                    _exclusiveLock = Thread.CurrentThread.ManagedThreadId;
+                    _exclusiveLock = _threadId;
 
                 return Lock(new Range<RowType>(_rowIdConverter.Min, _rowIdConverter.Max), milliseconds);
             }
@@ -165,7 +183,7 @@ namespace BESSy.Synchronization
             try
             {
                 lock (_syncRoot)
-                    _exclusiveLock = Thread.CurrentThread.ManagedThreadId;
+                    _exclusiveLock = _threadId;
 
                 return TryLock(new Range<RowType>(_rowIdConverter.Min, _rowIdConverter.Max), milliseconds, out rowLock);
             }
@@ -244,7 +262,7 @@ namespace BESSy.Synchronization
                 {
                     Monitor.Exit(_syncRoot);
 
-                    Thread.Sleep(50);
+                    Thread.Sleep(5);
 
                     Monitor.Enter(_syncRoot);
 
@@ -276,7 +294,7 @@ namespace BESSy.Synchronization
 
                     Monitor.Exit(_syncRoot);
 
-                    Thread.Sleep(50);
+                    Thread.Sleep(5);
 
                     Monitor.Enter(_syncRoot);
 
@@ -295,7 +313,7 @@ namespace BESSy.Synchronization
             //10,000 ticks to one millisecond.
             long timeout = DateTime.Now.Ticks + (milliseconds * 10000);
 
-            rowLock = new RowLock<RowType>(this, new Range<RowType>(default(RowType), default(RowType)), Thread.CurrentThread.ManagedThreadId, share);
+            rowLock = new RowLock<RowType>(this, new Range<RowType>(default(RowType), default(RowType)), _threadId, share);
 
             Monitor.Enter(_syncRoot);
 
@@ -310,7 +328,7 @@ namespace BESSy.Synchronization
 
                     Monitor.Exit(_syncRoot);
 
-                    Thread.Sleep(50);
+                    Thread.Sleep(5);
 
                     Monitor.Enter(_syncRoot);
 
@@ -327,8 +345,19 @@ namespace BESSy.Synchronization
         public void Unlock(RowLock<RowType> rowLock)
         {
             lock (_syncRoot)
+            {
+
                 if (_currentLocks.ContainsKey(rowLock.Id))
+                {
                     _currentLocks.Remove(rowLock.Id);
+
+                    _lockedThreads[rowLock.ThreadId].Remove(rowLock.Id);
+
+
+                    if (_lockedThreads[rowLock.ThreadId].Count <= 0)
+                        _lockedThreads.Remove(rowLock.ThreadId);
+                }
+            }
         }
     }
 }

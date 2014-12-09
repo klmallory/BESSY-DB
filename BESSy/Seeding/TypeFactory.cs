@@ -8,6 +8,19 @@ namespace BESSy.Seeding
 {
     public static class TypeFactory
     {
+        public static IFileCore<IdType, SegmentType> GetFileCoreFor<IdType, SegmentType>()
+        {
+            var core = new FileCore<IdType, SegmentType>();
+
+            core.IdSeed = GetSeedFor<IdType>();
+            core.SegmentSeed = GetSeedFor<SegmentType>();
+
+            core.IdConverter = GetBinConverterFor<IdType>();
+            core.PropertyConverter = GetBinConverterFor<SegmentType>();
+
+            return core;
+        }
+
         public static ISeed<IdType> GetSeedFor<IdType>()
         {
             if (typeof(IdType).Equals(typeof(Int32)))
@@ -25,12 +38,27 @@ namespace BESSy.Seeding
         {
             if (typeof(PropertyType).Equals(typeof(Int32)))
                 return (IBinConverter<PropertyType>)((object)new BinConverter32());
+            else if (typeof(PropertyType).Equals(typeof(Int16)))
+                return (IBinConverter<PropertyType>)((object)new BinConverter16());
             else if (typeof(PropertyType).Equals(typeof(Int64)))
                 return (IBinConverter<PropertyType>)((object)new BinConverter64());
+            else if (typeof(PropertyType).Equals(typeof(UInt16)))
+                return (IBinConverter<PropertyType>)((object)new BinConverterU16());
+            else if (typeof(PropertyType).Equals(typeof(UInt32)))
+                return (IBinConverter<PropertyType>)((object)new BinConverterU32());
+            else if (typeof(PropertyType).Equals(typeof(UInt64)))
+                return (IBinConverter<PropertyType>)((object)new BinConverterU64());
+            else if (typeof(PropertyType).Equals(typeof(float)))
+                return (IBinConverter<PropertyType>)((object)new BinConverterFloat());
+            else if (typeof(PropertyType).Equals(typeof(double)))
+                return (IBinConverter<PropertyType>)((object)new BinConverterDouble());
+            else if (typeof(PropertyType).Equals(typeof(decimal)))
+                return (IBinConverter<PropertyType>)((object)new BinConverterDecimal());
             else if (typeof(PropertyType).Equals(typeof(Guid)))
                 return (IBinConverter<PropertyType>)((object)new BinConverterGuid());
             else if (typeof(PropertyType).Equals(typeof(String)))
                 return (IBinConverter<PropertyType>)((object)new BinConverterString());
+
             else throw new ArgumentException(string.Format("{0} is not a known type, use overloaded constructor.", typeof(PropertyType)));
         }
     }

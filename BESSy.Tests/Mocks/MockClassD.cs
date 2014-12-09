@@ -11,9 +11,10 @@ using BESSy.Relational;
 
 namespace BESSy.Tests.Mocks
 {
-    internal class MockClassD : RelationshipEntity<int>
+    public class MockClassD : RelationshipEntity<int, MockClassD>
     {
-        public MockClassD(IRepository<RelationshipEntity<int>, int> repo) : base(repo) { }
+        public MockClassD() : base() { }
+        public MockClassD(IRelationalDatabase<int, MockClassD> repo) : base(repo) { }
 
         public Guid ReplicationID { get; set; }
         public virtual string Name { get; set; }
@@ -26,6 +27,8 @@ namespace BESSy.Tests.Mocks
         [JsonIgnore]
         public IEnumerable<MockClassD> LowBall { get { return GetRelatedEntities("lowball").Cast<MockClassD>(); } set { SetRelatedEntities("lowball", value); } }
 
-        public new void SetRepository(IRepository<RelationshipEntity<int>, int> repo) { base.SetRepository(repo); }
+        public void SetRepository(IRelationalDatabase<int, MockClassD> repo) { base.Repository = repo; }
+
+        public override bool CascadeDelete { get { return true; } }
     }
 }

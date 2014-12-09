@@ -25,66 +25,66 @@ namespace BESSy.Crypto
     public interface ICrypto
     {
         /// <summary>
-        /// Gets the size of the key for this crypto.
+        /// Gets the size of the name for this crypto.
         /// </summary>
-        /// <value>The size of the key.</value>
+        /// <qVal>The size of the name.</qVal>
         int KeySize { get; }
 
         /// <summary>
-        /// Return the key from the hash.
+        /// Return the name from the hash.
         /// </summary>
-        /// <param name="hash"></param>
-        /// <param name="keySize"></param>
+        /// <param property="hash"></param>
+        /// <param property="keySize"></param>
         /// <returns></returns>
         byte[] GetKey(SecureString hash, int keySize);
 
         /// <summary>
-        /// Encrypts the specified value.
+        /// Encrypts the specified qVal.
         /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="key">The key.</param>
-        /// <param name="encoding">The encoding.</param>
+        /// <param property="qVal">The qVal.</param>
+        /// <param property="name">The name.</param>
+        /// <param property="encoding">The encoding.</param>
         /// <returns></returns>
         string Encrypt(string value, byte[] key);
 
         /// <summary>
         /// Encrypts the specified byte array.
         /// </summary>
-        /// <param name="value">The byte array to encrypt.</param>
-        /// <param name="key">The key.</param>
+        /// <param property="qVal">The byte array to encrypt.</param>
+        /// <param property="name">The name.</param>
         /// <returns></returns>
         byte[] Encrypt(byte[] value, byte[] key);
 
         /// <summary>
         /// Encrypts the specified stream.
         /// </summary>
-        /// <param name="stream"><typeparamref name="System.IO.Stream"/> to encrypt.</param>
-        /// <param name="key">The key.</param>
+        /// <param property="stream"><typeparamref property="System.IO.Stream"/> to encrypt.</param>
+        /// <param property="name">The name.</param>
         /// <returns></returns>
         MemoryStream Encrypt(Stream stream, byte[] key);
 
         /// <summary>
-        /// Decrypts the specified value.
+        /// Decrypts the specified qVal.
         /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="key">The key.</param>
+        /// <param property="qVal">The qVal.</param>
+        /// <param property="name">The name.</param>
         /// <returns></returns>
         string Decrypt(string value, byte[] key);
 
         /// <summary>
-        /// Decrypts the specified value.
+        /// Decrypts the specified qVal.
         /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="key">The key.</param>
+        /// <param property="qVal">The qVal.</param>
+        /// <param property="name">The name.</param>
         /// <returns></returns>
         byte[] Decrypt(byte[] value, byte[] key);
 
         /// <summary>
-        /// Decrypts the specified <typeparamref name="System.IO.Stream"/>
+        /// Decrypts the specified <typeparamref property="System.IO.Stream"/>
         /// </summary>
-        /// <param name="inStream"><typeparamref name="System.IO.Stream"/> to decrypt</param>
-        /// <param name="key">the hash key</param>
-        /// <returns>the decrypted <typeparamref name="System.IO.Stream"/></returns>
+        /// <param property="inStream"><typeparamref property="System.IO.Stream"/> to decrypt</param>
+        /// <param property="name">the hash name</param>
+        /// <returns>the decrypted <typeparamref property="System.IO.Stream"/></returns>
         MemoryStream Decrypt(Stream inStream, byte[] key);
     }
 }

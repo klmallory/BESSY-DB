@@ -24,8 +24,6 @@ using System.Security;
 using System.Text;
 using BESSy.Crypto;
 using BESSy.Json;
-using SevenZip;
-using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
 using System.Runtime.InteropServices;
 

@@ -21,6 +21,7 @@ using System.Text;
 using BESSy.Json;
 using BESSy.Json.Linq;
 using BESSy.Json.Serialization;
+using BESSy.Factories;
 
 namespace BESSy.Serialization
 {
@@ -32,16 +33,28 @@ namespace BESSy.Serialization
 
         public JSONFormatter(JsonSerializerSettings settings)
         {
-            if (settings == null)
-                throw new ArgumentNullException("settings", "Serializer settings can not be null.");
+            if (_settings == null)
+                _settings = settings;
 
-            _serializer = JsonSerializer.Create(settings);
-            _converters = settings.Converters.ToList().ToArray();
-            
+            _serializer = JsonSerializer.Create(_settings);
         }
 
-        JsonConverter[] _converters;
-        JsonSerializer _serializer;
+        protected JsonSerializer _serializer;
+
+        protected JsonSerializerSettings _settings;
+
+        public JsonSerializerSettings Settings
+        {
+            get
+            {
+                return _settings;
+            }
+            set
+            {
+                _settings = value;
+                _serializer = JsonSerializer.Create(value);
+            }
+        }
 
         public bool Trim { get { return false; } }
 
@@ -207,20 +220,66 @@ namespace BESSy.Serialization
             return false;
         }
 
+        #region IQueryableFormatter Memebers
+
         public JsonSerializer Serializer { get { return _serializer; } }
+
+        public JObject AsQueryableObj<T>(T obj)
+        {
+            if (obj != null)
+                return JObject.FromObject(obj, _serializer);
+            else
+                return new JObject();
+        }
 
         public JObject Parse(Stream inStream)
         {
             inStream.Position = 0;
-            using (var sr = new StreamReader(inStream))
-                using (var reader = new JsonTextReader(sr))
-                    return JObject.Load(reader);
+            var sr = new StreamReader(inStream);
+            var reader = new JsonTextReader(sr);
+            return JObject.Load(reader);
         }
+
+        public Stream Unparse(JObject token)
+        {
+            var ms = new MemoryStream();
+            var sw = new StreamWriter(ms);
+            var jw = JsonWriterFactory.CreateFrom(sw, _settings); // new JsonTextWriter(sw)
+
+            token.WriteTo(jw, _serializer.Converters.ToArray());
+
+            jw.Flush();
+            sw.Flush();
+
+            return ms;
+        }
+
+        public bool TryParse(Stream inStream, out JObject obj)
+        {
+            try
+            {
+                obj = Parse(inStream);
+                return true;
+            }
+            catch (Exception) { obj = null; return false; }
+        }
+
+        public bool TryUnparse(JObject token, out Stream stream)
+        {
+            try
+            {
+                stream = Unparse(token);
+                return true;
+            }
+            catch (Exception) { stream = null; return false; }
+        }
+
+        #endregion
 
         static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()
         {
             NullValueHandling = NullValueHandling.Ignore,
-            DateTimeZoneHandling = DateTimeZoneHandling.Utc,
+            DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind,
             DefaultValueHandling = DefaultValueHandling.Ignore,
             DateFormatHandling = DateFormatHandling.IsoDateFormat,
             MissingMemberHandling = MissingMemberHandling.Ignore,

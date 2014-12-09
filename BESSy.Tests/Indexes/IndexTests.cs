@@ -34,158 +34,128 @@ using BESSy.Tests.Mocks;
 using BESSy.Transactions;
 using BESSy.Json.Linq;
 using NUnit.Framework;
+using BESSy.Tests.AtomicFileManagerTests;
 
 namespace BESSy.Tests.Indexes
 {
     [TestFixture]
     public class IndexTests : FileTest
     {
-        ISeed<Int32> _seed = new Seed32(999);
-        ISeed<Int32> _segmentSeed = new Seed32(0);
-        IQueryableFormatter _formatter = new BSONFormatter();
-
         [Test]
-        public void IndexLoads()
+        public void IndexFetchesByMultipleIndexes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            IDictionary<int, int> segments = new Dictionary<int, int>();
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), Stride = 512 };
 
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToDictionary(d => d.Id = core.IdSeed.Increment());
+
+            IDictionary<int, long> segs = null;
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
-                db.Load<int>();
-
-                var seed = new Seed32();
-                var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
-                objs.ForEach(a => a.WithId(seed.Increment()));
-
-                using (var index = new PrimaryIndex<int, MockClassA>
-                    (_testName + ".test.index"
-                    , "Id"
-                    , new BinConverter32()
-                    , new RepositoryCacheFactory()
-                    , new BSONFormatter()
-                    , new IndexFileFactory()
-                    , new RowSynchronizer<int>(new BinConverter32())))
+                using (var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true))
                 {
+                    afm.Load<int>();
+
                     index.Load();
+                    index.Register(afm);
 
-                    index.Register(db);
+                    segs = AtomicFileManagerHelper.SaveSegments(afm, objs);
 
-                    using (var t = new MockTransaction<int, MockClassA>())
-                    {
-                        objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
+                    Assert.AreEqual(objs.Count, segs.Count);
 
-                        segments = db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
-                    }
+                    afm.SaveCore();
+
+                    var f = index.FetchSegment(objs.First().Key);
+                    Assert.AreEqual(segs[objs.First().Key], f);
+
+                    var all = index.FetchSegments(objs.First().Key, objs.Last().Key);
+                    Assert.AreEqual(objs.Count, all.Count());
+
+                    var many = index.FetchSegments(new int[] { objs.First().Key, objs.Last().Key });
+                    Assert.AreEqual(2, many.Count());
                 }
+            }
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
+            {
+                var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true);
+                afm.Load<int>();
+
+                index.Load();
+                index.Register(afm);
+
+                var f = index.FetchSegment(objs.First().Key);
+                Assert.AreEqual(segs[objs.First().Key], f);
+
+                var all = index.FetchSegments(objs.First().Key, objs.Last().Key);
+                Assert.AreEqual(objs.Count, all.Count());
+
+                var many = index.FetchSegments(new int[] { objs.First().Key, objs.Last().Key});
+                Assert.AreEqual(2, many.Count());
             }
         }
 
         [Test]
-        public void IndexUpdatesSegment()
+        public void IndexFetchesByMultipleSegments()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), Stride = 512 };
+
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToDictionary(d => d.Id = core.IdSeed.Increment());
+
+            IDictionary<int, long> segs = null;
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
-                db.Load<int>();
-
-                var seed = new Seed32();
-                var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
-                IDictionary<int, int> segments = new Dictionary<int, int>();
-
-                objs.ForEach(a => a.WithId(seed.Increment()));
-
-                using (var index = new PrimaryIndex<int, MockClassA>
-                    (_testName + ".test.index"
-                    , "Id"
-                    , new BinConverter32()
-                    , new RepositoryCacheFactory()
-                    , new BSONFormatter()
-                    , new IndexFileFactory()
-                    , new RowSynchronizer<int>(new BinConverter32())))
+                using (var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true))
                 {
+                    afm.Load<int>();
+
                     index.Load();
+                    index.Register(afm);
 
-                    index.Register(db);
+                    segs = AtomicFileManagerHelper.SaveSegments(afm, objs);
 
-                    using (var t = new MockTransaction<int, MockClassA>())
-                    {
-                        objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
+                    Assert.AreEqual(objs.Count, segs.Count);
 
-                        segments = db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
-                    }
+                    afm.SaveCore();
 
-                    using (var t = new MockTransaction<int, MockClassA>())
-                    {
-                        var update = objs.Where(o => o.Id == segments.Last().Key).FirstOrDefault();
-                        update.Name = "Hello Kitty";
+                    long seg;
+                    var f = index.FetchIndex(segs[objs.First().Key], out seg);
+                    Assert.AreEqual(objs.First().Key, f);
 
-                        t.Enlist(Action.Update, segments.Last().Key, update);
+                    long[] segList;
+                    var all = index.FetchIndexes(segs.Values.ToArray(), out segList);
+                    Assert.AreEqual(objs.Count, all.Count());
 
-                        db.CommitTransaction(t, new Dictionary<int, int>() { { segments.Last().Key, segments.Last().Value } });
-                    }
-
-                    while (db.FileFlushQueueActive)
-                        Thread.Sleep(100);
-
-                    Assert.AreEqual(segments.Last().Value, index.Fetch(segments.Last().Key));
+                    var many = index.FetchIndexes(segs[objs.First().Key], out segList);
+                    Assert.AreEqual(1, many.Count());
                 }
             }
-        }
-    
 
-        [Test]
-        public void IndexDeletesSegment()
-        {
-            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
-
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
-                db.Load<int>();
+                var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true);
+                afm.Load<int>();
 
-                var seed = new Seed32();
-                var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
-                IDictionary<int, int> segments = new Dictionary<int, int>();
+                index.Load();
+                index.Register(afm);
 
-                objs.ForEach(a => a.WithId(seed.Increment()));
+                var f = index.FetchSegment(objs.First().Key);
+                Assert.AreEqual(segs[objs.First().Key], f);
 
-                using (var index = new PrimaryIndex<int, MockClassA>
-                    (_testName + ".test.index"
-                    , "Id"
-                    , new BinConverter32()
-                    , new RepositoryCacheFactory()
-                    , new BSONFormatter()
-                    , new IndexFileFactory()
-                    , new RowSynchronizer<int>(new BinConverter32())))
-                {
-                    index.Load();
+                var all = index.FetchSegments(objs.First().Key, objs.Last().Key);
+                Assert.AreEqual(objs.Count, all.Count());
 
-                    index.Register(db);
-
-                    using (var t = new MockTransaction<int, MockClassA>())
-                    {
-                        objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
-
-                        segments = db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
-                    }
-
-                    var deleteId = segments.Last().Key;
-                    var deleteSegment = segments.Last().Value;
-
-                    using (var t = new MockTransaction<int, MockClassA>())
-                    {
-                        t.Enlist(Action.Delete, deleteId, null);
-
-                        db.CommitTransaction(t, new Dictionary<int, int>() { { deleteId, deleteSegment } });
-                    }
-
-                    Assert.AreEqual(0, index.Fetch(deleteId));
-                }
+                var many = index.FetchSegments(new int[] { objs.First().Key, objs.Last().Key });
+                Assert.AreEqual(2, many.Count());
             }
         }
 
@@ -195,96 +165,59 @@ namespace BESSy.Tests.Indexes
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            var sw = new Stopwatch();
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), Stride = 512 };
 
-            using (var db = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToDictionary(d => d.Id = core.IdSeed.Increment());
+
+            IDictionary<int, long> segs = null;
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
-                db.Load<int>();
-
-                var seed = new Seed32();
-                var objs = TestResourceFactory.GetMockClassAObjects(2500).ToList();
-                objs.ForEach(a => a.WithId(seed.Increment()));
-
-                using (var index = new PrimaryIndex<int, MockClassA>
-                    (_testName + ".test.index"
-                    , "Id"
-                    , new BinConverter32()
-                    , new RepositoryCacheFactory()
-                    , new BSONFormatter()
-                    , new IndexFileFactory()
-                    , new RowSynchronizer<int>(new BinConverter32())))
+                using (var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true, 8, new BinConverter32(), new BinConverter64(), new RowSynchronizer<long>(new BinConverter64()), new RowSynchronizer<int>(new BinConverter32())))
                 {
+                    afm.Load<int>();
+
                     index.Load();
 
-                    var t = new MockTransaction<int, MockClassA>();
-                    objs.ForEach(a => t.Enlist(Action.Create, a.Id, a));
+                    segs = AtomicFileManagerHelper.SaveSegments(afm, objs);
 
-                    index.Register(db);
+                    //should trigger re-org.
+                    index.Register(afm);
 
-                    db.CommitTransaction(t, objs.Select(o => o.Id + 999).ToDictionary<int, int>(i => i - 999));
+                    Assert.AreEqual(objs.Count, segs.Count);
 
-                    sw.Reset();
-                    sw.Start();
+                    afm.SaveCore();
 
-                    index.Flush();
+                    long seg;
+                    var f = index.FetchIndex(segs[objs.First().Key], out seg);
+                    Assert.AreEqual(objs.First().Key, f);
 
-                    sw.Stop();
+                    long[] segList;
+                    var all = index.FetchIndexes(segs.Values.ToArray(), out segList);
+                    Assert.AreEqual(objs.Count, all.Count());
 
-                    Console.WriteLine("PrimaryIndex reorganization took {0} seconds for {1} records.", sw.ElapsedMilliseconds / 1000.00, objs.Count); 
-                }
-            }
-        }
-
-        [Test]
-        public void DatabaseDoesNotDuplicateOnAddOrUpdate()
-        {
-            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
-
-            var objs = TestResourceFactory.GetMockClassAObjects(25);
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32()))
-            {
-                db.Load();
-
-                using (var t = db.BeginTransaction())
-                {
-                    foreach (var o in objs)
-                        o.Id = db.Add(o);
-
-                    t.Commit();
+                    var many = index.FetchIndexes(segs[objs.First().Key], out segList);
+                    Assert.AreEqual(1, many.Count());
                 }
             }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32()))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
-                db.Load();
+                var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true);
+                afm.Load<int>();
 
-                using (var t = db.BeginTransaction())
-                {
-                    var update = db.Fetch(3);
+                index.Load();
+                index.Register(afm);
 
-                    update.Name = "updated";
+                var f = index.FetchSegment(objs.First().Key);
+                Assert.AreEqual(segs[objs.First().Key], f);
 
-                    db.AddOrUpdate(update, 3);
+                var all = index.FetchSegments(objs.First().Key, objs.Last().Key);
+                Assert.AreEqual(objs.Count, all.Count());
 
-                    t.Commit();
-                }
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32()))
-            {
-                db.Load();
-
-                var check = db.Fetch(3);
-
-                Assert.AreEqual("updated", check.Name);
-
-                var allChecks = db.Select(s => s.Value<string>("Name") == "updated");
-
-                Assert.IsNotNull(allChecks);
-                Assert.AreEqual(1, allChecks.Count());
-
+                var many = index.FetchSegments(new int[] { objs.First().Key, objs.Last().Key });
+                Assert.AreEqual(2, many.Count());
             }
         }
     }

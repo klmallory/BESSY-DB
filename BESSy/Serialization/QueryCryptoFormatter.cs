@@ -37,10 +37,43 @@ namespace BESSy.Serialization
 
         public JsonSerializer Serializer { get { return _serializer.Serializer; } }
 
+        public JObject AsQueryableObj<T>(T obj)
+        {
+            if (obj != null)
+                return JObject.FromObject(obj, Serializer);
+            else
+                return new JObject();
+        }
+
         public JObject Parse(Stream inStream)
         {
             using (var stream = Unformat(inStream))
                 return _serializer.Parse(stream);
+        }
+
+        public Stream Unparse(JObject token)
+        {
+            return Format(_serializer.Unparse(token));
+        }
+
+        public bool TryParse(Stream inStream, out JObject obj)
+        {
+            try
+            {
+                obj = Parse(inStream);
+                return true;
+            }
+            catch (Exception) { obj = null; return false; }
+        }
+
+        public bool TryUnparse(JObject token, out Stream stream)
+        {
+            try
+            {
+                stream = Unparse(token);
+                return true;
+            }
+            catch (Exception) { stream = null; return false; }
         }
     }
 }

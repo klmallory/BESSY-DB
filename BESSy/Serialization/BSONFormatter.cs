@@ -24,11 +24,10 @@ using System.Security;
 using BESSy.Json;
 using BESSy.Json.Bson;
 using BESSy.Json.Serialization;
-using SevenZip;
-using SevenZip.LZMA;
 using SECP = System.Security.Permissions;
 using BESSy.Json.Linq;
 using System.Diagnostics;
+using BESSy.Factories;
 
 namespace BESSy.Serialization
 {
@@ -42,10 +41,25 @@ namespace BESSy.Serialization
 
         public BSONFormatter(JsonSerializerSettings settings)
         {
-            if (settings == null)
-                throw new ArgumentNullException("settings", "Serializer settings can not be null.");
+            if (_settings == null)
+                _settings = settings;
 
-            _serializer = JsonSerializer.Create(settings);
+            _serializer = JsonSerializer.Create(_settings);
+        }
+
+        protected JsonSerializerSettings _settings;
+
+        public JsonSerializerSettings Settings
+        {
+            get
+            {
+                return _settings;
+            }
+            set
+            {
+                _settings = value;
+                _serializer = JsonSerializer.Create(value);
+            }
         }
 
         public bool Trim { get { return false; } }
@@ -126,8 +140,8 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
+            catch (JsonException) { /* Trace.TraceError(jEx.ToString()); */}
+            catch (SystemException) { /* Trace.TraceError(sysEx.ToString()); */ }
             catch (ApplicationException) { }
 
             return false;
@@ -146,8 +160,8 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
+            catch (JsonException) { /* Trace.TraceError(jEx.ToString()); */}
+            catch (SystemException) { /* Trace.TraceError(sysEx.ToString()); */ }
             catch (ApplicationException) { }
 
             return false;
@@ -185,8 +199,8 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
+            catch (JsonException) { /* Trace.TraceError(jEx.ToString()); */}
+            catch (SystemException) { /* Trace.TraceError(sysEx.ToString()); */ }
             catch (ApplicationException) { }
 
             return false;
@@ -205,26 +219,74 @@ namespace BESSy.Serialization
 
                 return true;
             }
-            catch (JsonException jEx) { Trace.TraceError(jEx.ToString()); }
-            catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); }
+            catch (JsonException) { /* Trace.TraceError(jEx.ToString()); */}
+            catch (SystemException) { /* Trace.TraceError(sysEx.ToString()); */ }
             catch (ApplicationException) { }
 
             return false;
         }
 
+        #region IQueryableFormatter Memebers
+
         public JsonSerializer Serializer { get { return _serializer; } }
+
+        public JObject AsQueryableObj<T>(T obj)
+        {
+            if (obj != null)
+                return JObject.FromObject(obj, _serializer);
+            else
+                return new JObject();
+        }
 
         public JObject Parse(Stream inStream)
         {
             inStream.Position = 0;
 
-            return JObject.Load(new BsonReader(inStream));
+            using (var br = new BsonReader(inStream))
+                return JObject.Load(br);
         }
+
+
+
+        public Stream Unparse(JObject token)
+        {
+            var ms = new MemoryStream();
+            var bw = BsonWriterFactory.CreateFrom(ms, _settings);
+
+            token.WriteTo(bw, _serializer.Converters.ToArray());
+
+            bw.Flush();
+
+            return ms;
+        }
+
+        public bool TryParse(Stream inStream, out JObject obj)
+        {
+            
+            try
+            {
+                obj = Parse(inStream);
+                return true;
+            }
+            catch (Exception) { obj = null; return false; }
+        }
+
+        public bool TryUnparse(JObject token, out Stream stream)
+        {
+            try
+            {
+                stream = Unparse(token);
+                return true;
+            }
+            catch (Exception) { stream = null; return false; }
+        }
+
+        #endregion
 
         static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()
         {
             NullValueHandling = NullValueHandling.Ignore,
-            DateTimeZoneHandling = DateTimeZoneHandling.Utc,
+            DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind,
             DefaultValueHandling = DefaultValueHandling.Ignore,
             DateFormatHandling = DateFormatHandling.IsoDateFormat,
             MissingMemberHandling = MissingMemberHandling.Ignore,

@@ -37,14 +37,13 @@ namespace BESSy.Tests.TransactionTests
     [TestFixture]
     public class TransactionManagerTests
     {
-
         [Test]
         public void TransactionLockAutoCommitsTransactions()
         {
             var seed = new Seed32();
             int committed = 0;
 
-            using (var manager = new TransactionManager<int, MockClassA>())
+            using (var manager = new TransactionManager<int, MockClassA>() )
             {
                 manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
                     (delegate(ITransaction<int, MockClassA> transaction)
@@ -120,7 +119,7 @@ namespace BESSy.Tests.TransactionTests
             var seed = new Seed32();
             var hits = 0;
 
-            using (var manager = new TransactionManager<int, MockClassA>())
+            using (var manager = new TransactionManager<int, MockClassA>() )
             {
                 manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
                     (delegate(ITransaction<int, MockClassA> transaction)
@@ -185,6 +184,7 @@ namespace BESSy.Tests.TransactionTests
         [Test]
         public void TransactionManagerCommitAllCommitsAllTransactions()
         {
+            var sync = new object();
             var seed = new Seed32();
             var hits = 0;
 
@@ -199,31 +199,44 @@ namespace BESSy.Tests.TransactionTests
                         transaction.MarkComplete();
                     });
 
+                var transList = new List<TransactionLock<int, MockClassA>>();
+
                 Parallel.For(0, 5, delegate(int i)
                 {
                     var testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
                     testEntities.ForEach(e => e.Id = seed.Increment());
 
-                    using (var trans = manager.BeginTransaction())
+                    var trans = manager.BeginTransaction();
+
+                    foreach (var entity in testEntities)
+                        trans.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+                    if (i == 1)
                     {
-                        foreach (var entity in testEntities)
-                            trans.Transaction.Enlist(Action.Create, entity.Id, entity);
+                        lock (sync)
+                            transList.Add(trans);
+
+                        Assert.AreEqual(3, manager.GetCached().Count());
                     }
+                    else
+                        trans.Transaction.Commit();
+
                 });
 
                 manager.CommitAll(true);
+
+                Assert.AreEqual(0, manager.GetCached().Count());
             }
 
             Assert.AreEqual(5, hits);
         }
-
 
         [Test]
         public void TransactionManagerRollsbackAll()
         {
             var seed = new Seed32();
 
-            using (var manager = new TransactionManager<int, MockClassA>())
+            using (var manager = new TransactionManager<int, MockClassA>() )
             {
                 manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
                     (delegate(ITransaction<int, MockClassA> transaction)
@@ -278,20 +291,131 @@ namespace BESSy.Tests.TransactionTests
                                     while (manager.HasActiveTransactions)
                                         Thread.Sleep(100);
 
-                                    Assert.AreEqual(0, tLock5.Transaction.GetEnlistedItems().Count());
+                                    Assert.IsTrue(tLock5.Transaction.IsComplete);
                                 }
 
-                                Assert.AreEqual(0, tLock4.Transaction.GetEnlistedItems().Count());
+                                Assert.IsTrue(tLock4.Transaction.IsComplete);
                             }
 
-                            Assert.AreEqual(0, tLock3.Transaction.GetEnlistedItems().Count());
+                            Assert.IsTrue(tLock3.Transaction.IsComplete);
                         }
 
-                        Assert.AreEqual(0, tLock2.Transaction.GetEnlistedItems().Count());
+                        Assert.IsTrue(tLock2.Transaction.IsComplete);
                     }
 
-                    Assert.AreEqual(0, tLock1.Transaction.GetEnlistedItems().Count());
+                    Assert.IsTrue(tLock1.Transaction.IsComplete);
                 }
+            }
+        }
+
+        [Test]
+        public void TransactionManagerRollsbackOnDispose()
+        {
+            var seed = new Seed32();
+
+            using (var manager = new TransactionManager<int, MockClassA>() )
+            {
+                manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
+                    (delegate(ITransaction<int, MockClassA> transaction)
+                    {
+                        transaction.MarkComplete();
+
+                        Assert.Fail();
+                    });
+
+                var testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
+                testEntities.ForEach(e => e.Id = seed.Increment());
+
+                using (var tLock1 = manager.BeginTransaction())
+                {
+                    foreach (var entity in testEntities)
+                        tLock1.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+                    tLock1.Transaction.Dispose();
+
+                    Assert.IsTrue(tLock1.Transaction.IsComplete);
+                }
+            }
+        }
+
+
+        [Test]
+        public void TransactionManagerRollsbackAmbientTransactions()
+        {
+            var seed = new Seed32();
+
+            using (var manager = new TransactionManager<int, MockClassA>() )
+            {
+                manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
+                    (delegate(ITransaction<int, MockClassA> transaction)
+                    {
+                        transaction.MarkComplete();
+
+                        Assert.Fail();
+                    });
+
+                var testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
+                testEntities.ForEach(e => e.Id = seed.Increment());
+
+                using (var tLock1 = manager.GetActiveTransaction(false))
+                {
+                    foreach (var entity in testEntities)
+                        tLock1.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+                    using (var tLock2 = manager.GetActiveTransaction(false))
+                    {
+                        testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
+                        testEntities.ForEach(e => e.Id = seed.Increment());
+
+                        foreach (var entity in testEntities)
+                            tLock2.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+
+                        manager.RollBackAll(false);
+                    }
+                }
+
+                Assert.AreEqual(manager.GetCached().Count(), 0);
+            }
+        }
+
+        [Test]
+        public void TransactionManagerRollsbackAmbientTransactionsOnAllThreads()
+        {
+            var seed = new Seed32();
+
+            using (var manager = new TransactionManager<int, MockClassA>() )
+            {
+                manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
+                    (delegate(ITransaction<int, MockClassA> transaction)
+                    {
+                        transaction.MarkComplete();
+
+                        Assert.Fail();
+                    });
+
+                var testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
+                testEntities.ForEach(e => e.Id = seed.Increment());
+
+                using (var tLock1 = manager.GetActiveTransaction(false))
+                {
+                    foreach (var entity in testEntities)
+                        tLock1.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+                    using (var tLock2 = manager.GetActiveTransaction(false))
+                    {
+                        testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
+                        testEntities.ForEach(e => e.Id = seed.Increment());
+
+                        foreach (var entity in testEntities)
+                            tLock2.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+
+                        manager.RollBackAll(true);
+                    }
+                }
+
+                Assert.AreEqual(manager.GetCached().Count(), 0);
             }
         }
 
@@ -300,7 +424,7 @@ namespace BESSy.Tests.TransactionTests
         {
             var seed = new Seed32();
 
-            using (var manager = new TransactionManager<int, MockClassA>())
+            using (var manager = new TransactionManager<int, MockClassA>() )
             {
                 manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
                     (delegate(ITransaction<int, MockClassA> transaction)
@@ -352,7 +476,7 @@ namespace BESSy.Tests.TransactionTests
 
                                     tLock1.Transaction.Rollback();
 
-                                    Assert.AreEqual(0, tLock5.Transaction.GetEnlistedItems().Count());
+                                    Assert.IsTrue(tLock5.Transaction.IsComplete);
                                 }
                             }
                         }
@@ -367,7 +491,7 @@ namespace BESSy.Tests.TransactionTests
             var seed = new Seed32();
             var hits = 0;
 
-            using (var manager = new TransactionManager<int, MockClassA>())
+            using (var manager = new TransactionManager<int, MockClassA>() )
             {
                 manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
                     (delegate(ITransaction<int, MockClassA> transaction)
@@ -418,14 +542,102 @@ namespace BESSy.Tests.TransactionTests
                                     foreach (var entity in testEntities)
                                         tLock5.Transaction.Enlist(Action.Create, entity.Id, entity);
 
+                                    Assert.AreEqual(3, manager.GetActiveItems().Count);
+
                                     manager.CommitAll(true);
 
-                                    Assert.AreEqual(0, tLock5.Transaction.GetEnlistedActions().Count());
+                                    Assert.IsTrue(tLock5.Transaction.IsComplete);
                                 }
                             }
                         }
                     }
                 }
+
+                Assert.AreEqual(0, manager.GetActiveItems().Count);
+            }
+        }
+
+        [Test]
+        public void AmbientTransactionCommitsIteself()
+        {
+            var seed = new Seed32();
+            var hits = 0;
+
+            using (var manager = new TransactionManager<int, MockClassA>() )
+            {
+                manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
+                    (delegate(ITransaction<int, MockClassA> transaction)
+                    {
+                        Assert.AreEqual(3, transaction.GetEnlistedActions().Count());
+                        hits++;
+
+                        transaction.MarkComplete();
+
+                        hits = 1;
+                    });
+
+                var testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
+                testEntities.ForEach(e => e.Id = seed.Increment());
+
+                using (var tLock1 = manager.GetActiveTransaction(false))
+                {
+                    foreach (var entity in testEntities)
+                        tLock1.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+                    var sw = new Stopwatch();
+                    sw.Start();
+
+                    while (sw.ElapsedMilliseconds < 5500)
+                        Thread.Sleep(10);
+                }
+
+                Thread.Sleep(500);
+
+                Assert.AreEqual(1, hits);
+            }
+        }
+
+        [Test]
+        public void AmbientTransactionForceCommit()
+        {
+            var seed = new Seed32();
+            var hits = 0;
+
+            using (var manager = new TransactionManager<int, MockClassA>() )
+            {
+                manager.TransactionCommitted += new TransactionCommit<int, MockClassA>
+                    (delegate(ITransaction<int, MockClassA> transaction)
+                    {
+                        Assert.AreEqual(3, transaction.GetEnlistedActions().Count());
+                        hits++;
+
+                        transaction.MarkComplete();
+
+                        hits = 1;
+                    });
+
+                var testEntities = TestResourceFactory.GetMockClassAObjects(3).ToList();
+                testEntities.ForEach(e => e.Id = seed.Increment());
+
+                using (var tLock1 = manager.GetActiveTransaction(false))
+                {
+                    foreach (var entity in testEntities)
+                        tLock1.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+                    var sw = new Stopwatch();
+                    sw.Start();
+
+                    while (sw.ElapsedMilliseconds < 5500)
+                        Thread.Sleep(10);
+
+                    manager.CommitAmbientTransactions();
+
+                    tLock1.Transaction.Commit();
+                }
+
+                Thread.Sleep(500);
+
+                Assert.AreEqual(1, hits);
             }
         }
     }

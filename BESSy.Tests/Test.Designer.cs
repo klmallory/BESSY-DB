@@ -47,7 +47,7 @@ namespace BESSy.Tests {
         }
         
         /// <summary>
-        ///   Overrides the current thread's CurrentUICulture property for all
+        ///   Overrides the current thread'aqn CurrentUICulture property for all
         ///   _bytes lookups using this strongly typed _bytes class.
         /// </summary>
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Advanced)]

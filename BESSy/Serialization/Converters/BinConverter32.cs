@@ -44,7 +44,6 @@ namespace BESSy.Serialization.Converters
             return FromBytes(bytes);
         }
 
-
         public int Compare(int v1, int v2)
         {
             if (v1 > v2)

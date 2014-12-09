@@ -29,75 +29,24 @@ namespace BESSy.Factories
 {
     public interface IIndexFactory
     {
-        ISecondaryIndex<PropertyType, EntityType, int> CreateSecondary<PropertyType, EntityType>
-            (string fileName
-            , string indexToken
-            , IQueryableFormatter formatter
-            , IBinConverter<PropertyType> propertyConverter
-            , IRepositoryCacheFactory cacheFactory
-            , IIndexFileFactory indexFileFactory
-            , IRowSynchronizer<int> rowSynchronizer);
+        Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>
+        (string fileName
+        , string indexToken
+        , bool unique);
 
-        IPrimaryIndex<PropertyType, EntityType> CreatePrimary<PropertyType, EntityType>
-            (string fileName
-            , IQueryableFormatter formatter
-            , IRepositoryCacheFactory cacheFactory
-            , IIndexFileFactory indexFileFactory
-            , IRowSynchronizer<int> rowSynchronizer);
-
-        IPrimaryIndex<PropertyType, EntityType> CreatePrimary<PropertyType, EntityType>
-            (string fileName
-            , string indexToken
-            , IBinConverter<PropertyType> propertyConverter
-            , IRepositoryCacheFactory cacheFactory
-            , IQueryableFormatter formatter
-            , IIndexFileFactory indexFileFactory
-            , IRowSynchronizer<int> rowSynchronizer);
+        Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, bool unique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer);
     }
 
     public class IndexFactory : IIndexFactory
     {
-        public ISecondaryIndex<PropertyType, EntityType, int> CreateSecondary<PropertyType, EntityType>
-            (string fileName,
-            string indexToken,
-            IQueryableFormatter formatter,
-            IBinConverter<PropertyType> propertyConverter,
-            IRepositoryCacheFactory cacheFactory,
-            IIndexFileFactory indexFileFactory,
-            IRowSynchronizer<int> rowSynchronizer)
+        public Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileName, string indexToken, bool unique)
         {
-            return new SecondaryIndex<PropertyType, EntityType>(fileName, indexToken, propertyConverter, cacheFactory, formatter, indexFileFactory, rowSynchronizer);
+            return new Index<IndexType, EntityType, SegmentType>(fileName, indexToken, unique);
         }
 
-        #region Create Existing Primary PrimaryIndex
-
-        public IPrimaryIndex<PropertyType, EntityType> CreatePrimary<PropertyType, EntityType>
-            (string fileName,
-            IQueryableFormatter formatter,
-            IRepositoryCacheFactory cacheFactory,
-            IIndexFileFactory indexFileFactory,
-            IRowSynchronizer<int> rowSynchronizer)
+        public Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, bool unique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer)
         {
-            return new PrimaryIndex<PropertyType, EntityType>(fileName, formatter, cacheFactory, indexFileFactory, rowSynchronizer);
+            return new Index<IndexType, EntityType, SegmentType>(fileNamePath, indexToken, unique, startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer);
         }
-
-        #endregion
-
-        #region Create New Primary PrimaryIndex
-
-        public IPrimaryIndex<PropertyType, EntityType> CreatePrimary<PropertyType, EntityType>
-            (string fileName,
-            string indexToken,
-            IBinConverter<PropertyType> propertyConverter,
-            IRepositoryCacheFactory cacheFactory,
-            IQueryableFormatter formatter,
-            IIndexFileFactory indexFileFactory,
-            IRowSynchronizer<int> rowSynchronizer)
-        {
-            return new PrimaryIndex<PropertyType, EntityType>(fileName, indexToken, propertyConverter, cacheFactory, formatter, indexFileFactory, rowSynchronizer);
-        }
-
-        #endregion
-
     }
 }

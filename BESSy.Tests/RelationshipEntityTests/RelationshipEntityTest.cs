@@ -18,7 +18,6 @@ namespace BESSy.Tests.RelationshipEntityTests
             base.Cleanup();
         }
 
-
         [Test]
         public void SingleRelationshipSaves()
         {
@@ -29,7 +28,7 @@ namespace BESSy.Tests.RelationshipEntityTests
             IList<MockClassE> objs = null;
             var ids = new List<int>();
 
-            using (var db = new RelationalDatabase<int>(_testName + ".database", "Id"))
+            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
             {
                 db.Load();
 
@@ -43,7 +42,7 @@ namespace BESSy.Tests.RelationshipEntityTests
                 }
             }
 
-            using (var db = new RelationalDatabase<int>(_testName + ".database"))
+            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
             {
                 db.Load();
 
@@ -57,7 +56,6 @@ namespace BESSy.Tests.RelationshipEntityTests
             }
         }
 
-
         [Test]
         public void SingleRelationshipSavesAndSelects()
         {
@@ -68,7 +66,7 @@ namespace BESSy.Tests.RelationshipEntityTests
             List<MockClassE> objs = null;
             var ids = new List<int>();
 
-            using (var db = new RelationalDatabase<int>(_testName + ".database", "Id"))
+            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
             {
                 db.Load();
 
@@ -82,18 +80,77 @@ namespace BESSy.Tests.RelationshipEntityTests
                 }
             }
 
-            using (var db = new RelationalDatabase<int>(_testName + ".database"))
+            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
             {
                 db.Load();
 
-                var first = db.SelectFirst(s => s.Value<int>("Id") > 0, 300);
-
+                var first = db.SelectFirst(s => s.Value<int>("Id") > 0, 50);
+                
                 foreach (var obj in objs)
                     AssertMockClassE((MockClassE)first.First(f => f.Id == obj.Id), obj as MockClassE, db);
+
+                var last = db.SelectLast(s => s.Value<int>("Id") > 0, 50);
+
+                foreach (var obj in objs)
+                    AssertMockClassE((MockClassE)last.First(f => f.Id == obj.Id), obj as MockClassE, db);
             }
         }
 
-        internal static void AssertMockClassE(MockClassE item, MockClassE orig, IRepository<RelationshipEntity<int>, int> repo)
+        [Test]
+        public void SingleRelationshipSavesAndDeletes()
+        {
+            _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var seed = new Seed32();
+            List<MockClassE> objs = null;
+            var ids = new List<int>();
+
+            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
+            {
+                db.Load();
+
+                using (var t = db.BeginTransaction())
+                {
+                    objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
+
+                    objs.ToList().ForEach(o => o.Id = db.Add(o));
+
+                    t.Commit();
+                }
+            }
+
+            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
+            {
+                db.Load();
+
+                var first = db.Fetch(objs[0].Id);
+
+                using (var t = db.BeginTransaction())
+                {
+                    first.LowBall = new List<MockClassD>();
+
+                    db.Update(first, first.Id);
+
+                    t.Commit();
+                }
+
+                first = db.Fetch(objs[0].Id);
+
+                Assert.AreEqual(0, first.LowBall.Count());
+            }
+
+            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
+            {
+                db.Load();
+
+                var first = db.Fetch(objs.First().Id);
+
+                Assert.AreEqual(0, first.LowBall.Count());
+            }
+        }
+
+        internal static void AssertMockClassE(MockClassE item, MockClassE orig, IRelationalDatabase<int, MockClassD> repo)
         {
             if (item == null && orig == null)
                 return;

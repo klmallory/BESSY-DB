@@ -7,6 +7,7 @@ using System.Threading;
 using BESSy.Extensions;
 using BESSy.Tests.Mocks;
 using NUnit.Framework;
+using BESSy.Replication;
 
 namespace BESSy.Tests.Replication
 {
@@ -29,7 +30,7 @@ namespace BESSy.Tests.Replication
             Cleanup();
 
             using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
-                .WithPublishing(_testName))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
             {
                 db.Load();
 
@@ -47,7 +48,7 @@ namespace BESSy.Tests.Replication
             Cleanup();
 
             using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
-                .WithPublishing(_testName))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
             {
                 db.Load();
 
@@ -57,10 +58,10 @@ namespace BESSy.Tests.Replication
             }
 
             using (var db = new Database<int, MockClassA>(_testName + ".database")
-                .WithPublishing(_testName))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
             {
                 db.Load();
-                db.WithoutPublishing();
+                db.WithoutPublishing("Test");
 
                 Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
@@ -84,7 +85,7 @@ namespace BESSy.Tests.Replication
             Cleanup();
 
             using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
-                .WithPublishing(_testName))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
             {
                 db.Load();
 
@@ -94,7 +95,7 @@ namespace BESSy.Tests.Replication
             }
 
             using (var db = new Database<int, MockClassA>(_testName + ".database")
-                .WithPublishing(_testName))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
             {
                 db.Load();
 
@@ -110,7 +111,7 @@ namespace BESSy.Tests.Replication
                 while (db.FileFlushQueueActive)
                     Thread.Sleep(100);
 
-                Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.transaction").Count(), 0);
+                Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count(), 0);
             }
         }
 
@@ -130,7 +131,7 @@ namespace BESSy.Tests.Replication
             }
 
             using (var db = new Database<int, MockClassA>(_testName + ".database")
-                .WithPublishing(_testName))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
             {
                 db.Load();
 
@@ -150,13 +151,13 @@ namespace BESSy.Tests.Replication
 
                 Thread.Sleep(100);
 
-                Assert.AreEqual(0, Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.transaction").Count());
+                Assert.AreEqual(0, Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count());
 
                 File.Delete(Path.Combine(Environment.CurrentDirectory, _testName, "test.pause"));
 
                 Thread.Sleep(3000);
 
-                Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.transaction").Count(), 0);
+                Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count(), 0);
 
                 db.FlushAll();
             }

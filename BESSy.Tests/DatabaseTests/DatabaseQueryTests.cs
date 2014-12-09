@@ -42,9 +42,6 @@ namespace BESSy.Tests.DatabaseTests
         [SetUp]
         public void Setup()
         {
-
-            _seed = new Seed32(999);
-            _formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
         }
 
         [Test]
@@ -53,9 +50,12 @@ namespace BESSy.Tests.DatabaseTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
+            var core = new FileCore<int, long>(new Seed32(999));
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+
             var stopWatch = new Stopwatch();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", core))
             {
                 db.Load();
 
@@ -103,9 +103,12 @@ namespace BESSy.Tests.DatabaseTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
+            var core = new FileCore<int, long>(new Seed32(999));
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+
             var stopWatch = new Stopwatch();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", core))
             {
                 db.Load();
 
@@ -158,11 +161,11 @@ namespace BESSy.Tests.DatabaseTests
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var ids = new List<int>();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32(0), new BinConverter32(), new JSONFormatter()))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new JSONFormatter()))
             {
                 db.Load();
 
-                objs.ToList().ForEach(o => ids.Add(db.Add(o.WithId(_seed.Increment()))));
+                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
 
                 db.FlushAll();
             }
@@ -170,30 +173,174 @@ namespace BESSy.Tests.DatabaseTests
             using (var db = new Database<int, MockClassA>(_testName + ".database", new JSONFormatter()))
             {
                 db.Load();
+
+                using (var t = db.BeginTransaction())
+                {
+                    var last = db.SelectLast(s => true, 1).LastOrDefault();
+
+                    Assert.IsNotNull(last);
+
+                    db.Update(s => s.Value<string>("Name") == last.Name
+                        , new System.Action<MockClassA>(a => a.Name = "last"));
+
+                    db.Delete(s => true);
+
+                    t.Commit();
+                }
+
+                var selected = db.Select(s => true);
+
+                Assert.AreEqual(0, selected.Count);
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", new JSONFormatter()))
+            {
+                db.Load();
+
+                var selected = db.Select(s => true);
+
+                Assert.AreEqual(0, selected.Count);
+            }
+        }
+
+        [Test]
+        public void DatabaseFetchesUpdatesAndDeletesWithActiveTransactions()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
+            var ids = new List<int>();
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new JSONFormatter()))
+            {
+                db.Load();
+
+                var t = db.BeginTransaction();
+
+                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
 
                 var last = db.SelectLast(s => true, 1).LastOrDefault();
 
                 Assert.IsNotNull(last);
 
-                db.Update(s => s.Value<string>("Name") == last.Name
+                var count = db.Update(s => s.Value<string>("Name") == last.Name
                     , new System.Action<MockClassA>(a => a.Name = "last"));
 
-                db.Delete(s => true);
-
-                db.FlushAll();
+                Assert.AreEqual(1, count);
 
                 var selected = db.Select(s => true);
 
-                Assert.AreEqual(0, selected.Count);
-            }
+                Assert.AreEqual(100, selected.Count);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", new JSONFormatter()))
+                count = db.Delete(s => true);
+
+                Assert.AreEqual(100, count);
+
+                selected = db.Select(s => true);
+
+                Assert.AreEqual(0, selected.Count);
+
+                t.Rollback();
+
+            }
+        }
+
+        [Test]
+        public void DatabaseDeletesFirstLastWithActiveTransactions()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
+            var ids = new List<int>();
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new JSONFormatter()))
             {
                 db.Load();
 
+                var t = db.BeginTransaction();
+
+                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
+
+                var last = db.SelectLast(s => true, 1).LastOrDefault();
+
+                Assert.IsNotNull(last);
+
+                var count = db.Update(s => s.Value<string>("Name") == last.Name
+                    , new System.Action<MockClassA>(a => a.Name = "last"));
+
+                Assert.AreEqual(1, count);
+
                 var selected = db.Select(s => true);
 
-                Assert.AreEqual(0, selected.Count);
+                Assert.AreEqual(100, selected.Count);
+
+                count = db.DeleteFirst(s => true, 10);
+
+                Assert.AreEqual(10, count);
+
+                selected = db.Select(s => true);
+
+                Assert.AreEqual(90, selected.Count);
+
+                count = db.DeleteLast(s => true, 10);
+
+                Assert.AreEqual(10, count);
+
+                selected = db.Select(s => true);
+
+                Assert.AreEqual(80, selected.Count);
+
+                t.Rollback();
+
+            }
+        }
+
+        [Test]
+        public void DatabaseSelectsScalarWithActiveTransactions()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
+            var ids = new List<int>();
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new JSONFormatter()))
+            {
+                db.Load();
+
+                var t = db.BeginTransaction();
+
+                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
+
+                var last = db.SelectLast(s => true, 1).LastOrDefault();
+
+                Assert.IsNotNull(last);
+
+                var count = db.Update(s => s.Value<string>("Name") == last.Name
+                    , new System.Action<MockClassA>(a => a.Name = "last"));
+
+                Assert.AreEqual(1, count);
+
+                var selected = db.Select(s => true);
+
+                Assert.AreEqual(100, selected.Count);
+
+                var names = db.SelectScalar( s => s.Value<int>("Id") <= 15, "Name");
+
+                Assert.AreEqual(15, names.Count);
+
+                names = db.SelectScalarFirst(s => s.Value<int>("Id") <= 15, 10, "Name");
+
+                Assert.AreEqual(10, names.Count);
+
+                names = db.SelectScalarLast(s => s.Value<int>("Id") <= 15, 8, "Name");
+
+                Assert.AreEqual(8, names.Count);
+                
+                t.Rollback();
+
             }
         }
     }

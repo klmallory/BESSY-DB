@@ -11,9 +11,15 @@ namespace BESSy.Seeding
 {
     public sealed class SeedGuid : Seed<Guid>
     {
-        public SeedGuid() : base()
+        public SeedGuid() : this(true)
         {
-            MinimumSeedStride = 10240;
+            
+        }
+
+        public SeedGuid(bool passive)
+            : base()
+        {
+            Passive = passive;
         }
 
         public override Guid Increment()

@@ -57,12 +57,12 @@ namespace BESSy.Extensions
             return false;
         }
 
-        //public static bool IsNotNullAndNotEmpty<T>(this IEnumerable<T> col)
-        //{
-        //    if (col != null && col.Count() > 0)
-        //        return true;
+        public static bool IsNotNullAndNotEmpty<T>(this IEnumerable<T> col)
+        {
+            if (col != null && col.Count() > 0)
+                return true;
 
-        //    return false;
-        //}
+            return false;
+        }
     }
 }

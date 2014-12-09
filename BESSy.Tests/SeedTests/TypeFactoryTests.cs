@@ -70,14 +70,14 @@ namespace BESSy.Tests.SeedTests
         [ExpectedException(typeof(ArgumentException))]
         public void TestTypeFactoryBinThrowsAnExceptionForUnkownTypes()
         {
-            var bin = TypeFactory.GetBinConverterFor<decimal>();
+            var bin = TypeFactory.GetBinConverterFor<SByte>();
         }
 
         [Test]
         [ExpectedException(typeof(ArgumentException))]
         public void TestTypeFactorySeedThrowsAnExceptionForUnkownTypes()
         {
-            var bin = TypeFactory.GetSeedFor<decimal>();
+            var bin = TypeFactory.GetSeedFor<SByte>();
         }
     }
 }

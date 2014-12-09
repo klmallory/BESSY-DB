@@ -40,27 +40,65 @@ using BESSy.Json.Linq;
 
 namespace BESSy
 {
-
-    public interface ITransactionalDatabase<IdType, EntityType> : IIndexedRepository<EntityType, IdType>, IQueryableRepository<EntityType>
+    public interface IConfigureDatabase
     {
+        void AddIndex(string command);
+        void RemoveIndex(string name);
+
+        void WithPublisher(string command);
+        void WithoutPublisher(string name);
+        void WithSubscriber(string command);
+        void WithoutSubscriber(string name);
+    }
+
+    public interface IFluentlyConfigure<IdType, EntityType>
+    {
+        ITransactionalDatabase<IdType, EntityType> WithIndex<IndexType>(string name, string indexProperty, IBinConverter<IndexType> indexConverter);
+        ITransactionalDatabase<IdType, EntityType> WithoutIndex(string name);
+        ITransactionalDatabase<IdType, EntityType> WithoutPublishing(string name);
+        ITransactionalDatabase<IdType, EntityType> WithoutSubscription(string name);
+        ITransactionalDatabase<IdType, EntityType> WithPublishing(string name, IReplicationPublisher<IdType, EntityType> replication);
+        ITransactionalDatabase<IdType, EntityType> WithSubscription(string name, IReplicationSubscriber<IdType, EntityType> replication);
+    }
+
+    public interface IIndexedRepository<T, I> : IRepository<T, I>, IIndexedReadOnlyRepository<T, I>
+    {
+
+    }
+
+    public interface IIndexedReadOnlyRepository<T, I> : IReadOnlyRepository<T, I>, IFlush, ILoadAndDispose, IConfigureDatabase
+    {
+        IDictionary<I, T> GetCache();
+        IList<T> FetchFromIndex<IndexType>(string name, IndexType indexProperty);
+        IList<T> FetchRangeFromIndexInclusive<IndexType>(string name, IndexType startIndex, IndexType endIndex);
+    }
+
+    public interface IStreamingRepository: ILoadAndDispose
+    {
+        IEnumerable<Stream> AsStreaming();
+    }
+
+    public interface ITransactionalDatabase<IdType, EntityType> : 
+        IIndexedRepository<EntityType, IdType>, 
+        IServerRepository<IdType, EntityType>, 
+        IFluentlyConfigure<IdType, EntityType>, 
+        IQueryableRepository<EntityType>, 
+        IQueryableServerRepository<EntityType>, 
+        IStreamingRepository 
+    {
+        IQueryableFormatter Formatter { get; }
         Guid TransactionSource { get; }
-        ITransaction<IdType, EntityType> BeginTransaction();
+        ITransaction BeginTransaction();
         void FlushAll();
         void Reorganize();
 
-        ITransactionalDatabase<IdType, EntityType> WithPublishing(string replicationFolder);
-        ITransactionalDatabase<IdType, EntityType> WithoutPublishing();
-        ITransactionalDatabase<IdType, EntityType> WithSubscription(string replicationFolder, TimeSpan interval);
-        ITransactionalDatabase<IdType, EntityType> WithoutSubscription();
-
-        ITransactionalDatabase<IdType, EntityType> WithIndex<IndexType>(string name, string indexProperty, IBinConverter<IndexType> indexConverter);
-        ITransactionalDatabase<IdType, EntityType> WithoutIndex<IndexType>(string name);
+        //IList<EntityType> FetchRangeFromIndexInclusive<IndexType>(string indexName, IndexType startIndex, IndexType endINdex);
     }
 
     /// <summary>
     /// Abstract implementation for a fully transactional and queryable database.
     /// </summary>
-    public class AbstractTransactionalDatabase<IdType, EntityType> : ITransactionalDatabase<IdType, EntityType>
+    public partial class AbstractTransactionalDatabase<IdType, EntityType> : ITransactionalDatabase<IdType, EntityType>
     {
         protected AbstractTransactionalDatabase(string fileName)
         {
@@ -70,25 +108,25 @@ namespace BESSy
         /// <summary>
         /// Opens an existing database with the specified paramters.
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="databaseFileFactory"></param>
-        /// <param name="cacheFactory"></param>
-        /// <param name="indexFileFactory"></param>
-        /// <param name="indexFactory"></param>
-        /// <param name="rowSynchronizer"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="databaseFileFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="rowSynchronizer"></param>
         public AbstractTransactionalDatabase(
             string fileName
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory databaseFileFactory
-            , IRepositoryCacheFactory cacheFactory
+            , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory
-            , IRowSynchronizer<int> rowSynchronizer)
+            , IRowSynchronizer<long> rowSynchronizer)
         {
             _fileName = fileName;
-            _formatter = formatter;
+            Formatter = formatter;
             _transactionManager = transactionManager;
             _fileFactory = databaseFileFactory;
             _cacheFactory = cacheFactory;
@@ -102,37 +140,37 @@ namespace BESSy
         /// <summary>
         /// Open a new or existing database with the specified paramters.
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="idConverter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="databaseFileFactory"></param>
-        /// <param name="cacheFactory"></param>
-        /// <param name="indexFileFactory"></param>
-        /// <param name="indexFactory"></param>
-        /// <param name="rowSynchronizer"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="IdConverter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="databaseFileFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="rowSynchronizer"></param>
         public AbstractTransactionalDatabase(
             string fileName
             , string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> idConverter
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory databaseFileFactory
-            , IRepositoryCacheFactory cacheFactory
+            , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory
-            , IRowSynchronizer<int> rowSynchronizer)
+            , IRowSynchronizer<long> rowSynchronizer)
         {
             _createNew = true;
 
             _fileName = fileName;
             _idToken = idToken;
-            _seed = seed;
+            _core = core;
             _idConverter = idConverter;
-            _formatter = formatter;
+            Formatter = formatter;
             _transactionManager = transactionManager;
             _indexFactory = indexFactory;
             _cacheFactory = cacheFactory;
@@ -140,57 +178,55 @@ namespace BESSy
             _indexFileFactory = indexFileFactory;
             _rowSynchronizer = rowSynchronizer;
 
-            _seed.IdConverter = idConverter;
-            _seed.IdProperty = idToken;
+            _core.IdConverter = idConverter;
+            _core.IdProperty = idToken;
 
             _transactionManager.TransactionCommitted += new TransactionCommit<IdType, EntityType>(OnTransactionCommitted);
         }
 
-        protected object _syncRoot = new object();
         protected object _syncTrans = new object();
-        protected object _syncStaging = new object();
         protected object _syncOperations = new object();
-        protected object _syncIndex = new object();
-
+       
         protected Stack<int> _operations = new Stack<int>();
 
         protected bool _disposed;
         protected bool _publish;
-        protected bool _passthrough;
         protected bool _createNew; 
-        protected string _fileName;
+
         protected string _idToken;
         protected IBinConverter<IdType> _idConverter;
-        protected ISeed<IdType> _seed;
+        protected IFileCore<IdType, long> _core;
         protected ITransaction<IdType, EntityType> _activeTransaction;
         protected ITransactionManager<IdType, EntityType> _transactionManager;
         protected IAtomicFileManager<EntityType> _fileManager;
         
-        protected IRepositoryCache<IdType, EntityType> _databaseCache;
-        protected IRepositoryCache<Guid, IDictionary<IdType, JObject>> _stagingCache;
-        protected IRowSynchronizer<int> _rowSynchronizer;
+        protected IDatabaseCache<IdType, EntityType> _databaseCache;
+        protected IDatabaseCache<Guid, IDictionary<IdType, JObject>> _stagingCache;
+        protected IRowSynchronizer<long> _rowSynchronizer;
 
-        protected IAtomicFileManager<IndexPropertyPair<IdType, int>> _indexFileManager;
-        protected IPrimaryIndex<IdType, EntityType> _primaryIndex;
-        protected IQueryableFormatter _formatter;
-        protected IRepositoryCacheFactory _cacheFactory;
+        protected IIndex<IdType, EntityType, long> _primaryIndex;
+        
+        protected IDatabaseCacheFactory _cacheFactory;
         protected IAtomicFileManagerFactory _fileFactory;
         protected IIndexFileFactory _indexFileFactory;
-        protected IIndexFactory _indexFactory;
-        protected IDictionary<string, object> _indexes = new Dictionary<string, object>();
-
-        protected IReplicationSubscriber<IdType, EntityType> _subscriber;
-        protected IReplicationPublisher<IdType, EntityType> _publisher;
-
+        
         protected Func<EntityType, IdType> _idGet;
         protected Action<EntityType, IdType> _idSet;
 
-        protected virtual string GetIndexName(string fileName)
+        protected internal string _fileName;
+        protected internal object _syncRoot = new object();
+        protected internal object _syncIndex = new object();
+        protected internal IIndexFactory _indexFactory;
+        protected internal IDictionary<string, object> _indexes = new Dictionary<string, object>();
+        protected internal IDictionary<string, IReplicationPublisher<IdType, EntityType>> _publishers = new Dictionary<string, IReplicationPublisher<IdType, EntityType>>();
+        protected internal IDictionary<string, IReplicationSubscriber<IdType, EntityType>> _subscribers = new Dictionary<string, IReplicationSubscriber<IdType, EntityType>>();
+
+        protected internal virtual string GetIndexName(string fileName)
         {
             return fileName + ".index";
         }
 
-        protected void OnTransactionCommitted(ITransaction<IdType, EntityType> transaction)
+        protected virtual void OnTransactionCommitted(ITransaction<IdType, EntityType> transaction)
         {
             Trace.TraceInformation("Transaction {0} commit detected", transaction.Id);
 
@@ -202,7 +238,7 @@ namespace BESSy
 
             try
             {
-                var segs = new Dictionary<IdType, int>();
+                var segs = new Dictionary<IdType, long>();
 
                 var staging = transaction.GetEnlistedActions();
 
@@ -212,16 +248,16 @@ namespace BESSy
                 foreach (var a in staging)
                     if (a.Value.Action != Action.Create)
                     {
-                        var seg = _primaryIndex.Fetch(a.Key);
+                        var seg = _primaryIndex.FetchSegment(a.Key);
                         if (seg > 0)
                             segs.Add(a.Key, seg);
                     }
                     else
                         segs.Add(a.Key, 0);
 
-                Trace.TraceInformation("Transaction {0} committing with {1} segs", transaction.Id, segs.Count);
+                Trace.TraceInformation("Transaction {0} committing with {1} segments", transaction.Id, segs.Count);
 
-                var commitState = new Tuple<ITransaction<IdType, EntityType>, IDictionary<IdType, int>>(transaction, segs);
+                var commitState = new Tuple<ITransaction<IdType, EntityType>, IDictionary<IdType, long>>(transaction, segs);
 
                 Parallel.Invoke(new System.Action[] 
                 { 
@@ -233,8 +269,11 @@ namespace BESSy
                     })
                 });
 
-                if (_publish)
-                    _publisher.Publish(transaction);
+                if (_publishers.Count > 0)
+                    Parallel.ForEach(_publishers, new Action<KeyValuePair<string, IReplicationPublisher<IdType, EntityType>>>(delegate(KeyValuePair<string, IReplicationPublisher<IdType, EntityType>> pair)
+                    {
+                        pair.Value.Publish(transaction);
+                    }));
             }
             finally
             {
@@ -247,33 +286,38 @@ namespace BESSy
             }
         }
 
-        protected void UpdateStaging(ITransaction<IdType, EntityType> transaction, IDictionary<IdType, EnlistedAction<IdType, EntityType>> staging)
+        protected void UpdateStaging(ITransaction<IdType, EntityType> transaction, IDictionary<IdType, EnlistedAction<EntityType>> staging)
         {
             object syncLocal = new object();
 
             var c = new Dictionary<IdType, JObject>();
 
-            Parallel.Invoke(new System.Action[] { 
-                new System.Action(delegate() {
+            //Parallel.Invoke(new System.Action[] { 
+            //    new System.Action(delegate() {
 
-                    foreach (var s in staging.Where(s => s.Value.Action != Action.Delete))
-                        c.Add(s.Value.Id, JObject.FromObject(s.Value.Entity, _formatter.Serializer));
+            lock (syncLocal)
+                foreach (var s in staging.Where(s => s.Value.Action != Action.Delete))
+                    c.Add(s.Key, JObject.FromObject(s.Value.Entity, Formatter.Serializer));
 
-                    foreach (var s in staging.Where(s => s.Value.Action == Action.Delete))
-                        c.Add(s.Value.Id, null);
+            lock (syncLocal)
+                foreach (var s in staging.Where(s => s.Value.Action == Action.Delete))
+                    c.Add(s.Key, null);
 
-                    lock (_syncStaging)
-                        _stagingCache.UpdateCache(transaction.Id, c, true, false);
-                }),
-                new System.Action(delegate() {
-                    SyncCache(staging);                
-                })
-             });
+            lock (_stagingCache)
+                _stagingCache.UpdateCache(transaction.Id, c, true, false);
+
+            //}),
+            //new System.Action(delegate() {
+
+            SyncCache(staging);
+
+            //   })
+            //});
 
             Trace.TraceInformation("Transaction {0} update staging thread complete", transaction.Id);
         }
 
-        protected void CommitTransactionToFile(ITransaction<IdType, EntityType> transaction, IDictionary<IdType, int> segments)
+        protected virtual void CommitTransactionToFile(ITransaction<IdType, EntityType> transaction, IDictionary<IdType, long> segments)
         {
             if (transaction == null)
                 return;
@@ -285,34 +329,32 @@ namespace BESSy
             Trace.TraceInformation("Transaction {0} commit thread complete", transaction.Id);
         }
 
-        protected virtual void SyncCache(IDictionary<IdType, EnlistedAction<IdType, EntityType>> actions)
+        protected virtual void SyncCache(IDictionary<IdType, EnlistedAction<EntityType>> actions)
         {
-            lock (_syncRoot)
+
+            foreach (var a in actions)
             {
-                foreach (var a in actions)
+                switch (a.Value.Action)
                 {
-                    switch (a.Value.Action)
-                    {
-                        case Action.Update:
-                        case Action.Delete:
-                            {
-                                lock (_syncStaging)
-                                    _stagingCache.GetCache().Where(d => d.Value.Any(v => _idConverter.Compare(v.Key, a.Value.Id) == 0)).ToList().ForEach(n => _stagingCache.Detach(n.Key));
-                                break;
-                            }
-                    }
+                    case Action.Update:
+                    case Action.Delete:
+                        {
+                            lock (_stagingCache)
+                                _stagingCache.GetCache().Where(d => d.Value.Any(v => _idConverter.Compare(v.Key, a.Key) == 0)).ToList().ForEach(n => _stagingCache.Detach(n.Key));
+                            break;
+                        }
                 }
             }
         }
 
-        protected virtual void AfterTransactionCommitted(IList<TransactionResult<EntityType>> results, IDisposable transaction)
+        protected virtual void AfterTransactionCommitted(ITransaction<EntityType> transaction)
         {
-            _fileManager.SaveSeed<IdType>();
+            _fileManager.SaveCore<IdType>();
 
-            Trace.TraceInformation("Database transaction post commit complete.");
+            Trace.TraceInformation("Database trans post commit complete.");
         }
 
-        protected virtual void OnReplicateReceived(ITransaction<IdType, EntityType> transaction, long timestamp)
+        protected internal virtual void OnReplicateReceived(ITransaction<IdType, EntityType> transaction, long timestamp)
         {
             Trace.TraceInformation("Transaction {0} replicate detected", transaction.Id);
 
@@ -324,14 +366,14 @@ namespace BESSy
 
             try
             {
-                var segs = new Dictionary<IdType, int>();
+                var segs = new Dictionary<IdType, long>();
 
                 var staging = transaction.GetEnlistedActions();
 
                 foreach (var a in staging)
                     if (a.Value.Action == Action.Delete)
                     {
-                        var seg = _primaryIndex.Fetch(a.Key);
+                        var seg = _primaryIndex.FetchSegment(a.Key);
                         if (seg > 0)
                             segs.Add(a.Key, seg);
                         else
@@ -340,14 +382,14 @@ namespace BESSy
                     else
                     {
                         if (_idConverter.Compare(a.Key, default(IdType)) != 0)
-                            segs.Add(a.Key, _primaryIndex.Fetch(a.Key));
+                            segs.Add(a.Key, _primaryIndex.FetchSegment(a.Key));
                         else
                             segs.Add(a.Key, 0);
                     }
 
                 Trace.TraceInformation("Transaction {0} replciating with {1} segs", transaction.Id, segs.Count);
 
-                var commitState = new Tuple<ITransaction<IdType, EntityType>, IDictionary<IdType, int>>(transaction, segs);
+                var commitState = new Tuple<ITransaction<IdType, EntityType>, IDictionary<IdType, long>>(transaction, segs);
 
                 Parallel.Invoke(new System.Action[] 
                 { 
@@ -369,70 +411,37 @@ namespace BESSy
                     _operations.Pop();
             }
 
-            _seed.LastReplicatedTimeStamp = timestamp;
+            _core.LastReplicatedTimeStamp = timestamp;
         }
 
-        protected virtual void OnRebuilt(Guid transactionId, int newStride, int newLength, int newSeedStride)
+        protected virtual void OnRebuilt(Guid transactionId, int newStride, long newLength, int newSeedStride)
         {
-            _fileManager.SaveSeed<IdType>();
+            _fileManager.SaveCore<IdType>();
 
             if (newLength > _primaryIndex.Length)
-                _primaryIndex.Rebuild(_primaryIndex.SegmentSeed.Stride, newLength);
+                _primaryIndex.Rebuild(newLength);
 
-            //_primaryIndex.SaveSeed<IdType>();
+            //_primaryIndex.SaveCore<IdType>();
         }
 
-        internal virtual void InitilizeReplicationSubscription(IReplicationSubscriber<IdType, EntityType> subscriber)
-        {
-            lock (_syncRoot)
-            {
-                if (subscriber == null)
-                {
-                    if (_subscriber != null)
-                        try { _subscriber.OnReplicate -= new ReplicateTransaction<IdType, EntityType>(OnReplicateReceived); }
-                        catch (Exception) { }
-
-                    _subscriber = null;
-
-                    return;
-                }
-
-                _subscriber = subscriber;
-                _subscriber.OnReplicate += new ReplicateTransaction<IdType, EntityType>(OnReplicateReceived);
-            }
-        }
-
-        internal virtual void InitilizeReplicationPublishing(IReplicationPublisher<IdType, EntityType> publisher)
-        {
-            lock (_syncRoot)
-            {
-                if (publisher == null)
-                {
-                    _publish = false;
-                    _publisher = null;
-                    return;
-                }
-
-                _publish = true;
-                _publisher = publisher;
-            }
-        }
-
-        public virtual long LastReplicatedTimeStamp { get { return _seed.LastReplicatedTimeStamp; } }
+        
+        public virtual long LastReplicatedTimeStamp { get { return _core.LastReplicatedTimeStamp; } }
         public virtual bool FileFlushQueueActive { get { return _fileManager.FileFlushQueueActive || _primaryIndex.FileFlushQueueActive || _indexes.Values.Cast<IFlush>().Any(i => i.FileFlushQueueActive); } }
-        public virtual int Length { get { return _fileManager.Length; } }
-        public IRepositoryCache<Guid, int> RecentTransactions { get; protected set; }
-        public Guid TransactionSource { get { return _seed.Source; } }
+        public virtual long Length { get { return _fileManager.Length; } }
+        public IDatabaseCache<Guid, int> RecentTransactions { get; protected set; }
+        public IQueryableFormatter Formatter { get; protected set; }
+        public Guid TransactionSource { get { return _core.Source; } }
         public virtual bool AutoCommit { get; set; }
+        public ISeed<IdType> Seed { get { return _core.IdSeed; } }
 
-        public virtual ITransaction<IdType, EntityType> BeginTransaction()
+        public virtual ITransaction BeginTransaction()
         {
             var tLock = _transactionManager.BeginTransaction();
 
             return tLock.Transaction;
         }
 
-        public virtual int Load()
+        public virtual long Load()
         {
             Trace.TraceInformation("Database loading");
 
@@ -440,64 +449,57 @@ namespace BESSy
             {
                 lock (_syncTrans)
                 {
-                    lock (_syncStaging)
+                    if (_createNew)
+                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, Caching.DetermineOptimumCacheSize(_core.Stride), _core,  Formatter, _rowSynchronizer);
+                    else
+                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, 0, Formatter,_rowSynchronizer);
+
+                    _fileManager.Load<IdType>();
+
+                    _core = ((IFileCore<IdType, long>)_fileManager.Core);
+                    _idToken = _core.IdProperty;
+                    _idConverter = (IBinConverter<IdType>)_core.IdConverter;
+
+                    _primaryIndex = _indexFactory.Create<IdType, EntityType, long>
+                        (GetIndexName(_fileName), _idToken, true, 1024, _idConverter, new BinConverter64(), _rowSynchronizer, new RowSynchronizer<int>(new BinConverter32()));
+
+                    _primaryIndex.Load();
+
+                    _primaryIndex.Register(_fileManager);
+
+                    //_fileManager.SaveFailed += new SaveFailed<EntityType>(OnSaveFailed);
+                    _fileManager.TransactionCommitted += new Committed<EntityType>(AfterTransactionCommitted);
+                    _fileManager.Rebuilt += new Rebuild<EntityType>(OnRebuilt);
+                    //_fileManager.Reorganized += new Reorganized<EntityType>(OnReorganized);
+
+                    _databaseCache = _cacheFactory.Create<IdType, EntityType>(true, Parallelization.TaskGrouping.ArrayLimit, _idConverter);
+                    _stagingCache = _cacheFactory.Create<Guid, IDictionary<IdType, JObject>>(true, Parallelization.TaskGrouping.ArrayLimit, new BinConverterGuid());
+
+                    _idGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
+                    _idSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
+
+                    //is this segmentSeed a passthrough? jObj.e. string?
+                    // _passthrough = IdConverter.Compare(_core.Peek(), default(IdType)) == 0;
+
+                    _transactionManager.Source = _core.Source;
+
+                    RecentTransactions = _cacheFactory.Create<Guid, int>(true, TaskGrouping.ArrayLimit, new BinConverterGuid());
+
+                    //Load secondary segments.
+                    foreach (var index in _indexes.Values.Cast<ILoadAndRegister<EntityType>>())
                     {
-                        if (_createNew)
-                            _primaryIndex = _indexFactory.CreatePrimary<IdType, EntityType>
-                                (GetIndexName(_fileName), _idToken, _idConverter, _cacheFactory, _formatter, _indexFileFactory, _rowSynchronizer);
-                        else
-                            _primaryIndex = _indexFactory.CreatePrimary<IdType, EntityType>
-                                (GetIndexName(_fileName), _formatter, _cacheFactory, _indexFileFactory, _rowSynchronizer);
-
-                        _primaryIndex.Load();
-
-                        if (_createNew)
-                            _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, Caching.DetermineOptimumCacheSize(_seed.Stride), _seed, _primaryIndex.SegmentSeed, _formatter, _rowSynchronizer);
-                        else
-                            _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, 0, _primaryIndex.SegmentSeed, _formatter, _rowSynchronizer);
-                        
-                        _fileManager.Load<IdType>();
-
-                        _seed = ((ISeed<IdType>)_fileManager.Seed);
-                        _idToken = _seed.IdProperty;
-                        _idConverter = (IBinConverter<IdType>)_seed.IdConverter;
-
-                        _primaryIndex.Register(_fileManager);
-
-                        //_fileManager.SaveFailed += new SaveFailed<EntityType>(OnSaveFailed);
-                        _fileManager.TransactionCommitted += new Committed<EntityType>(AfterTransactionCommitted);
-                        _fileManager.Rebuilt += new Rebuild<EntityType>(OnRebuilt);
-                        //_fileManager.Reorganized += new Reorganized<EntityType>(OnReorganized);
-
-                        _databaseCache = _cacheFactory.Create<IdType, EntityType>(true, Parallelization.TaskGrouping.ArrayLimit, _idConverter);
-                        _stagingCache = _cacheFactory.Create<Guid, IDictionary<IdType, JObject>>(true, Parallelization.TaskGrouping.ArrayLimit, new BinConverterGuid());
-
-                        _idGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
-                        _idSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
-
-                        //is this segmentSeed a passthrough? i.e. string?
-                        _passthrough = _idConverter.Compare(_seed.Peek(), default(IdType)) == 0;
-
-                        _transactionManager.Source = _seed.Source;
-
-                        RecentTransactions = _cacheFactory.Create<Guid, int>(true, TaskGrouping.ArrayLimit, new BinConverterGuid());
-
-                        //Load secondary indexes.
-                        foreach (var index in _indexes.Values.Cast<ILoadAndRegister<EntityType>>())
-                        {
-                            index.Load();
-                            index.Register(_fileManager);
-                        }
-
-                        return _fileManager.Length;
+                        index.Load();
+                        index.Register(_fileManager);
                     }
+
+                    return _fileManager.Length;
                 }
             }
         }
 
         public  virtual void Reorganize()
         {
-            lock (_syncStaging)
+            lock (_stagingCache)
                 _stagingCache.ClearCache();
 
             _fileManager.Reorganize<IdType>(this._idConverter, jObject => jObject.Value<IdType>("Id"));
@@ -510,12 +512,7 @@ namespace BESSy
 
             try
             {
-                var id = _seed.Increment();
-
-                if (!_passthrough)
-                    _idSet(item, id);
-                else
-                    id = _idGet(item);
+                var id = GetSeededId(item);
 
                 using (var tLock = _transactionManager.GetActiveTransaction(false))
                 {
@@ -525,6 +522,23 @@ namespace BESSy
                 }
             }
             finally { lock (_syncOperations) _operations.Pop(); }
+        }
+
+        protected virtual IdType GetSeededId(EntityType item)
+        {
+            var id = Seed.Increment();
+
+            if (!Seed.Passive)
+            {
+                if (_idConverter.Compare(_idGet(item), default(IdType)) != 0)
+                    throw new DuplicateKeyException("Id was already set on this object, you can only set the primary id of a new object with a passive core");
+
+                _idSet(item, id);
+            }
+            else
+                id = _idGet(item);
+
+            return id;
         }
 
         public virtual IdType AddOrUpdate(EntityType item, IdType id)
@@ -547,7 +561,7 @@ namespace BESSy
             {
                 using (var tLock = _transactionManager.GetActiveTransaction(false))
                 {
-                    var oldSeg = _primaryIndex.Fetch(id);
+                    var oldSeg = _primaryIndex.FetchSegment(id);
 
                     if (deleteFirst)
                     {
@@ -579,37 +593,57 @@ namespace BESSy
             finally { lock (_syncOperations) _operations.Pop(); }
         }
 
+        public virtual void Delete(IEnumerable<IdType> ids)
+        {
+            lock (_syncOperations)
+                _operations.Push(4);
+
+            try
+            {
+                lock (_syncTrans)
+                {
+                    using (var tLock = _transactionManager.GetActiveTransaction(false))
+                    {
+                        foreach(var id in ids)
+                            tLock.Transaction.Enlist(Action.Delete, id, default(EntityType));
+                    }
+                }
+            }
+            finally { lock (_syncOperations) _operations.Pop(); }
+        }
+
         public virtual EntityType Fetch(IdType id)
         {
             if (_transactionManager.HasActiveTransactions)
             {
-                var t = _transactionManager.GetActiveTransaction(false);
-
-                if (t.Transaction != null && t.Transaction.EnlistCount > 0)
+                using (var t = _transactionManager.GetActiveTransaction(false))
                 {
-                    var i = t.Transaction.GetEnlistedActions().LastOrDefault(a => _idConverter.Compare(id, a.Key) == 0);
+                    if (t.Transaction != null && t.Transaction.EnlistCount > 0)
+                    {
+                        var i = t.Transaction.GetEnlistedActions().LastOrDefault(a => _idConverter.Compare(id, a.Key) == 0);
 
-                    if (_idConverter.Compare(default(IdType), i.Key) != 0)
-                        if (i.Value.Action != Action.Delete)
-                            return i.Value.Entity;
-                        else
-                            return default(EntityType);
+                        if (_idConverter.Compare(default(IdType), i.Key) != 0)
+                            if (i.Value.Action != Action.Delete)
+                                return i.Value.Entity;
+                            else
+                                return default(EntityType);
+                    }
                 }
             }
-            lock (_syncStaging)
+            lock (_stagingCache)
             {
                 if (_stagingCache.Count > 0 &&_stagingCache.GetCache().Any(s => s.Value.ContainsKey(id)))
                 {
                     var jo = _stagingCache.GetCache().Where(s => s.Value.ContainsKey(id)).Last().Value[id];
 
                     if (jo != null)
-                        return jo.ToObject<EntityType>(_formatter.Serializer);
+                        return jo.ToObject<EntityType>(Formatter.Serializer);
 
                     return default(EntityType);
                 }
             }
 
-            var seg = _primaryIndex.Fetch(id);
+            var seg = _primaryIndex.FetchSegment(id);
 
             if (seg > 0)
             {
@@ -624,14 +658,14 @@ namespace BESSy
         public virtual IList<EntityType> FetchFromIndex<IndexType>(string name, IndexType indexProperty)
         {
             if (!_indexes.ContainsKey(name))
-                throw new IndexNotFoundException(string.Format("index not found '{0}'", name));
+                throw new IndexNotFoundException(string.Format("indexUpdate not found '{0}'", name));
 
-            var index = _indexes[name] as ISecondaryIndex<IndexType, EntityType, int>;
+            var index = _indexes[name] as IIndex<IndexType, EntityType, long>;
 
             if (index == null)
-                throw new IndexNotFoundException(string.Format("index not found '{0}'", name));
+                throw new IndexNotFoundException(string.Format("indexUpdate not found '{0}'", name));
 
-            var segs = index.Fetch(indexProperty);
+            var segs = index.FetchSegments(indexProperty);
 
             var entities = new List<EntityType>();
 
@@ -644,25 +678,25 @@ namespace BESSy
             return entities;
         }
 
-        public virtual IList<EntityType> FetchRangeFromIndexInclusive<IndexType>(string name, IndexType startProperty, IndexType endProperty)
+        public IList<EntityType> FetchRangeFromIndexInclusive<IndexType>(string name, IndexType startIndex, IndexType endIndex)
         {
             if (!_indexes.ContainsKey(name))
-                throw new IndexNotFoundException(string.Format("index not found '{0}'", name));
+                throw new IndexNotFoundException(string.Format("indexUpdate not found '{0}'", name));
 
-            var index = _indexes[name] as ISecondaryIndex<IndexType, EntityType, int>;
+            var index = _indexes[name] as IIndex<IndexType, EntityType, long>;
 
             if (index == null)
-                throw new IndexNotFoundException(string.Format("index not found '{0}'", name));
+                throw new IndexNotFoundException(string.Format("indexUpdate not found '{0}'", name));
 
-            var segs = index.FetchBetween(startProperty, endProperty);
+            var segs = index.FetchSegments(startIndex, endIndex);
 
             var entities = new List<EntityType>();
 
-            if (segs.Length <= 0)
+            if (segs.Length < 0)
                 return entities;
 
-            foreach (var seg in segs)
-                entities.Add(_fileManager.LoadSegmentFrom(seg));
+            foreach (var s in segs)
+                entities.Add(_fileManager.LoadSegmentFrom(s));
 
             return entities;
         }
@@ -675,7 +709,7 @@ namespace BESSy
             lock (_syncRoot)
                 _databaseCache.ClearCache();
 
-            lock (_syncStaging)
+            lock (_stagingCache)
                 _stagingCache.ClearCache();
         }
 
@@ -718,13 +752,26 @@ namespace BESSy
 
                 lock (_syncTrans)
                 {
+                    if (_transactionManager.CurrentTransaction != null)
+                        using (var tLock = _transactionManager.GetActiveTransaction(false))
+                            if (tLock.Transaction.EnlistCount > 0)
+                                foreach (var jObj in tLock.Transaction.GetEnlistedItems()
+                                    .Select(s => Formatter.AsQueryableObj(s))
+                                        .Where(s => s != null)
+                                        .Where(selector)
+                                        .ToList())
+                                {
+                                    tLock.Transaction.Enlist(Action.Delete, jObj.SelectToken(_idToken, true).Value<IdType>(), default(EntityType));
+                                    count++;
+                                }
+
                     using (var tLock = _transactionManager.GetActiveTransaction(false))
                     {
                         foreach (var page in _fileManager.AsEnumerable())
                             foreach (var obj in page.Where(o => selector(o)))
                             {
                                 count++;
-                                tLock.Transaction.Enlist(Action.Delete, obj.SelectToken(_idToken, true).Value<IdType>(), obj.ToObject<EntityType>(_formatter.Serializer));
+                                tLock.Transaction.Enlist(Action.Delete, obj.SelectToken(_idToken, true).Value<IdType>(), obj.ToObject<EntityType>(Formatter.Serializer));
                             }
                     }
 
@@ -734,33 +781,140 @@ namespace BESSy
             catch (Exception ex) { throw new QueryExecuteException("Delete Query Execution Failed.", ex); }
         }
 
-        public int Update<UpdateEntityType>(Func<JObject, bool> selector, params Action<UpdateEntityType>[] updates) where UpdateEntityType : EntityType
+        public virtual int DeleteFirst(Func<JObject, bool> selector, int max)
         {
             try
             {
+                int count = 0;
+
                 lock (_syncTrans)
                 {
-                    var count = 0;
+                    if (_transactionManager.CurrentTransaction != null)
+                        using (var tLock = _transactionManager.GetActiveTransaction(false))
+                            if (tLock.Transaction.EnlistCount > 0)
+                                foreach (var jObj in tLock.Transaction.GetEnlistedItems()
+                                     .Where(s => s != null)
+                                    .Select(s => Formatter.AsQueryableObj(s))
+                                    .Where(selector)
+                                    .ToList())
+                                {
+                                    if (count >= max)
+                                        break;
+
+                                    tLock.Transaction.Enlist(Action.Delete, jObj.SelectToken(_idToken, true).Value<IdType>(), default(EntityType));
+                                    count++;
+                                }
 
                     using (var tLock = _transactionManager.GetActiveTransaction(false))
                     {
                         foreach (var page in _fileManager.AsEnumerable())
-                        {
                             foreach (var obj in page.Where(o => selector(o)))
                             {
-                                var entity = obj.ToObject<UpdateEntityType>(_formatter.Serializer);
+                                if (count >= max)
+                                    return count;
 
-                                foreach (var action in updates)
-                                    action.Invoke(entity);
-
-                                tLock.Transaction.Enlist(Action.Update, obj.SelectToken(_idToken, true).Value<IdType>(), entity);
                                 count++;
+                                tLock.Transaction.Enlist(Action.Delete, obj.SelectToken(_idToken, true).Value<IdType>(), obj.ToObject<EntityType>(Formatter.Serializer));
                             }
-                        }
                     }
 
                     return count;
                 }
+            }
+            catch (Exception ex) { throw new QueryExecuteException("Delete Query Execution Failed.", ex); }
+        }
+
+        public virtual int DeleteLast(Func<JObject, bool> selector, int max)
+        {
+            try
+            {
+                int count = 0;
+
+                lock (_syncTrans)
+                {
+                    if (_transactionManager.CurrentTransaction != null)
+                        using (var tLock = _transactionManager.GetActiveTransaction(false))
+                            if (tLock.Transaction.EnlistCount > 0)
+                                foreach (var jObj in tLock.Transaction.GetEnlistedItems()
+                                    .Where(s => s != null)
+                                    .Select(s => Formatter.AsQueryableObj(s))
+                                    .Where(selector)
+                                    .Reverse().ToList())
+                                {
+                                    if (count >= max)
+                                        break;
+
+                                    tLock.Transaction.Enlist(Action.Delete, jObj.SelectToken(_idToken, true).Value<IdType>(), default(EntityType));
+                                    count++;
+                                }
+
+                    using (var tLock = _transactionManager.GetActiveTransaction(false))
+                    {
+                        foreach (var page in _fileManager.AsReverseEnumerable())
+                            foreach (var obj in page.Where(o => selector(o)))
+                            {
+                                if (count >= max)
+                                    return count;
+
+                                count++;
+                                tLock.Transaction.Enlist(Action.Delete, obj.SelectToken(_idToken, true).Value<IdType>(), obj.ToObject<EntityType>(Formatter.Serializer));
+                            }
+                    }
+
+                    return count;
+                }
+            }
+            catch (Exception ex) { throw new QueryExecuteException("Delete Query Execution Failed.", ex); }
+        }
+
+        public int Update<UpdateEntityType>(UpdateEntityType entity, Func<JObject, bool> selector, params Action<UpdateEntityType>[] updates) where UpdateEntityType : EntityType
+        {
+            return Update<UpdateEntityType>(selector, updates);
+        }
+
+        public int Update<UpdateEntityType>(Func<JObject, bool> selector, params Action<UpdateEntityType>[] updates) where UpdateEntityType : EntityType
+        {
+            try
+            {
+                var count = 0;
+                lock (_syncTrans)
+                {
+                    if (_transactionManager.CurrentTransaction != null)
+                        using (var tLock = _transactionManager.GetActiveTransaction(false))
+                            if (tLock.Transaction.EnlistCount > 0)
+                                foreach (var jObj in tLock.Transaction.GetEnlistedItems()
+                                    .Where(s => s != null)
+                                    .Select(s => Formatter.AsQueryableObj(s))
+                                    .Where(selector)
+                                    .ToList())
+                                {
+                                    var entity = jObj.ToObject<UpdateEntityType>();
+
+                                    foreach (var action in updates)
+                                        action.Invoke(entity);
+
+                                    tLock.Transaction.Enlist(Action.Update, jObj.SelectToken(_idToken, true).Value<IdType>(), entity);
+                                    count++;
+                                }
+                }
+                using (var tLock = _transactionManager.GetActiveTransaction(false))
+                {
+                    foreach (var page in _fileManager.AsEnumerable())
+                    {
+                        foreach (var obj in page.Where(o => selector(o)))
+                        {
+                            var entity = obj.ToObject<UpdateEntityType>(Formatter.Serializer);
+
+                            foreach (var action in updates)
+                                action.Invoke(entity);
+
+                            tLock.Transaction.Enlist(Action.Update, obj.SelectToken(_idToken, true).Value<IdType>(), entity);
+                            count++;
+                        }
+                    }
+                }
+
+                return count;
             }
             catch (Exception ex) { throw new QueryExecuteException("Update Query Execution Failed.", ex); }
         }
@@ -769,51 +923,16 @@ namespace BESSy
         {
             try
             {
-                var list = new List<EntityType>();
-
-                lock (_syncStaging)
-                    if (_stagingCache.Count > 0)
-                        list.AddRange(_stagingCache.GetCache()
-                            .SelectMany(s => s.Value.Values)
-                                .Where(s => s != null)
-                                .Where(selector)
-                                .Select(o => o.ToObject<EntityType>(_formatter.Serializer)));
-
-                foreach (var page in _fileManager.AsEnumerable())
-                    foreach (var obj in page.Where(o => selector(o)))
-                        list.Add(obj.ToObject<EntityType>(_formatter.Serializer));
-
-                return list.GroupBy(k => _idGet(k)).Select(f => f.First()).ToList();
+                return SelectJObj(selector).Select(o => o.ToObject<EntityType>(Formatter.Serializer)).ToList();
             }
             catch (Exception ex) { throw new QueryExecuteException("Select Query Execution Failed.", ex); }
         }
 
         public virtual IList<EntityType> SelectFirst(Func<JObject, bool> selector, int max)
-        {
+        {      
             try
             {
-                var list = new List<EntityType>();
-
-                lock (_syncStaging)
-                    if (list.Count < max && _stagingCache.Count > 0)
-                            list.AddRange(_stagingCache.GetCache()
-                                .SelectMany(s => s.Value.Values)
-                                    .Where(s => s != null)
-                                    .Where(selector)
-                                    .Select(o => o.ToObject<EntityType>(_formatter.Serializer)));
-
-                if (list.Count < max)
-                {
-                    foreach (var page in _fileManager.AsEnumerable())
-                    {
-                        list.AddRange(page.Where(o => selector(o)).Select(e => e.ToObject<EntityType>(_formatter.Serializer)));
-
-                        if (list.Count >= max)
-                            break;
-                    }
-                }
-
-                return list.GroupBy(k => _idGet(k)).Select(f => f.First()).Take(Math.Min(list.Count, max)).ToList();
+                return SelectJObjFirst(selector, max).Select(o => o.ToObject<EntityType>(Formatter.Serializer)).ToList();
             }
             catch (Exception ex) { throw new QueryExecuteException("SelectFirst Query Execution Failed.", ex); }
         }
@@ -822,137 +941,244 @@ namespace BESSy
         {
             try
             {
-                var list = new List<EntityType>();
+                return SelectJObjLast(selector, max).Select(o => o.ToObject<EntityType>(Formatter.Serializer)).ToList();
+            }
+            catch (Exception ex) { throw new QueryExecuteException("SelectLast Query Execution Failed.", ex); }
+        }
 
-                lock (_syncStaging)
-                    if (list.Count < max && _stagingCache.Count > 0)
-                        list.AddRange(_stagingCache.GetCache().Reverse()
-                            .SelectMany(s => s.Value.Values.Reverse())
-                                .Where (s => s != null)
-                                .Where(selector)
-                                .Select(o => o.ToObject<EntityType>(_formatter.Serializer)));
+        public virtual IList<JObject> SelectScalar(Func<JObject, bool> selector, params string[] tokens)
+        {
+            var tnks = tokens.ToList();
 
-                if (list.Count < max)
+            var values = new Dictionary<IdType, JObject>();
+
+            try
+            {
+                if (_transactionManager.CurrentTransaction != null)
+                    using (var tLock = _transactionManager.GetActiveTransaction(false))
+                        if (tLock.Transaction.EnlistCount > 0)
+                            foreach (var i in tLock.Transaction.GetEnlistedItems()
+                                .Where(s => s != null)
+                                .Select(s => Formatter.AsQueryableObj(s))
+                                .Where(selector))
+                            {
+                                var id = i.SelectToken(_idToken).Value<IdType>();
+                                if (!values.ContainsKey(id))
+                                {
+                                    var jObj = new JObject();
+                                    tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                    values.Add(id, jObj);
+                                }
+                            }
+
+                lock (_stagingCache)
+                    if (_stagingCache.Count > 0)
+                        foreach (var i in _stagingCache.GetCache()
+                            .Where(s => s.Value != null)
+                            .SelectMany(s => s.Value.Values)
+                                .Where(v => v != null)
+                                .Where(selector))
+                        {
+                            var id = i.SelectToken(_idToken).Value<IdType>();
+                            if (!values.ContainsKey(id))
+                            {
+                                var jObj = new JObject();
+                                tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                values.Add(id, jObj);
+                            }
+                        }
+
+
+                foreach (var page in _fileManager.AsEnumerable())
                 {
-                    foreach (var page in _fileManager.AsReverseEnumerable())
+                    foreach (var i in page.Where(p => selector(p)))
                     {
-                        list.AddRange(page.Where(o => selector(o)).Select(e => e.ToObject<EntityType>(_formatter.Serializer)));
+                        var id = i.SelectToken(_idToken).Value<IdType>();
 
-                        if (list.Count >= max)
-                            break;
+                        if (!values.ContainsKey(id))
+                        {
+                            var jObj = new JObject();
+                            tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                            values.Add(id, jObj);
+                        }
                     }
                 }
 
-                return list.GroupBy(k => _idGet(k)).Select(f => f.First()).Take(Math.Min(list.Count, max)).ToList();
+                return values.Values.ToList();
             }
-            catch (Exception ex) { throw new QueryExecuteException("SelectLast Query Execution Failed.", ex); }
+            catch (Exception ex) { throw new QueryExecuteException("Select Scalar Query Execution Failed.", ex); }
+        }
+
+        public virtual IList<JObject> SelectScalarFirst(Func<JObject, bool> selector, int max, params string[] tokens)
+        {
+            var values = new Dictionary<IdType, JObject>();
+            var tnks = tokens.ToList();
+
+            try
+            {
+                if (_transactionManager.CurrentTransaction != null)
+                    using (var tLock = _transactionManager.GetActiveTransaction(false))
+                        if (values.Count < max && tLock.Transaction.EnlistCount > 0)
+                            foreach (var i in tLock.Transaction.GetEnlistedItems()
+                                .Where(s => s != null)
+                                .Select(s => Formatter.AsQueryableObj(s))
+                                .Where(selector))
+                            {
+                                if (values.Count >= max)
+                                    break;
+
+                                var id = i.SelectToken(_idToken).Value<IdType>();
+                                if (!values.ContainsKey(id))
+                                {
+                                    var jObj = new JObject();
+                                    tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                    values.Add(id, jObj);
+                                }
+                            }
+
+                lock (_stagingCache)
+                    if (values.Count < max && _stagingCache.Count > 0)
+                        foreach (var i in _stagingCache.GetCache()
+                            .Where(s => s.Value != null)
+                            .SelectMany(s => s.Value.Values)
+                                .Where(v => v != null)
+                                .Where(selector))
+                        {
+                            if (values.Count >= max)
+                                break;
+
+                            var id = i.SelectToken(_idToken).Value<IdType>();
+                            if (!values.ContainsKey(id))
+                            {
+                                var jObj = new JObject();
+                                tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                values.Add(id, jObj);
+                            }
+                        }
+
+
+                if (values.Count < max)
+                {
+                    foreach (var page in _fileManager.AsEnumerable())
+                    {
+                        foreach (var i in page.Where(p => selector(p)))
+                        {
+                            if (values.Count >= max)
+                                break;
+
+                            var id = i.SelectToken(_idToken).Value<IdType>();
+
+                            if (!values.ContainsKey(id))
+                            {
+                                var jObj = new JObject();
+                                tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                values.Add(id, jObj);
+                            }
+                        }
+                    }
+                }
+
+                return values.Values.ToList();
+            }
+            catch (Exception ex) { throw new QueryExecuteException("Select Scalar First Query Execution Failed.", ex); }
+        }
+
+        public virtual IList<JObject> SelectScalarLast(Func<JObject, bool> selector, int max, params string[] tokens)
+        {
+            var values = new Dictionary<IdType, JObject>();
+            var tnks = tokens.ToList();
+
+            try
+            {
+                if (_transactionManager.CurrentTransaction != null)
+                    using (var tLock = _transactionManager.GetActiveTransaction(false))
+                        if (values.Count < max && tLock.Transaction.EnlistCount > 0)
+                            foreach (var i in tLock.Transaction.GetEnlistedItems()
+                                .Where(s => s != null)
+                                .Select(s => Formatter.AsQueryableObj(s))
+                                .Where(selector).Reverse())
+                            {
+                                if (values.Count >= max)
+                                    break;
+
+                                var id = i.SelectToken(_idToken).Value<IdType>();
+                                if (!values.ContainsKey(id))
+                                {
+                                    var jObj = new JObject();
+                                    tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                    values.Add(id, jObj);
+                                }
+                            }
+
+                lock (_stagingCache)
+                    if (values.Count < max && _stagingCache.Count > 0)
+                        foreach (var i in _stagingCache.GetCache()
+                            .Where(s => s.Value != null)
+                            .SelectMany(s => s.Value.Values)
+                                .Where(s => s != null)
+                                .Where(selector).Reverse())
+                        {
+                            if (values.Count >= max)
+                                break;
+
+                            var id = i.SelectToken(_idToken).Value<IdType>();
+                            if (!values.ContainsKey(id))
+                            {
+                                var jObj = new JObject();
+                                tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                values.Add(id, jObj);
+                            }
+                        }
+
+                if (values.Count < max)
+                {
+                    foreach (var page in _fileManager.AsReverseEnumerable())
+                    {
+                        foreach (var i in page.Where(p => selector(p)))
+                        {
+                            if (values.Count >= max)
+                                break;
+
+                            var id = i.SelectToken(_idToken).Value<IdType>();
+
+                            if (!values.ContainsKey(id))
+                            {
+                                var jObj = new JObject();
+                                tnks.ForEach(m => jObj.Add(m, i.SelectToken(m)));
+                                values.Add(id, jObj);
+                            }
+                        }
+                    }
+                }
+
+                return values.Values.ToList();
+            }
+            catch (Exception ex) { throw new QueryExecuteException("Select Scalar Last Query Execution Failed.", ex); }
         }
 
         public IDictionary<IdType, EntityType> GetCache()
         {
             lock (_syncRoot)
             {
-                lock (_syncStaging)
+                lock (_stagingCache)
                 {
                     var u = 
                         _stagingCache.GetCache()
                         .Where(s => s.Value != null)
                         .SelectMany(s => s.Value.Select
-                            (v => new KeyValuePair<IdType, EntityType>(v.Key, v.Value.ToObject<EntityType>(_formatter.Serializer))));
-                    
+                            (v => new KeyValuePair<IdType, EntityType>(v.Key, v.Value.ToObject<EntityType>(Formatter.Serializer))));
 
                     return u.GroupBy(k => k.Key).ToDictionary(k => k.Key, v => v.FirstOrDefault().Value);
                 }
             }
         }
 
-        public ITransactionalDatabase<IdType, EntityType> WithPublishing(string replicationFolder)
+        public IEnumerable<Stream> AsStreaming()
         {
-            var replication = new Publisher<IdType, EntityType>(this, replicationFolder);
-
-            this.InitilizeReplicationPublishing(replication);
-
-            return this;
+            return _fileManager.AsStreaming();
         }
 
-        public ITransactionalDatabase<IdType, EntityType> WithoutPublishing()
-        {
-            this.InitilizeReplicationPublishing(null);
-
-            return this;
-        }
-
-        public ITransactionalDatabase<IdType, EntityType> WithSubscription(string replicationFolder, TimeSpan interval)
-        {
-            var replication = new Subscriber<IdType, EntityType>(this, replicationFolder, interval);
-
-            this.InitilizeReplicationSubscription(replication);
-
-            return this;
-        }
-
-        public ITransactionalDatabase<IdType, EntityType>  WithoutSubscription()
-        {
-            this.InitilizeReplicationSubscription(null);
-
-            return this;
-        }
-
-        public ITransactionalDatabase<IdType, EntityType> WithIndex<IndexType>(string name, string indexProperty, IBinConverter<IndexType> indexConverter)
-        {
-            try
-            {
-                if (_indexes.ContainsKey(name))
-                    throw new DuplicateKeyException("Index with this name already exists.");
-
-                var index = _indexFactory.CreateSecondary<IndexType, EntityType>
-                    (GetIndexName(_fileName + "." + name)
-                    , indexProperty
-                    , _formatter
-                    , indexConverter
-                    , _cacheFactory
-                    , _indexFileFactory
-                    , new RowSynchronizer<int>(new BinConverter32()));
-
-                _indexes.Add(name, index);
-
-            }
-            catch (Exception ex)
-            {
-                Trace.TraceError("Error initializing secondary index: {0}, property: {1}", name, indexProperty);
-                Trace.TraceError(ex.ToString());
-
-                throw;
-            }
-            return this;
-        }
-
-        public ITransactionalDatabase<IdType, EntityType> WithoutIndex<IndexType>(string name)
-        {
-            try
-            {
-                if (!_indexes.ContainsKey(name))
-                    return this;
-
-                lock (_syncIndex)
-                {
-                    var index = _indexes[name] as IIndex<IndexType, EntityType, int>;
-
-                    if (index != null)
-                        index.Dispose();
-
-                    _indexes.Remove(name);
-                }
-            }
-            catch (Exception ex)
-            {
-                Trace.TraceError("Error unloading index: {0}", name);
-                Trace.TraceError(ex.ToString());
-            }
-            return this;
-        }
-
-        public void Dispose()
+        public virtual void Dispose()
         {
             if (_disposed)
                 return;
@@ -962,7 +1188,7 @@ namespace BESSy
             if (_transactionManager != null)
                 _transactionManager.CommitAmbientTransactions();
 
-            Trace.TraceInformation("Waiting for ambient transaction to commit.");
+            Trace.TraceInformation("Waiting for ambient trans to commit.");
 
             while (_operations.Count > 0)
             {
@@ -970,7 +1196,7 @@ namespace BESSy
                 lock (_syncRoot) { }
             }
 
-            Trace.TraceInformation("All threads have exited.");
+            Trace.TraceInformation("All ambient transactions complete.");
 
             lock (_syncRoot)
             {
@@ -983,11 +1209,15 @@ namespace BESSy
 
                 Trace.TraceInformation("All threads have exited.");
 
-                if (_publisher != null)
-                    _publisher.Dispose();
+                Trace.TraceInformation("Stopping all replication.");
 
-                if (_subscriber != null)
-                    _subscriber.Dispose();
+                if (_publishers.Count > 0)
+                    _publishers.Where(k => k.Value != null).ToList().ForEach(a => a.Value.Dispose());
+
+                if (_subscribers.Count > 0)
+                    _subscribers.Where(k => k.Value != null).ToList().ForEach(a => a.Value.Dispose());
+
+                Trace.TraceInformation("Replication stopped.");
 
                 lock (_syncTrans)
                 {
@@ -997,7 +1227,7 @@ namespace BESSy
 
                         _transactionManager.RollBackAll(true);
 
-                        Trace.TraceInformation("Waiting for transaction manager to complete operations.");
+                        Trace.TraceInformation("Waiting for trans manager to complete operations.");
 
                         while (_transactionManager.HasActiveTransactions)
                             Thread.Sleep(100);
@@ -1010,12 +1240,12 @@ namespace BESSy
 
                 if (_primaryIndex != null)
                 {
-                    Trace.TraceInformation("Waiting for primary index to complete operations");
+                    Trace.TraceInformation("Waiting for primary indexUpdate to complete operations");
 
                     while (_primaryIndex.FileFlushQueueActive)
                         Thread.Sleep(100);
 
-                    Trace.TraceInformation("Primary index operations complete.");
+                    Trace.TraceInformation("Primary indexUpdate operations complete.");
 
                     _primaryIndex.Dispose();
                 }
@@ -1024,7 +1254,7 @@ namespace BESSy
                 {
                     foreach (var index in _indexes.Values)
                     {
-                        Trace.TraceInformation("Waiting for secondary index to complete operations");
+                        Trace.TraceInformation("Waiting for secondary indexUpdate to complete operations");
 
                         var disposable = index as IDisposable;
 
@@ -1036,7 +1266,7 @@ namespace BESSy
                         if (disposable != null)
                             disposable.Dispose();
 
-                        Trace.TraceInformation("Secondary index operations complete.");
+                        Trace.TraceInformation("Secondary indexUpdate operations complete.");
                     }
                 }
 
@@ -1054,6 +1284,9 @@ namespace BESSy
                 _disposed = true;
             }
         }
+
+
+
     }
 }
 

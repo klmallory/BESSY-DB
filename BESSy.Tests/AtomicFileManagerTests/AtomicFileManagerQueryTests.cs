@@ -64,14 +64,17 @@ namespace BESSy.Tests.AtomicFileManagerTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
+            var formatter = new BSONFormatter();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
+
             var addEntities = TestResourceFactory.GetMockClassAObjects(10000).ToList();
 
             foreach (var entity in addEntities)
                 entity.Id = _seed.Increment();
 
-            IDictionary<int, int> returnSegments = null;
+            IDictionary<int, long> returnSegments = null;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, new Seed32(0)))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core))
             {
                 afm.Load<int>();
 
@@ -82,7 +85,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
                         delegate(ITransaction<int, MockClassA> tranny)
                         {
-                            returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, int>());
+                            returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, long>());
 
                             tranny.MarkComplete();
                         });

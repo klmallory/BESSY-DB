@@ -29,5 +29,35 @@ namespace BESSy.Extensions
 
             return jobject;
         }
+
+        public static T[] GetAsTypedArray<T>(this JObject token, string property)
+        {
+            return GetAsTypedArray<T>((JToken)token, property);
+        }
+
+        public static T[] GetAsTypedArray<T>(this JToken token, string property)
+        {
+            var result = new T[0];
+
+            var selected = token.SelectToken(property);
+
+            if (selected == null || !selected.HasValues)
+                return result;
+
+            return GetTypeArrayFrom<T>(selected);
+        }
+
+        private static T[] GetTypeArrayFrom<T>(JToken token)
+        {
+            var values = token["$values"];
+
+            if (values == null)
+                values = token;
+
+            if (!values.HasValues)
+                return new T[0];
+
+            return values.Children().Select(s => s.ToObject<T>()).ToArray();
+        }
     }
 }

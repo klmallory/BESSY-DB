@@ -7,9 +7,10 @@ using BESSy.Relational;
 
 namespace BESSy.Tests.Mocks
 {
-    internal class MockClassE : MockClassD
+    public class MockClassE : MockClassD
     {
-        public MockClassE(IRepository<RelationshipEntity<int>, int> repo) : base(repo) { }
+        public MockClassE() : base() { }
+        public MockClassE(IRelationalDatabase<int, MockClassD> repo) : base(repo) { }
 
         public string ReferenceCode { get; set; }
         public MockStruct Location { get; set; }

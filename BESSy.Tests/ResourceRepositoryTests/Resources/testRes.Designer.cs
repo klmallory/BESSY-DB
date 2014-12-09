@@ -22,7 +22,7 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    internal class testRes {
+    public class testRes {
         
         private static global::System.Resources.ResourceManager resourceMan;
         
@@ -36,7 +36,7 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         ///   Returns the cached ResourceManager instance used by this class.
         /// </summary>
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Advanced)]
-        internal static global::System.Resources.ResourceManager ResourceManager {
+        public static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
                     global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("BESSy.Tests.ResourceRepositoryTests.Resources.testRes", typeof(testRes).Assembly);
@@ -47,11 +47,11 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         }
         
         /// <summary>
-        ///   Overrides the current thread's CurrentUICulture property for all
+        ///   Overrides the current thread'aqn CurrentUICulture property for all
         ///   resource lookups using this strongly typed resource class.
         /// </summary>
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Advanced)]
-        internal static global::System.Globalization.CultureInfo Culture {
+        public static global::System.Globalization.CultureInfo Culture {
             get {
                 return resourceCulture;
             }
@@ -61,9 +61,9 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        ///   Looks up a localized resource of tBuilder System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap IronAsteroid_NRM {
+        public static System.Drawing.Bitmap IronAsteroid_NRM {
             get {
                 object obj = ResourceManager.GetObject("IronAsteroid_NRM", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
@@ -71,9 +71,9 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        ///   Looks up a localized resource of tBuilder System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap Luna_DIFF {
+        public static System.Drawing.Bitmap Luna_DIFF {
             get {
                 object obj = ResourceManager.GetObject("Luna_DIFF", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
@@ -81,9 +81,9 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        ///   Looks up a localized resource of tBuilder System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap Luna_MAT {
+        public static System.Drawing.Bitmap Luna_MAT {
             get {
                 object obj = ResourceManager.GetObject("Luna_MAT", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
@@ -91,9 +91,9 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        ///   Looks up a localized resource of tBuilder System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap Luna_NRM {
+        public static System.Drawing.Bitmap Luna_NRM {
             get {
                 object obj = ResourceManager.GetObject("Luna_NRM", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
@@ -101,9 +101,9 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
+        ///   Looks up a localized resource of tBuilder System.Byte[].
         /// </summary>
-        internal static byte[] MiscAngelic {
+        public static byte[] MiscAngelic {
             get {
                 object obj = ResourceManager.GetObject("MiscAngelic", resourceCulture);
                 return ((byte[])(obj));
@@ -111,12 +111,30 @@ namespace BESSy.Tests.ResourceRepositoryTests.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
+        ///   Looks up a localized resource of tBuilder System.Byte[].
         /// </summary>
-        internal static byte[] MiscSitarOutOfTune {
+        public static byte[] MiscSitarOutOfTune {
             get {
                 object obj = ResourceManager.GetObject("MiscSitarOutOfTune", resourceCulture);
                 return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of tBuilder System.IO.UnmanagedMemoryStream similar to System.IO.MemoryStream.
+        /// </summary>
+        public static System.IO.UnmanagedMemoryStream Speech_Misrecognition {
+            get {
+                return ResourceManager.GetStream("Speech_Misrecognition", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non sapien turpis. Aliquam nunc orci, varius eu lacus dictum, iaculis accumsan massa. Donec scelerisque auctor justo at porta. Vestibulum ut lacus id magna malesuada euismod. Suspendisse vestibulum consectetur enim vel placerat. Vestibulum ac nibh sit amet libero tincidunt sollicitudin aliquet in mi. Pellentesque bibendum sed enim ut tincidunt. Nulla et nulla sed arcu imperdiet faucibus sed id odio. Suspendisse id ullamcorper urna. Pellentesque co [rest of string was truncated]&quot;;.
+        /// </summary>
+        public static string TestString {
+            get {
+                return ResourceManager.GetString("TestString", resourceCulture);
             }
         }
     }

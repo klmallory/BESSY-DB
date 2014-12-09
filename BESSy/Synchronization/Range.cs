@@ -24,14 +24,14 @@ namespace BESSy.Synchronization
 {
     public struct Range<I>
     {
-        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
+        [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public Range(I single) : this()
         {
             StartInclusive = single;
             EndInclusive = single;
         }
 
-        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
+        [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public Range(I start, I end) : this()
         {
             StartInclusive = start;

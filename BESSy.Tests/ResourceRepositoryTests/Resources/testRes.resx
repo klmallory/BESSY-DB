@@ -136,4 +136,18 @@
   <data name="MiscSitarOutOfTune" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>sounds\miscsitaroutoftune.ogg;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
+  <data name="Speech_Misrecognition" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>sounds\speech misrecognition.wav;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="TestString" xml:space="preserve">
+    <value>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non sapien turpis. Aliquam nunc orci, varius eu lacus dictum, iaculis accumsan massa. Donec scelerisque auctor justo at porta. Vestibulum ut lacus id magna malesuada euismod. Suspendisse vestibulum consectetur enim vel placerat. Vestibulum ac nibh sit amet libero tincidunt sollicitudin aliquet in mi. Pellentesque bibendum sed enim ut tincidunt. Nulla et nulla sed arcu imperdiet faucibus sed id odio. Suspendisse id ullamcorper urna. Pellentesque consequat nisl ac lectus faucibus, eu egestas odio sollicitudin. Phasellus leo augue, aliquam vitae gravida at, feugiat sit amet nisl. Fusce sagittis porttitor magna non elementum.
+
+Nam ullamcorper eros id mi tristique, id vehicula nibh accumsan. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Fusce porttitor, diam et tincidunt tincidunt, elit justo dapibus dolor, eu sollicitudin augue dolor non lorem. Donec sed urna orci. Vestibulum tempus iaculis sem, nec varius magna hendrerit eu. Nunc egestas commodo dui, et euismod ante accumsan nec. Donec sit amet purus quis eros dapibus consectetur.
+
+Vivamus gravida consectetur condimentum. Suspendisse cursus, odio sollicitudin pretium facilisis, mauris nulla volutpat metus, quis commodo nisi quam sed lacus. Vivamus tortor lacus, egestas ut consequat id, vulputate a ante. Fusce ac scelerisque metus. Praesent vel nunc vestibulum, rhoncus felis in, rutrum sapien. Donec imperdiet sagittis est, a tristique ante pharetra nec. Morbi tempus a elit eget consectetur.
+
+Curabitur imperdiet auctor sem. Vivamus semper cursus urna, in pulvinar arcu fermentum at. Ut ut mauris vitae quam accumsan commodo. Maecenas posuere erat id eros fringilla dapibus. Sed tristique vehicula scelerisque. Nullam hendrerit hendrerit risus ac accumsan. Cras tristique facilisis mi, auctor aliquet tellus tincidunt vel. Phasellus tempor risus ac quam scelerisque molestie. Proin fringilla velit vitae magna volutpat pharetra.
+
+Etiam aliquet cursus magna, vel gravida risus scelerisque in. Phasellus non suscipit quam. Praesent adipiscing elit vitae pretium aliquet. Nunc pretium sollicitudin turpis ut mattis. Integer vitae massa tempus, iaculis nisl ac, posuere tellus. Sed id nisl ut tortor convallis aliquet accumsan a enim. Aenean vitae tincidunt urna, eu tincidunt lectus. Vivamus congue, nisi vel mattis posuere, est elit viverra ligula, at tempus augue lectus a mi. In vitae consequat turpis. Integer luctus dignissim augue ac commodo. Sed vitae porttitor orci. Morbi porttitor augue aliquam fringilla euismod.</value>
+  </data>
 </root>

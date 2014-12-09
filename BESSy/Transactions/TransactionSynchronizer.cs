@@ -35,8 +35,9 @@ namespace BESSy.Transactions
         //TransactionLock<SeedType, EntityType> LockAll(int milliseconds);
         //bool TryLockAll(int milliseconds, out TransactionLock<SeedType, EntityType> rowLock);
 
+        TransactionLock<IdType, EntityType> GetExistingLockFor(ITransaction<IdType, EntityType> transaction);
         TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transaction);
-        TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transaction, int milliseconds);
+        //TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transactions, int milliseconds);
         bool TryLock(ITransaction<IdType, EntityType> transaction, int milliseconds, out TransactionLock<IdType, EntityType> tranLock);
 
         void Unlock(TransactionLock<IdType, EntityType> tranLock);
@@ -50,7 +51,7 @@ namespace BESSy.Transactions
         }
 
         //int? _exclusiveLock = null;
-        string _tranLockError = "Could not get a lock on transaction id {0} in {1} milliseconds";
+        //string _tranLockError = "Could not get a lock on trans id {0} in {1} milliseconds";
 
         object _syncRoot = new object();
         IBinConverter<Guid> _tranIdConverter = new BinConverterGuid();
@@ -82,6 +83,19 @@ namespace BESSy.Transactions
                 return _currentLocks.Count > 0;
         }
 
+        public TransactionLock<IdType, EntityType> GetExistingLockFor(ITransaction<IdType, EntityType> transaction)
+        {
+            lock (_syncRoot)
+            {
+                if (transaction == null)
+                    return default(TransactionLock<IdType, EntityType>);
+
+                var lck = _currentLocks.FirstOrDefault(t => _tranIdConverter.Compare(t.Value.TransactionId, transaction.Id) == 0);
+
+                return lck.Value;
+            }
+        }
+
         public TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transaction)
         {
             Monitor.Enter(_syncRoot);
@@ -101,44 +115,49 @@ namespace BESSy.Transactions
                     locked = IsLockedFor(transaction.Id);
                 }
 
-                var rowLock = AddNewLock(transaction);
+                //TransactionLock<IdType, EntityType> rowLock = default(TransactionLock<IdType, EntityType>);
+
+                //rowLock = GetExistingLockFor(transaction);
+
+                //if (rowLock.LockId == Guid.Empty)
+                    var rowLock = AddNewLock(transaction);
 
                 return rowLock;
             }
             finally { Monitor.Exit(_syncRoot); }
         }
 
-        public TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transaction, int milliseconds)
-        {
-            //10,000 ticks to one millisecond.
-            long timeout = DateTime.Now.Ticks + (milliseconds * 10000);
+        //public TransactionLock<IdType, EntityType> Lock(ITransaction<IdType, EntityType> transactions, int milliseconds)
+        //{
+        //    //10,000 ticks to one millisecond.
+        //    long timeout = DateTime.Now.Ticks + (milliseconds * 10000);
 
-            Monitor.Enter(_syncRoot);
+        //    Monitor.Enter(SyncCache);
 
-            try
-            {
-                bool locked = IsLockedFor(transaction.Id);
+        //    try
+        //    {
+        //        bool locked = IsLockedFor(transactions.Id);
 
-                while (locked)
-                {
-                    if (DateTime.Now.Ticks > timeout)
-                        throw new TransactionLockTimeoutException(string.Format(_tranLockError, transaction.Id, milliseconds));
+        //        while (locked)
+        //        {
+        //            if (DateTime.Now.Ticks > timeout)
+        //                throw new TransactionLockTimeoutException(string.Format(_tranLockError, transactions.Id, milliseconds));
 
-                    Monitor.Exit(_syncRoot);
+        //            Monitor.Exit(SyncCache);
 
-                    Thread.Sleep(50);
+        //            Thread.Sleep(50);
 
-                    Monitor.Enter(_syncRoot);
+        //            Monitor.Enter(SyncCache);
 
-                    locked = IsLockedFor(transaction.Id);
-                }
+        //            locked = IsLockedFor(transactions.Id);
+        //        }
 
-                var rowLock = AddNewLock(transaction);
+        //        var rowLock = AddNewLock(transactions);
 
-                return rowLock;
-            }
-            finally { Monitor.Exit(_syncRoot); }
-        }
+        //        return rowLock;
+        //    }
+        //    finally { Monitor.Exit(SyncCache); }
+        //}
 
         public bool TryLock(ITransaction<IdType, EntityType> transaction, int milliseconds, out TransactionLock<IdType, EntityType> tranLock)
         {
@@ -167,6 +186,9 @@ namespace BESSy.Transactions
                     locked = IsLockedFor(transaction.Id);
                 }
 
+                //tranLock = GetExistingLockFor(transaction);
+
+                //if (tranLock.LockId == Guid.Empty)
                 tranLock = AddNewLock(transaction);
             }
             finally { Monitor.Exit(_syncRoot); }

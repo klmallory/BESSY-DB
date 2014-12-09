@@ -27,7 +27,7 @@ namespace BESSy.Tests.TaskGroupTests
             Assert.AreEqual(Environment.ProcessorCount, paras.Count());
         }
 
-                [Test]
+        [Test]
         public void TaskGroupingGetsBreakdownForLargeStride()
         {
             var newItems = new Dictionary<int, object>();
@@ -52,33 +52,24 @@ namespace BESSy.Tests.TaskGroupTests
         }
 
         [Test]
-        public void TaskGroupGetsInsertsForOneHundredThousandRecords()
+        public void TaskGroupForOneHundredThousandRecords()
         {
             var expectedCount = System.Environment.Is64BitOperatingSystem ? 44 : 88;
 
             var rnd = new Random();
 
-            var newItems = new Dictionary<int, object>();
+            var newItems = new List<int>();
 
-            Enumerable.Range(0, 31240).ToList().ForEach(e => newItems.Add(71000 + e, new object()));
+            Enumerable.Range(0, 31240).ToList().ForEach(e => newItems.Add(71000 + e));
 
             var paras = TaskGrouping.GetSegmentedTaskGroups(70000, 1024);
 
             Assert.AreEqual(expectedCount, paras.Count());
 
-            var groups = new Dictionary<int, int>();
-
-            paras.ForEach(delegate(int p)
-                {
-                    groups.Add(p, (p + 1000) + rnd.Next(1, 5));
-                });
-
-
-            var newGroups = TaskGrouping.GetCPUGroupsFor(newItems, groups, new BinConverter32(), 1024, 1024);
+            var newGroups = TaskGrouping.GetCPUGroupsFor(paras);
 
             Assert.IsFalse(newGroups.Any(n => n.StartSegment == n.EndSegment));
             Assert.AreEqual(expectedCount, newGroups.Count());
-            Assert.AreEqual(101239, newGroups.Max(n => n.Inserts.Max(i => i.EndNewSegment)));
         }
     }
 }

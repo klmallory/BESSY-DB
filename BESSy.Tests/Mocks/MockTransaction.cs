@@ -33,8 +33,12 @@ namespace BESSy.Tests.Mocks
         bool _isCommitted = false;
 
         ITransactionManager<IdType, EntityType> _transactionManager;
-        Dictionary<IdType, EnlistedAction<IdType, EntityType>> _enlistedActions
-            = new Dictionary<IdType, EnlistedAction<IdType, EntityType>>();
+
+        Dictionary<IdType, EnlistedAction<EntityType>> _enlistedActions
+            = new Dictionary<IdType, EnlistedAction<EntityType>>();
+
+        List<Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>>> _cascades
+            = new List<Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>>>();
 
         void ForceCommit(object state)
         {
@@ -50,14 +54,15 @@ namespace BESSy.Tests.Mocks
 
         public Guid Source { get; set; }
         public bool IsComplete { get; private set; }
+        public bool CommitInProgress { get; private set; }
 
         public void Enlist(Action action, IdType id, EntityType entity)
         {
             lock (_syncRoot)
             {
-                if (IsComplete) throw new TransactionStateException("Transaction is no longer active. No furthur enlistment is possible.");
+                if (IsComplete || CommitInProgress) throw new TransactionStateException("Transaction is no longer active. No furthur enlistment is possible.");
 
-                var enlistment = new EnlistedAction<IdType, EntityType>(action, id, entity);
+                var enlistment = new EnlistedAction<EntityType>(action, entity);
 
                 if (_enlistedActions.ContainsKey(id))
                     _enlistedActions[id] = enlistment;
@@ -66,9 +71,45 @@ namespace BESSy.Tests.Mocks
             }
         }
 
-        public IDictionary<IdType, EnlistedAction<IdType, EntityType>> GetEnlistedActions()
+        public void Cascade(Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>> cascade)
+        {
+            lock (_syncRoot)
+            {
+                if (IsComplete || CommitInProgress) throw new TransactionStateException("Transaction is no longer active. No furthur cascades are possible.");
+
+                _cascades.Add(cascade);
+            }
+        }
+
+        public void UpdateSegments(IDictionary<IdType, object> segments)
+        {
+            lock (_syncRoot)
+            {
+                foreach (var s in segments)
+                {
+                    if (_enlistedActions.ContainsKey(s.Key))
+                    {
+                        var action = _enlistedActions[s.Key];
+                        action.DbSegment = s.Value;
+                        _enlistedActions[s.Key] = action;
+                    }
+                }
+            }
+        }
+
+        public IDictionary<IdType, EnlistedAction<EntityType>> GetEnlistedActions()
         {
             return _enlistedActions;
+        }
+
+        public IList<EnlistedAction<EntityType>> GetActions()
+        {
+            return _enlistedActions.Values.ToList();
+        }
+
+        public IList<Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>>> GetCascades()
+        {
+            return _cascades.ToList();
         }
 
         public IEnumerable<EntityType> GetEnlistedItems()
@@ -81,6 +122,16 @@ namespace BESSy.Tests.Mocks
         public bool Contains(IdType id)
         {
             return _enlistedActions.ContainsKey(id);
+        }
+
+        public void EnlistObj(Action action, IdType id, dynamic entity)
+        {
+            Enlist(action, id, entity);
+        }
+
+        public bool Contains(IdType id, EntityType entity)
+        {
+            return Contains(id);
         }
 
         public void Rollback()
@@ -103,7 +154,6 @@ namespace BESSy.Tests.Mocks
                 _transactionManager.Commit(this);
             }
         }
-
 
         public void MarkComplete()
         {
@@ -140,10 +190,57 @@ namespace BESSy.Tests.Mocks
                 _transactionManager = null;
         }
 
-
         public int EnlistCount
         {
             get { return _enlistedActions.Count; }
         }
+
+        #region Transaction Scope Methods
+
+        public void Initialize()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Rollback(System.Transactions.SinglePhaseEnlistment singlePhaseEnlistment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SinglePhaseCommit(System.Transactions.SinglePhaseEnlistment singlePhaseEnlistment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] Promote()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Commit(System.Transactions.Enlistment enlistment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void InDoubt(System.Transactions.Enlistment enlistment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Prepare(System.Transactions.PreparingEnlistment preparingEnlistment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Rollback(System.Transactions.Enlistment enlistment)
+        {
+            throw new NotImplementedException();
+        }
+
+        #endregion
+
+
+
+
     }
 }

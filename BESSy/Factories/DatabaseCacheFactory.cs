@@ -23,18 +23,18 @@ using BESSy.Serialization.Converters;
 
 namespace BESSy.Factories
 {
-    public interface IRepositoryCacheFactory
+    public interface IDatabaseCacheFactory
     {
         int DefaultCacheSize { get; set; }
 
-        IRepositoryCache<IdType, EntityType> Create<IdType, EntityType>(bool autoCache, int cacheSize, IBinConverter<IdType> converter);
+        IDatabaseCache<IdType, EntityType> Create<IdType, EntityType>(bool autoCache, int cacheSize, IBinConverter<IdType> converter);
     }
 
-    public sealed class RepositoryCacheFactory : IRepositoryCacheFactory
+    public sealed class DatabaseCacheFactory : IDatabaseCacheFactory
     {
-        public RepositoryCacheFactory() : this(10240) { }
-        public RepositoryCacheFactory(int cacheSize) : this(cacheSize, true) { }
-        public RepositoryCacheFactory(int cacheSize, bool autoCache)
+        public DatabaseCacheFactory() : this(10240) { }
+        public DatabaseCacheFactory(int cacheSize) : this(cacheSize, true) { }
+        public DatabaseCacheFactory(int cacheSize, bool autoCache)
         {
             DefaultCacheSize = cacheSize;
             DefaultAutoCache = autoCache;
@@ -43,7 +43,7 @@ namespace BESSy.Factories
         public int DefaultCacheSize { get; set; }
         public bool DefaultAutoCache { get; set; }
 
-        public IRepositoryCache<IdType, EntityType> Create<IdType, EntityType>(bool autoCache, int cacheSize, IBinConverter<IdType> converter)
+        public IDatabaseCache<IdType, EntityType> Create<IdType, EntityType>(bool autoCache, int cacheSize, IBinConverter<IdType> converter)
         {
             return new DatabaseCache<IdType, EntityType>(autoCache, cacheSize, converter);
         }

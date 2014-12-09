@@ -16,6 +16,7 @@ namespace BESSy.Seeding
         {
             MinimumSeedStride = 1024;
             Source = Guid.NewGuid();
+            Passive = true;
         }
 
         public T Increment()
@@ -40,6 +41,8 @@ namespace BESSy.Seeding
 
         [JsonProperty]
         public Guid Source { get; protected set; }
+        [JsonProperty]
+        public bool Passive { get; protected set; }
 
         public ISeed<int> SegmentSeed { get; set; }
         public long LastReplicatedTimeStamp { get; set; }

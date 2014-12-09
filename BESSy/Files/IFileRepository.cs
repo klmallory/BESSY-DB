@@ -23,12 +23,22 @@ using BESSy.Json.Linq;
 
 namespace BESSy.Files
 {
-    public interface IQueryableFile
+    public interface IQueryableFile : IPagedFile<JObject>
+    {
+    }
+
+    public interface IPagedFile<T> : IStreamedFile
+    {
+        T[] GetPage(int page);
+        IEnumerable<T[]> AsEnumerable();
+        IEnumerable<T[]> AsReverseEnumerable();
+    }
+
+    public interface IStreamedFile
     {
         int Pages { get; }
-        JObject[] GetPage(int page);
-        IEnumerable<JObject[]> AsEnumerable();
-        IEnumerable<JObject[]> AsReverseEnumerable();
+        Stream GetPageStream(int page);
+        IEnumerable<Stream> AsStreaming();
     }
 
     public interface IFileRepository<EntityType> : IFileManager, IFileWriter<EntityType>, IFileReader<EntityType>, IBinWriter, IDisposable

@@ -80,7 +80,7 @@ namespace BESSy.Tests
 
         internal static IQueryableFormatter CreateZipFormatter()
         {
-            return new QueryZipFormatter(CreateBsonFormatter(), QuickZipFormatter.DefaultProperties);
+            return new LZ4ZipFormatter(CreateBsonFormatter());
         }
 
         internal static IQueryableFormatter CreateCryptoFormatter()
@@ -88,61 +88,61 @@ namespace BESSy.Tests
             return new  QueryCryptoFormatter(CreateCrypto(), CreateZipFormatter(), CreateSecureString());
         }
 
-        internal static IBatchFileManager<EntityType> CreateBatchFileManager<EntityType>(IQueryableFormatter formatter)
+        //internal static IBatchFileManager<EntityType> CreateBatchFileManager<EntityType>(IQueryableFormatter formatter)
+        //{
+        //    return new BatchFileManager<EntityType>(512, 4096, formatter);
+        //}
+
+        //internal static IIndexedEntityMapManager<EntityType, IdType> CreateIndexedMapManager<EntityType, IdType>(IQueryableFormatter formatter, IBinConverter<IdType> IdConverter)
+        //{
+        //    return new IndexedEntityMapManager<EntityType, IdType>(IdConverter, formatter);
+        //}
+
+        //internal static IIndexMapManager<IdType, IndexType> CreateIndexMapManager<IdType, IndexType>(string fileName, IBinConverter<IdType> IdConverter, IBinConverter<IndexType> indexConverter)
+        //{
+        //    return new IndexMapManager<IdType, IndexType>(fileName, IdConverter, indexConverter);
+        //}
+
+        internal static IDatabaseCacheFactory CreateRepositoryCacheFactory()
         {
-            return new BatchFileManager<EntityType>(512, 4096, formatter);
+            return new DatabaseCacheFactory(-1);
         }
 
-        internal static IIndexedEntityMapManager<EntityType, IdType> CreateIndexedMapManager<EntityType, IdType>(IQueryableFormatter formatter, IBinConverter<IdType> idConverter)
-        {
-            return new IndexedEntityMapManager<EntityType, IdType>(idConverter, formatter);
-        }
+        //internal static IIndexRepositoryFactory<IdType, IndexType> CreateIndexFactory<IdType, IndexType>()
+        //{
+        //    return new IndexRepositoryFactory<IdType, IndexType>();
+        //}
 
-        internal static IIndexMapManager<IdType, PropertyType> CreateIndexMapManager<IdType, PropertyType>(string fileName, IBinConverter<IdType> idConverter, IBinConverter<PropertyType> propertyConverter)
-        {
-            return new IndexMapManager<IdType, PropertyType>(fileName, idConverter, propertyConverter);
-        }
+        //internal static IIndexRepositoryFactory<IdType, IndexType> CreateIndexFactory<IdType, IndexType>(IBinConverter<IdType> IdConverter, IBinConverter<IndexType> indexConverter, ISeed<IdType> c)
+        //{
+        //    return new IndexRepositoryFactory<IdType, IndexType>(IdConverter, indexConverter, c);
+        //}
 
-        internal static IRepositoryCacheFactory CreateRepositoryCacheFactory()
-        {
-            return new RepositoryCacheFactory(-1);
-        }
+        //internal static IIndexRepositoryFactory<IdType, IndexType> CreateIndexFactory<IdType, IndexType>(int cacheSize, ISeed<IdType> c)
+        //{
+        //    return CreateIndexFactory<IdType, IndexType>(new DatabaseCacheFactory(cacheSize), c);
+        //}
 
-        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>()
-        {
-            return new IndexRepositoryFactory<IdType, PropertyType>();
-        }
+        //internal static IIndexRepositoryFactory<IdType, IndexType> CreateIndexFactory<IdType, IndexType>(IDatabaseCacheFactory cacheFactory)
+        //{
+        //    var indexFactory = new IndexRepositoryFactory<IdType, IndexType>()
+        //    {
+        //        DefaultCacheFactory = cacheFactory
+        //    };
 
-        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(IBinConverter<IdType> idConverter, IBinConverter<PropertyType> propertyConverter, ISeed<IdType> seed)
-        {
-            return new IndexRepositoryFactory<IdType, PropertyType>(idConverter, propertyConverter, seed);
-        }
+        //    return indexFactory;
+        //}
 
-        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(int cacheSize, ISeed<IdType> seed)
-        {
-            return CreateIndexFactory<IdType, PropertyType>(new RepositoryCacheFactory(cacheSize), seed);
-        }
+        //internal static IIndexRepositoryFactory<IdType, IndexType> CreateIndexFactory<IdType, IndexType>(IDatabaseCacheFactory cacheFactory, ISeed<IdType> c)
+        //{
+        //    var indexFactory = new IndexRepositoryFactory<IdType, IndexType>()
+        //    {
+        //        DefaultCacheFactory = cacheFactory,
+        //        DefaultSeed = c
+        //    };
 
-        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(IRepositoryCacheFactory cacheFactory)
-        {
-            var indexFactory = new IndexRepositoryFactory<IdType, PropertyType>()
-            {
-                DefaultCacheFactory = cacheFactory
-            };
-
-            return indexFactory;
-        }
-
-        internal static IIndexRepositoryFactory<IdType, PropertyType> CreateIndexFactory<IdType, PropertyType>(IRepositoryCacheFactory cacheFactory, ISeed<IdType> seed)
-        {
-            var indexFactory = new IndexRepositoryFactory<IdType, PropertyType>()
-            {
-                DefaultCacheFactory = cacheFactory,
-                DefaultSeed = seed
-            };
-
-            return indexFactory;
-        }
+        //    return indexFactory;
+        //}
 
 
         internal static MockClassA CreateRandom()
@@ -157,10 +157,55 @@ namespace BESSy.Tests
                         Z = (float)random.NextDouble(),
                         W = (float)random.NextDouble()
                     },
+                MyDate = GetRandomDay(),
                 GetSomeCheckSum = new double[] { random.NextDouble(), random.NextDouble() },
                 ReferenceCode = "R " + random.Next(),
-                ReplicationID = Guid.NewGuid()
+                ReplicationID = Guid.NewGuid(),
+                BigId = (long)(random.Next(5, int.MaxValue) * random.Next(1, int.MaxValue)),
+                DecAnimal = (decimal)(random.NextDouble() + random.NextDouble()),
+                LittleId = (short)(random.Next(5, short.MaxValue)),
+                Unsigned16 = (ushort)random.Next(5, ushort.MaxValue),
+                Unsigned32 = (uint)random.Next(5, int.MaxValue),
+                Unsigned64 = (ulong)random.Next(5, int.MaxValue)
             };
+        }
+
+
+        internal static MockClassA CreateRandomDomain()
+        {
+            var d = new MockDomain()
+            {
+                Name = "Class " + random.Next(),
+                Location = new MockStruct()
+                {
+                    X = (float)random.NextDouble(),
+                    Y = (float)random.NextDouble(),
+                    Z = (float)random.NextDouble(),
+                    W = (float)random.NextDouble()
+                },
+                MyDate = GetRandomDay(),
+                GetSomeCheckSum = new double[] { random.NextDouble(), random.NextDouble() },
+                ReferenceCode = "R " + random.Next(),
+                ReplicationID = Guid.NewGuid(),
+                BigId = (long)(random.Next(5, int.MaxValue) * random.Next(1, int.MaxValue)),
+                DecAnimal = (decimal)(random.NextDouble() + random.NextDouble()),
+                LittleId = (short)(random.Next(5, short.MaxValue)),
+                Unsigned16 = (ushort)random.Next(5, ushort.MaxValue),
+                Unsigned32 = (uint)random.Next(5, int.MaxValue),
+                Unsigned64 = (ulong)random.Next(5, int.MaxValue),
+                ADomain = GetMockClassAObjects(1).First(),
+                BDomain = CreateRandom() as MockClassB,
+                CDomain = CreateRandom() as MockClassC,
+                CDomains = TestResourceFactory.GetMockClassAObjects(3).Cast<MockClassC>().ToList(),
+                BDomains = TestResourceFactory.GetMockClassAObjects(3).Cast<MockClassB>().ToArray(),
+                MyHashMash = new Dictionary<int, string>() { { 1, "First" }, { 2, "Second" }, { 3, "Third" } }
+            };
+
+            d.CDomain.Other = d;
+            d.CDomains.ToList().ForEach(c => c.Other = d);
+            d.SetFieldTestValue(random.Next());
+
+            return d;
         }
 
         internal static IList<MockClassA> GetMockClassAObjects(int count)
@@ -175,7 +220,7 @@ namespace BESSy.Tests
             return mocks;
         }
 
-        internal static MockClassE CreateRandomRelation(IRepository<RelationshipEntity<int>, int> repo)
+        internal static MockClassE CreateRandomRelation(IRelationalDatabase<int, MockClassD> repo)
         {
             return new MockClassE(repo)
             {
@@ -198,7 +243,7 @@ namespace BESSy.Tests
             };
         }
 
-        internal static IList<MockClassE> GetMockClassDObjects(int count, IRepository<RelationshipEntity<int>, int> repo)
+        internal static IList<MockClassE> GetMockClassDObjects(int count, IRelationalDatabase<int, MockClassD> repo)
         {
             var mocks = new List<MockClassE>();
 
@@ -214,6 +259,13 @@ namespace BESSy.Tests
             }
 
             return mocks.ToList();
+        }
+
+        static DateTime GetRandomDay()
+        {
+            int range = (DateTime.MaxValue - DateTime.MinValue).Days;
+
+            return new DateTime().AddDays(random.Next(5, range));
         }
     }
 }

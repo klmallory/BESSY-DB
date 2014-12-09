@@ -10,6 +10,8 @@ using BESSy.Tests.Mocks;
 using NUnit.Framework;
 using BESSy.Transactions;
 using BESSy.Serialization;
+using BESSy.Replication;
+using BESSy.Seeding;
 
 namespace BESSy.Tests.Replication
 {
@@ -30,9 +32,9 @@ namespace BESSy.Tests.Replication
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var pdb1 = new Database<Guid, MockClassA>(_testName + ".publisher" + ".database", "ReplicationID")
-                .WithPublishing(Path.Combine(Environment.CurrentDirectory, _testName))
-                .WithSubscription(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500)))
+            using (var pdb1 = new Database<Guid, MockClassA>(_testName + ".subscriber" + ".database", "ReplicationID", new FileCore<Guid, long>())
+                .WithPublishing("Test", new FilePublisher<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName)))
+                .WithSubscription("Test", new FileSubscriber<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
             {
                 pdb1.Load();
                 pdb1.Clear();
@@ -71,7 +73,7 @@ namespace BESSy.Tests.Replication
                 var formatter = new BSONFormatter();
 
                 using (var fs = new FileStream(
-                    Path.Combine(Environment.CurrentDirectory, _testName, testTran.Id.ToString() + ".transaction")
+                    Path.Combine(Environment.CurrentDirectory, _testName, testTran.Id.ToString() + ".trans")
                     , FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 4096, false))
                 {
                     var s = formatter.FormatObjStream(testTran);
@@ -94,7 +96,7 @@ namespace BESSy.Tests.Replication
             }
 
 
-            Cleanup();
+            //Cleanup();
         }
 
         [Test]
@@ -103,17 +105,17 @@ namespace BESSy.Tests.Replication
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var pdb1 = new Database<Guid, MockClassA>(_testName + ".publisher" + ".database", "ReplicationID")
-                .WithPublishing(Path.Combine(Environment.CurrentDirectory, _testName))
-                .WithSubscription(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500)))
+            using (var pdb1 = new Database<Guid, MockClassA>(_testName + ".publisher" + ".database", "ReplicationID", new FileCore<Guid, long>())
+                .WithPublishing("Test", new FilePublisher<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName)))
+                .WithSubscription("Test", new FileSubscriber<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
             {
                 pdb1.Load();
 
                 Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
-                using (var pdb2 = new Database<Guid, MockClassA>(_testName + ".subscriber" + ".database", "ReplicationID")
-                    .WithPublishing(Path.Combine(Environment.CurrentDirectory, _testName))
-                    .WithSubscription(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500)))
+                using (var pdb2 = new Database<Guid, MockClassA>(_testName + ".subscriber" + ".database", "ReplicationID", new FileCore<Guid, long>())
+                    .WithPublishing("Test", new FilePublisher<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName)))
+                    .WithSubscription("Test", new FileSubscriber<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
                 {
                     pdb2.Load();
 

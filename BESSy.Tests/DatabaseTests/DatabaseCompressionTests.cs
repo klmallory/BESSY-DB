@@ -28,6 +28,7 @@ using NUnit.Framework;
 using System.Text;
 using System.Drawing;
 using BESSy.Tests.ResourceRepositoryTests.Resources;
+using BESSy.Containers;
 
 namespace BESSy.Tests.DatabaseTests
 {
@@ -35,13 +36,12 @@ namespace BESSy.Tests.DatabaseTests
     public class DatabaseCompressionTests
     {
         [Test]
-        [Category("Performance")]
         public void DatabaseCompressesVeryLargeFiles()
         {
             var test = new Mocks.MockImageContainer(testRes.IronAsteroid_NRM) { Name = "IronAsteroid_NRM" };
 
             var bson = new BSONFormatter();
-            var zip = new QuickZipFormatter(bson);
+            var zip = new LZ4ZipFormatter(bson);
 
             var bytes = bson.FormatObjStream(test);
 

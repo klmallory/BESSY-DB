@@ -9,3 +9,7 @@ dist
 *.cache
 *.nupkg
 *dotCover*
+Solutions/_NCrunch_BESSy
+*.ncrunchsolution
+*.ncrunchproject
+

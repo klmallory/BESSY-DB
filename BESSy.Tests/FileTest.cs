@@ -49,14 +49,14 @@ namespace BESSy.Tests
 
             fi.Delete();
 
-            fi = new FileInfo(_testName + ".publisher.database");
+            fi = new FileInfo(_testName + ".subscriber.database");
             if (fi.Exists)
                 while (fi.IsFileLocked())
                     Thread.Sleep(100);
 
             fi.Delete();
 
-            fi = new FileInfo(_testName + ".publisher.database.index");
+            fi = new FileInfo(_testName + ".subscriber.database.index");
             if (fi.Exists)
                 while (fi.IsFileLocked())
                     Thread.Sleep(100);
@@ -77,7 +77,7 @@ namespace BESSy.Tests
 
             fi.Delete();
 
-            fi = new FileInfo(_testName + ".catalog.index");
+            fi = new FileInfo(_testName + ".catalog.indexUpdate");
             if (fi.Exists)
                 while (fi.IsFileLocked())
                     Thread.Sleep(100);
@@ -92,6 +92,13 @@ namespace BESSy.Tests
             fi.Delete();
 
             fi = new FileInfo(_testName + ".database.catIndex.index");
+            if (fi.Exists)
+                while (fi.IsFileLocked())
+                    Thread.Sleep(100);
+
+            fi.Delete();
+
+            fi = new FileInfo(_testName + ".database.cascade.index");
             if (fi.Exists)
                 while (fi.IsFileLocked())
                     Thread.Sleep(100);

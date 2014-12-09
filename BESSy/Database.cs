@@ -42,7 +42,7 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
+        /// <param property="fileName"></param>
         public Database(string fileName)
             : this(fileName
             , new BSONFormatter())
@@ -53,7 +53,7 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
+        /// <param property="fileName"></param>
         public Database(string fileName, IQueryableFormatter formatter)
             : this(fileName, formatter
             , new TransactionManager<IdType, EntityType>())
@@ -64,8 +64,8 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
         public Database(string fileName
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager)
@@ -78,15 +78,15 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
         public Database(string fileName
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory)
             : this(fileName, formatter, transactionManager, fileManagerFactory
-            , new RepositoryCacheFactory())
+            , new DatabaseCacheFactory())
         {
 
         }
@@ -94,15 +94,15 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public Database(string fileName
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory)
+            , IDatabaseCacheFactory cacheFactory)
             : this(fileName, formatter, transactionManager, fileManagerFactory, cacheFactory
             , new IndexFileFactory()
             , new IndexFactory())
@@ -113,21 +113,21 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
-        /// <param name="indexFileFactory"></param>
-        /// <param name="indexFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public Database(string fileName
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory
+            , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory)
             : base(fileName, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
-            , new RowSynchronizer<int>(new BinConverter32()))
+            , new RowSynchronizer<long>(new BinConverter64()))
         {
 
         }
@@ -135,11 +135,11 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
         public Database(string fileName, string idToken)
             : this(fileName, idToken
-            ,TypeFactory.GetSeedFor<IdType>())
+            ,TypeFactory.GetFileCoreFor<IdType, long>())
         {
 
         }
@@ -147,28 +147,45 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
         public Database(string fileName, string idToken
-            , ISeed<IdType> seed)
-            : this(fileName, idToken, seed            
+            , IFileCore<IdType, long> core)
+            : this(fileName, idToken, core            
             , TypeFactory.GetBinConverterFor<IdType>())
         {
 
         }
 
+
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
         public Database(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
+            , IQueryableFormatter formatter)
+            : this(fileName, idToken, core, TypeFactory.GetBinConverterFor<IdType>()
+            , formatter)
+        {
+
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        public Database(string fileName, string idToken
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter)
-            : this(fileName, idToken, seed, converter
+            : this(fileName, idToken, core, converter
             , new BSONFormatter())
         {
 
@@ -177,17 +194,17 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
         public Database(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter)
-            : this(fileName, idToken, seed, converter, formatter, 
+            : this(fileName, idToken, core, converter, formatter, 
             new TransactionManager<IdType, EntityType>())
         {
 
@@ -196,18 +213,18 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
         public Database(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager)
-            : this(fileName, idToken, seed, converter, formatter, transactionManager
+            : this(fileName, idToken, core, converter, formatter, transactionManager
             , new AtomicFileManagerFactory())
         {
 
@@ -216,21 +233,21 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
         public Database(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory)
-            : this(fileName, idToken, seed, converter, formatter, transactionManager, fileManagerFactory
-            , new RepositoryCacheFactory())
+            : this(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory
+            , new DatabaseCacheFactory())
         {
 
         }
@@ -238,22 +255,22 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public Database(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory)
-            : this(fileName, idToken, seed, converter, formatter, transactionManager, fileManagerFactory, cacheFactory
+            , IDatabaseCacheFactory cacheFactory)
+            : this(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory, cacheFactory
             , new IndexFileFactory()
             , new IndexFactory())
         {
@@ -263,27 +280,27 @@ namespace BESSy
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
-        /// <param name="indexFileFactory"></param>
-        /// <param name="indexFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public Database(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
             , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory
+            , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory)
-            : base(fileName, idToken, seed, converter, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
-            , new RowSynchronizer<int>(new BinConverter32()))
+            : base(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
+            , new RowSynchronizer<long>(new BinConverter64()))
         {
 
         }

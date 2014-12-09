@@ -52,6 +52,16 @@ namespace BESSy.Extensions
                 return val;
         }
 
+        internal static ulong Clamp(this ulong val, ulong min, ulong max)
+        {
+            if (val > max)
+                return max;
+            else if (val < min)
+                return min;
+            else
+                return val;
+        }
+
         internal static double Clamp(this double val, double min, double max)
         {
             if (val > max)

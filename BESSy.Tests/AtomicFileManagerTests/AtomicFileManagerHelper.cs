@@ -34,9 +34,9 @@ namespace BESSy.Tests.AtomicFileManagerTests
 {
     public class AtomicFileManagerHelper
     {
-        public static int SaveSegment<IdType, EntityType>(AtomicFileManager<EntityType> afm, EntityType entity, IdType id)
+        public static long SaveSegment<IdType, EntityType>(AtomicFileManager<EntityType> afm, EntityType entity, IdType id)
         {
-            var returnSegment = -1;
+            var returnSegment = -1L;
 
             using (var manager = new TransactionManager<IdType, EntityType>
                  (new MockTransactionFactory<IdType, EntityType>()
@@ -45,9 +45,18 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 manager.TransactionCommitted += new TransactionCommit<IdType, EntityType>(
                     delegate(ITransaction<IdType, EntityType> tranny)
                     {
-                        returnSegment = afm.CommitTransaction(tranny, new Dictionary<IdType, int>()).First().Value;
+                        returnSegment = (long)(afm.CommitTransaction(tranny, new Dictionary<IdType, long>()).First().Value);
 
                         tranny.MarkComplete();
+                    });
+
+                afm.Rebuilt += new Rebuild<EntityType>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                    {
+                        var core = (IFileCore<IdType, long>)afm.Core;
+                        core.Stride = newStride;
+                        core.MinimumCoreStride = newSeedStride;
+
+                        afm.SaveCore<IdType>();
                     });
 
                 using (var tLock = manager.BeginTransaction())
@@ -61,7 +70,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
             return returnSegment;
         }
 
-        public static void SaveSegment<IdType, EntityType>(AtomicFileManager<EntityType> afm, EntityType entity, IdType id, int segment)
+        public static void SaveSegment<IdType, EntityType>(AtomicFileManager<EntityType> afm, EntityType entity, IdType id, long segment)
         {
             var records = 0;
 
@@ -72,10 +81,19 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 manager.TransactionCommitted += new TransactionCommit<IdType, EntityType>(
                     delegate(ITransaction<IdType, EntityType> tranny)
                     {
-                        records = afm.CommitTransaction(tranny, new Dictionary<IdType, int>() { { id, segment } }).Count();
+                        records = afm.CommitTransaction(tranny, new Dictionary<IdType, long>() { { id, segment } }).Count();
 
                         tranny.MarkComplete();
                     });
+
+                afm.Rebuilt += new Rebuild<EntityType>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                {
+                    var core = (IFileCore<IdType, long>)afm.Core;
+                    core.Stride = newStride;
+                    core.MinimumCoreStride = newSeedStride;
+
+                    afm.SaveCore<IdType>();
+                });
 
                 using (var tLock = manager.BeginTransaction())
                 {
@@ -86,9 +104,9 @@ namespace BESSy.Tests.AtomicFileManagerTests
             }
         }
 
-        public static int SaveSegments<IdType, EntityType>(AtomicFileManager<EntityType> afm, IDictionary<IdType, EntityType> entities)
+        public static IDictionary<IdType, long> SaveSegments<IdType, EntityType>(AtomicFileManager<EntityType> afm, IDictionary<IdType, EntityType> entities)
         {
-            var returnSegment = -1;
+            IDictionary<IdType, long> returnSegments = null;
 
             using (var manager = new TransactionManager<IdType, EntityType>
                  (new MockTransactionFactory<IdType, EntityType>()
@@ -97,10 +115,19 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 manager.TransactionCommitted += new TransactionCommit<IdType, EntityType>(
                     delegate(ITransaction<IdType, EntityType> tranny)
                     {
-                        returnSegment = afm.CommitTransaction(tranny, new Dictionary<IdType, int>()).First().Value;
+                        returnSegments = afm.CommitTransaction(tranny, new Dictionary<IdType, long>());
 
                         tranny.MarkComplete();
                     });
+
+                afm.Rebuilt += new Rebuild<EntityType>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                {
+                    var core = (IFileCore<IdType, long>)afm.Core;
+                    core.Stride = newStride;
+                    core.MinimumCoreStride = newSeedStride;
+
+                    afm.SaveCore<IdType>();
+                });
 
                 using (var tLock = manager.BeginTransaction())
                 {
@@ -111,10 +138,10 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 }
             }
 
-            return returnSegment;
+            return returnSegments;
         }
 
-        public static int DeleteSegment<IdType, EntityType>(AtomicFileManager<EntityType> afm, IdType id, int segment)
+        public static int DeleteSegment<IdType, EntityType>(AtomicFileManager<EntityType> afm, IdType id, long segment)
         {
             var records = 0;
 
@@ -125,7 +152,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 manager.TransactionCommitted += new TransactionCommit<IdType, EntityType>(
                     delegate(ITransaction<IdType, EntityType> tranny)
                     {
-                        records = afm.CommitTransaction(tranny, new Dictionary<IdType, int>() { { id, segment } }).Count();
+                        records = afm.CommitTransaction(tranny, new Dictionary<IdType, long>() { { id, segment } }).Count();
 
                         tranny.MarkComplete();
                     });

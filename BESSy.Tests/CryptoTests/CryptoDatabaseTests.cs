@@ -9,6 +9,7 @@ using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using NUnit.Framework;
 using BESSy.Tests.ResourceRepositoryTests.Resources;
+using BESSy.Containers;
 
 namespace BESSy.Tests.CryptoTests
 {
@@ -38,7 +39,7 @@ namespace BESSy.Tests.CryptoTests
             };
 
             using (var db = new Database<string, ResourceContainer>
-                (_testName + ".database", "Name", new SeedString(255),
+                (_testName + ".database", "Name", new FileCore<string, long>(new SeedString(255), new Seed64()),
                 new BinConverterString(),
                 new QueryCryptoFormatter(new RC2Crypto(_vec), new BSONFormatter(), _key)))
             {
@@ -54,9 +55,7 @@ namespace BESSy.Tests.CryptoTests
             }
 
             using (var db = new Database<string, ResourceContainer>
-                (_testName + ".database", "Name", new SeedString(255),
-                new BinConverterString(),
-                new QueryCryptoFormatter(new RC2Crypto(_vec), new BSONFormatter(), _key)))
+                (_testName + ".database", new QueryCryptoFormatter(new RC2Crypto(_vec), new BSONFormatter(), _key)))
             {
                 db.Load();
 
@@ -90,7 +89,7 @@ namespace BESSy.Tests.CryptoTests
             };
 
             using (var db = new Database<string, ResourceContainer>
-                (_testName + ".database", "Name", new SeedString(255),
+                (_testName + ".database", "Name", new FileCore<string, long>(new SeedString(255), new Seed64()),
                 new BinConverterString(),
                 new QueryCryptoFormatter(new RC2Crypto(_vec), new BSONFormatter(), _key)))
             {
@@ -137,7 +136,7 @@ namespace BESSy.Tests.CryptoTests
             };
 
             using (var db = new Database<string, ResourceContainer>
-                (_testName + ".database", "Name", new SeedString(255),
+                (_testName + ".database", "Name", new FileCore<string, long>(new SeedString(255), new Seed64()),
                 new BinConverterString(),
                 new QueryCryptoFormatter(new RC2Crypto(vec), new BSONFormatter(), key)))
             {

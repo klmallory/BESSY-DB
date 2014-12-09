@@ -23,6 +23,7 @@ using System.Text;
 using System.Threading;
 using BESSy.Extensions;
 using BESSy.Files;
+using BESSy.Json.Linq;
 using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
@@ -33,48 +34,27 @@ using NUnit.Framework;
 namespace BESSy.Tests.AtomicFileManagerTests
 {
     [TestFixture]
-    public class AtomicFileManagerCRUDTests
+    public class AtomicFileManagerCRUDTests : FileTest
     {
-        string _testName;
-        ISeed<int> _seed;
-        IQueryableFormatter _formatter;
-        ISeed<int> _segmentSeed;
-
-
-        [SetUp]
-        public void Setup()
-        {
-            _seed = new Seed32(999);
-            _formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
-            _segmentSeed = new Seed32(0);
-        }
-
-        void Cleanup()
-        {
-            var fi = new FileInfo(_testName + ".database");
-            if (fi.Exists)
-                while (fi.IsFileLocked())
-                    Thread.Sleep(100);
-
-            fi.Delete();
-        }
-
         [Test]
         public void AfmInitializes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", new Seed32(999), _segmentSeed, _formatter))
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(0), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", new FileCore<int, long>(), formatter))
             {
                 afm.Load<int>();
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
                 Assert.AreEqual(512, afm.Stride);
-                Assert.AreEqual(10240, afm.SeedPosition);
+                Assert.AreEqual(10240, afm.CorePosition);
             }
         }
 
@@ -84,32 +64,34 @@ namespace BESSy.Tests.AtomicFileManagerTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            var seed = new Seed32(999);
-            var entity = TestResourceFactory.CreateRandom() as MockClassC;
-            var seg = -1;
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed))
+            var entity = TestResourceFactory.CreateRandom() as MockClassC;
+            long seg = -1;
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core))
             {
                 afm.Load<int>();
 
-                entity.Id = seed.Increment();
+                entity.Id = core.IdSeed.Increment();
 
-                afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, int newLength, int newSeedStride)
+                afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
                 {
-                    afm.SaveSeed<int>();
+                    afm.SaveCore<int>();
                 });
 
                 seg = AtomicFileManagerHelper.SaveSegment(afm, entity, entity.Id);
 
-                afm.SaveSeed<int>();
+                afm.SaveCore<int>();
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database",  _segmentSeed))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database"))
             {
                 afm.Load<int>();
 
                 Assert.AreEqual(512, afm.Stride);
-                Assert.AreEqual(10240, afm.SeedPosition);
+                Assert.AreEqual(1024, afm.CorePosition);
 
                 var obj = afm.LoadSegmentFrom(seg) as MockClassC;
 
@@ -126,6 +108,56 @@ namespace BESSy.Tests.AtomicFileManagerTests
             }
         }
 
+        [Test]
+        public void AfmLoadsJObjectsObjects()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
+
+            var entity = TestResourceFactory.CreateRandom() as MockClassC;
+            long seg = -1;
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core))
+            {
+                afm.Load<int>();
+
+                entity.Id = core.IdSeed.Increment();
+
+                afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                {
+                    afm.SaveCore<int>();
+                });
+
+                seg = AtomicFileManagerHelper.SaveSegment(afm, entity, entity.Id);
+
+                afm.SaveCore<int>();
+            }
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database"))
+            {
+                afm.Load<int>();
+
+                Assert.AreEqual(512, afm.Stride);
+                Assert.AreEqual(1024, afm.CorePosition);
+
+                var obj = afm.LoadJObjectFrom(seg);
+
+                Assert.IsNotNull(obj);
+                Assert.AreEqual(entity.Id, obj.Value<int>("Id"));
+                Assert.AreEqual(entity.Name, obj.Value<string>("Name"));
+                Assert.AreEqual(entity.GetSomeCheckSum, obj.GetAsTypedArray<double>("GetSomeCheckSum"));
+                Assert.AreEqual(entity.Location.X, obj.SelectToken("Location.X").Value<float>());
+                Assert.AreEqual(entity.Location.Y, obj.SelectToken("Location.Y").Value<float>());
+                Assert.AreEqual(entity.Location.Z, obj.SelectToken("Location.Z").Value<float>());
+                Assert.AreEqual(entity.Location.W, obj.SelectToken("Location.W").Value<float>());
+                Assert.AreEqual(entity.ReferenceCode, obj.Value<string>("ReferenceCode"));
+                Assert.AreEqual(entity.ReplicationID, obj.Value<Guid>("ReplicationID"));
+            }
+        }
+
         void afm_Rebuilt(Guid transactionId, int newStride, int newLength, int newSeedStride)
         {
             throw new NotImplementedException();
@@ -137,31 +169,34 @@ namespace BESSy.Tests.AtomicFileManagerTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            var seed = new Seed32(999);
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
+
+          
             var entity1 = TestResourceFactory.CreateRandom() as MockClassC;
             var entity2 = TestResourceFactory.CreateRandom() as MockClassC;
-            var seg = -1;
+            long seg = -1;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
                 afm.Load<int>();
 
                seg = AtomicFileManagerHelper.SaveSegment(afm, entity1, entity1.Id);
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
 
                 AtomicFileManagerHelper.SaveSegment(afm, entity2, entity2.Id, seg);
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
 
-                Assert.AreEqual(512, afm.Stride);
-                Assert.AreEqual(10240, afm.SeedPosition);
+                Assert.Less(512, afm.Stride);
+                Assert.Greater(1024, afm.CorePosition);
 
                 var obj = afm.LoadSegmentFrom(seg) as MockClassC;
 
@@ -183,7 +218,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 Assert.IsNull(obj);
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
 
@@ -199,20 +234,23 @@ namespace BESSy.Tests.AtomicFileManagerTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), Stride = 512 };
+
             var entity1 = TestResourceFactory.CreateRandom() as MockClassC;
             
             MockClassC entity2;
 
-            var seg = -1;
+            long seg = -1;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
                 afm.Load<int>();
                 entity1.Id = 1001;
                 seg = AtomicFileManagerHelper.SaveSegment(afm, entity1, entity1.Id);
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
 
@@ -222,12 +260,12 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database",_segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
 
-                Assert.AreEqual(512, afm.Stride);
-                Assert.AreEqual(10240, afm.SeedPosition);
+                Assert.Less(512, afm.Stride);
+                Assert.AreEqual(10240, afm.CorePosition);
 
                 var obj = afm.LoadSegmentFrom(seg) as MockClassC;
 
@@ -251,16 +289,19 @@ namespace BESSy.Tests.AtomicFileManagerTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
+            var formatter = new BSONFormatter();
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), Stride = 32 };
+
             var addEntities = TestResourceFactory.GetMockClassAObjects(25).ToList();
             
             foreach (var entity in addEntities)
-                entity.Id = _seed.Increment();
+                entity.Id = core.IdSeed.Increment();
 
             var updateEntities = new List<MockClassC>();
 
-            IDictionary<int, int> returnSegments = null;
+            IDictionary<int, long> returnSegments = null;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _seed, _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
                 afm.Load<int>();
 
@@ -268,10 +309,19 @@ namespace BESSy.Tests.AtomicFileManagerTests
                      (new MockTransactionFactory<int, MockClassA>()
                      , new TransactionSynchronizer<int, MockClassA>()))
                 {
+                    afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                    {
+                        var c = (IFileCore<int, long>)afm.Core;
+                        c.Stride = newStride;
+                        c.MinimumCoreStride = newSeedStride;
+
+                        afm.SaveCore<int>();
+                    });
+
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
                         delegate(ITransaction<int, MockClassA> tranny)
                         {
-                            returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, int>());
+                            returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, long>());
                             tranny.MarkComplete();
                         });
 
@@ -289,7 +339,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 }
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
 
@@ -299,6 +349,15 @@ namespace BESSy.Tests.AtomicFileManagerTests
                      (new MockTransactionFactory<int, MockClassA>()
                      , new TransactionSynchronizer<int, MockClassA>()))
                 {
+                    afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                    {
+                        var c = (IFileCore<int, long>)afm.Core;
+                        c.Stride = newStride;
+                        c.MinimumCoreStride = newSeedStride;
+
+                        afm.SaveCore<int>();
+                    });
+
                     manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
                         delegate(ITransaction<int, MockClassA> tranny)
                         {
@@ -317,7 +376,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
                         updateEntities.ForEach(u => tLock.Transaction.Enlist(Action.Update, u.Id, u));
 
                         var insert = TestResourceFactory.CreateRandom().WithName("numb nugget") as MockClassC;
-                        insert.Id = _seed.Increment();
+                        insert.Id = core.IdSeed.Increment();
 
                         updateEntities.Add(insert);
                         tLock.Transaction.Enlist(Action.Create, insert.Id, insert);
@@ -329,12 +388,12 @@ namespace BESSy.Tests.AtomicFileManagerTests
                 }
             }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", _segmentSeed, _formatter))
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
             {
                 afm.Load<int>();
 
-                Assert.AreEqual(512, afm.Stride);
-                Assert.AreEqual(10240, afm.SeedPosition);
+                Assert.LessOrEqual(511, afm.Stride);
+                Assert.AreEqual(10240, afm.CorePosition);
 
                 foreach (var entity in updateEntities)
                 {

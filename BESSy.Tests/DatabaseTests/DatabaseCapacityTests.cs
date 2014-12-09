@@ -36,6 +36,7 @@ using BESSy.Tests.ResourceRepositoryTests.Resources;
 using BESSy.Transactions;
 using BESSy.Json.Linq;
 using NUnit.Framework;
+using BESSy.Containers;
 
 namespace BESSy.Tests.DatabaseTests
 {
@@ -58,9 +59,9 @@ namespace BESSy.Tests.DatabaseTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            var objs = TestResourceFactory.GetMockClassAObjects(20000).ToList();
+            var objs = TestResourceFactory.GetMockClassAObjects(10000).ToList();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed, new BinConverter32(), _formatter))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(new Seed32(999)), _formatter))
             {
                 db.Load();
 
@@ -73,13 +74,13 @@ namespace BESSy.Tests.DatabaseTests
 
                 Assert.AreEqual(objs.Count(), len);
 
-                var items = db.Select(s => s.Value<int>("Id") < 10000).Cast<MockClassC>();
+                var items = db.Select(s => s.Value<int>("Id") < 5000).Cast<MockClassC>();
 
-                Assert.AreEqual(9000, items.Count());
+                Assert.AreEqual(4000, items.Count());
 
                 db.Reorganize();
 
-                Assert.AreEqual(21000, db.Add(TestResourceFactory.CreateRandom()));
+                Assert.AreEqual(11000, db.Add(TestResourceFactory.CreateRandom()));
             }
 
             using (var db = new Database<int, MockClassA>(_testName + ".database", _formatter))
@@ -114,7 +115,7 @@ namespace BESSy.Tests.DatabaseTests
 
             var objs = TestResourceFactory.GetMockClassAObjects(10000).ToList();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", _seed))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(new Seed32(999))))
             {
                 db.Load();
 
@@ -277,7 +278,7 @@ namespace BESSy.Tests.DatabaseTests
 
                 Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
 
-                Console.WriteLine("Avg Commit time for transaction with 25000 entities {0} seconds", avgTime / 1000m);
+                Console.WriteLine("Avg Commit time for trans with 25000 entities {0} seconds", avgTime / 1000m);
 
                 stopWatch.Reset();
                 stopWatch.Start();

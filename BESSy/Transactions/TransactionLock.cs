@@ -58,9 +58,6 @@ namespace BESSy.Transactions
 
         public void Dispose()
         {
-            if (_autoCommit && !Transaction.IsComplete)
-                Transaction.Commit();
-
             if (_sync != null)
                 _sync.Unlock(this);
         }

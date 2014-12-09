@@ -13,6 +13,7 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,36 +24,49 @@ namespace BESSy.Extensions
 {
     public static class StreamExtensions
     {
-        public static void Trim(this Stream inStream)
-        {
-            var buffer = new byte[Environment.SystemPageSize];
+        //public static void Trim(this Stream inStream)
+        //{
+        //    var buffer = new byte[Environment.SystemPageSize];
 
-            var lastNonZeroIndex = -1;
-            var total = 0;
+        //    var lastNonZeroIndex = -1;
+        //    var total = 0;
 
-            var read = inStream.Read(buffer, 0, buffer.Length);
+        //    var read = inStream.Read(buffer, 0, buffer.Length);
 
-            while (read > 0)
-            {
-                var last = Array.FindLastIndex(buffer, b => b != 0);
-                if (last >= 0)
-                    lastNonZeroIndex = total + last;
+        //    while (read > 0)
+        //    {
+        //        var last = Array.FindLastIndex(buffer, b => b != 0);
+        //        if (last >= 0)
+        //            lastNonZeroIndex = total + last;
 
-                total += read;
+        //        total += read;
 
-                read = inStream.Read(buffer, 0, buffer.Length);
-            }
+        //        read = inStream.Read(buffer, 0, buffer.Length);
+        //    }
 
 
-            if (lastNonZeroIndex >= 0)
-                inStream.SetLength(lastNonZeroIndex + 1);
-        }
+        //    if (lastNonZeroIndex >= 0)
+        //        inStream.SetLength(lastNonZeroIndex + 1);
+        //}
 
         public static void WriteAllTo(this Stream inStream, Stream outStream)
         {
             var buffer = new byte[Environment.SystemPageSize];
 
             inStream.Position = 0;
+            var read = inStream.Read(buffer, 0, buffer.Length);
+
+            while (read > 0)
+            {
+                outStream.Write(buffer, 0, read);
+                read = inStream.Read(buffer, 0, buffer.Length);
+            }
+        }
+
+        public static void WriteAllFromCurrentPositionTo(this Stream inStream, Stream outStream)
+        {
+            var buffer = new byte[Environment.SystemPageSize];
+
             var read = inStream.Read(buffer, 0, buffer.Length);
 
             while (read > 0)

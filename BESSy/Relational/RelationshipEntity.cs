@@ -19,99 +19,119 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using BESSy.Json;
+using BESSy.Cache;
+using System.Threading;
+using BESSy.Indexes;
 
 namespace BESSy.Relational
 {
-
-
-    public class RelationshipEntity<IdType>
+    public abstract class RelationshipEntity<IdType, EntityType> : IRelationalAccessor<IdType, EntityType>, IRelationalEntity<IdType, EntityType> where EntityType : class, IRelationalEntity<IdType, EntityType>
     {
-        public RelationshipEntity(IRepository<RelationshipEntity<IdType>, IdType> repo)
-        {
-            Repository = repo;
+        public RelationshipEntity() { }
 
-            _relationshipIds = new Dictionary<string, IdType>();
+        public RelationshipEntity(IRelationalDatabase<IdType, EntityType> repo) 
+        { 
+            Repository = repo;
+            _relationshipIds = new Dictionary<string, IdType[]>();
         }
 
         object _syncRoot = new object();
 
-        protected RelationshipEntity<IdType> GetRelatedEntity(string name)
+        [JsonProperty("$relationshipIds")]
+        private IDictionary<string, IdType[]> _relationshipIds { get; set; }
+
+        [JsonIgnore]
+        IDictionary<string, IdType[]> IRelationalAccessor<IdType, EntityType>.RelationshipIds { get { return _relationshipIds; } }
+
+        protected void HandleOnCollectionChanged(string name, IEnumerable<EntityType> collection)
         {
-            if (name.Contains("_"))
-                throw new InvalidOperationException("The '_' character is not a valid field name character.");
-
-            if (!_relationshipIds.ContainsKey(name))
-                return null;
-
-            return Repository.Fetch(_relationshipIds[name]) as RelationshipEntity<IdType>;
+            SetRelatedEntities(name, collection);
         }
 
-        protected void SetRelatedEntity(string name, RelationshipEntity<IdType> entity)
+        protected EntityType GetRelatedEntity(string name)
         {
             if (name.Contains("_"))
-                throw new InvalidOperationException("The '_' character is not a valid field name character.");
+                throw new InvalidOperationException("The '_' character is not a valid field property character.");
 
-            if (entity == null)
+            lock (_syncRoot)
+                if (!_relationshipIds.ContainsKey(name) || _relationshipIds[name].Length < 1)
+                    return default(EntityType);
+
+            return Repository.Fetch(_relationshipIds[name][0]) as EntityType;
+        }
+
+        protected void SetRelatedEntity(string name, EntityType entity)
+        {
+            if (name.Contains("_"))
+                throw new InvalidOperationException("The '_' character is not a valid field property character.");
+
+            lock (_syncRoot)
             {
-                _relationshipIds.Remove(name);
-            }
-            else
-            {
-                if (!_relationshipIds.ContainsKey(name))
-                    _relationshipIds.Add(name, Repository.AddOrUpdate(entity, entity.Id));
+                var idsToDelete = _relationshipIds.ContainsKey(name) && !_relationshipIds[name].Contains(entity.Id) ? _relationshipIds[name] : new IdType[0];
+                var newIds = entity != null ? new IdType[] { Repository.AddOrUpdate(entity, entity.Id) } : new IdType[0];
+
+                if (entity == null)
+                    _relationshipIds.Remove(name);
                 else
-                    _relationshipIds[name] = Repository.AddOrUpdate(entity, entity.Id);
+                {
+                    if (!_relationshipIds.ContainsKey(name))
+                        _relationshipIds.Add(name, newIds);
+                    else
+                        _relationshipIds[name] = newIds;
+                }
+
+                Repository.UpdateCascade(new Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>>(name, newIds , idsToDelete));
             }
         }
 
-        protected IEnumerable<RelationshipEntity<IdType>> GetRelatedEntities(string name)
+        protected IEnumerable<EntityType> GetRelatedEntities(string name)
         {
-            if (name.Contains("_"))
-                throw new InvalidOperationException("The '_' character is not a valid field name character.");
+            var entities = new WatchList<EntityType>();
 
-            List<RelationshipEntity<IdType>> entities = new List<RelationshipEntity<IdType>>();
+            entities.OnCollectionChanged += new CollectionChanged<EntityType>(HandleOnCollectionChanged);
 
-            foreach (var rel in _relationshipIds.Where(r => r.Key.StartsWith(name + "_")).OrderBy(o => o.Value))
+            lock (_syncRoot)
             {
-                if (rel.Value == null)
-                    continue;
+                var ids = _relationshipIds.ContainsKey(name) ? _relationshipIds[name] : new IdType[0];
 
-                entities.Add(Repository.Fetch(rel.Value) as RelationshipEntity<IdType>);
+                foreach (var id in ids)
+                    entities.AddInternal(Repository.Fetch(id));
             }
 
             return entities;
         }
 
-        protected void SetRelatedEntities(string name, IEnumerable<RelationshipEntity<IdType>> entities)
+        protected void SetRelatedEntities(string name, IEnumerable<EntityType> entities)
         {
-            if (name.Contains("_"))
-                throw new InvalidOperationException("The '_' character is not a valid field name character.");
-
-            _relationshipIds.Where(r => r.Key.StartsWith(name + "_")).ToList().ForEach(r => _relationshipIds.Remove(r.Key));
-
             if (entities == null)
-                return;
+                entities = new List<EntityType>();
+               
+            var ents = entities.Where(e => e != null);
 
-            foreach (var ent in entities)
+            lock (_syncRoot)
             {
-                if (ent == null)
-                    continue;
+                foreach (var e in ents)
+                    e.Id = Repository.AddOrUpdate(e, e.Id);
 
-                var key = name + "_" + ent.Id.ToString();
+                var newIds = ents.Select(e => e.Id);
+                var oldIds = _relationshipIds.ContainsKey(name) ? _relationshipIds[name] : new IdType[0];
 
-                if (_relationshipIds.ContainsKey(key))
-                    _relationshipIds[key] = Repository.AddOrUpdate(ent, ent.Id);
+                var idsToDelete = oldIds.Where(r => !newIds.Contains(r));
+                var idsToAdd = newIds.Where(c => oldIds.Contains(c));
+                
+                if (_relationshipIds.ContainsKey(name))
+                    _relationshipIds[name] = newIds.ToArray();
                 else
-                    _relationshipIds.Add(key, Repository.AddOrUpdate(ent, ent.Id));
+                    _relationshipIds.Add(name, newIds.ToArray());
+
+                Repository.UpdateCascade(new Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>>(name, newIds, idsToDelete));
             }
         }
 
-        [JsonProperty("_relationshipIds")]
-        private IDictionary<string, IdType> _relationshipIds { get; set; }
-
         [JsonIgnore]
-        internal IRepository<RelationshipEntity<IdType>, IdType> Repository { get; set; }
-        protected void SetRepository(IRepository<RelationshipEntity<IdType>, IdType> repo) { Repository = repo; }
+        public IRelationalDatabase<IdType, EntityType> Repository { internal get; set; }
+
+        public abstract bool CascadeDelete { get; }
 
         public IdType Id { get; set; }
     }

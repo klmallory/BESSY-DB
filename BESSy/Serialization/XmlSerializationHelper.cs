@@ -25,11 +25,14 @@ namespace BESSy.Serialization
 {
     public static class XmlSerializationHelper
     {
+        static object _syncRoot = new object();
+        static Dictionary<Type, XmlSerializer> _serializers = new Dictionary<Type, XmlSerializer>();
+
         /// <summary>
-        /// Tries to serialize the specified object of the specified type, with UTF-8 as the encoding.
+        /// Tries to serialize the specified object of the specified tBuilder, with UTF-8 as the encoding.
         /// </summary>
-        /// <param name="obj">The obj.</param>
-        /// <param name="output">The output.</param>
+        /// <param property="jObj">The jObj.</param>
+        /// <param property="compressed">The compressed.</param>
         /// <returns>True if the object was successfully serialized.</returns>
         public static bool TrySerialize<T>(T obj, out string output) where T : class
         {
@@ -37,10 +40,10 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Tries to serialize the specified object of the specified type with the specified encoding.
+        /// Tries to serialize the specified object of the specified tBuilder with the specified encoding.
         /// </summary>
-        /// <param name="obj">The obj.</param>
-        /// <param name="output">The output.</param>
+        /// <param property="jObj">The jObj.</param>
+        /// <param property="compressed">The compressed.</param>
         /// <returns>True if the object was successfully serialized.</returns>
         public static bool TrySerialize<T>(T obj, Encoding encoding, out string output) where T : class
         {
@@ -56,7 +59,13 @@ namespace BESSy.Serialization
 
             try
             {
-                XmlSerializer xsl = new XmlSerializer(typeof(T));
+                var type = typeof(T);
+
+                if (!_serializers.ContainsKey(type))
+                    lock (_syncRoot)
+                        _serializers.Add(type, new XmlSerializer(type));
+
+                XmlSerializer xsl = _serializers[type];
 
                 ms = new MemoryStream();
 
@@ -89,7 +98,7 @@ namespace BESSy.Serialization
         /// <summary>
         /// Serializes the specified object, with UTF-8 as the encoding.
         /// </summary>
-        /// <param name="obj">The object to serialize.</param>
+        /// <param property="jObj">The object to serialize.</param>
         /// <returns>returns the serialized xml.</returns>
         public static string Serialize<T>(T obj) where T : class
         {
@@ -99,15 +108,21 @@ namespace BESSy.Serialization
         /// <summary>
         /// Serializes the specified object, with the specified encoding.
         /// </summary>
-        /// <param name="obj">The object to serialize.</param>
-        /// <param name="encoding">The encoding.</param>
+        /// <param property="jObj">The object to serialize.</param>
+        /// <param property="encoding">The encoding.</param>
         /// <returns>returns the serialized xml.</returns>
         public static string Serialize<T>(T obj, Encoding encoding) where T : class
         {
             if (obj == null)
                 throw new ArgumentNullException();
 
-            XmlSerializer xsl = new XmlSerializer(typeof(T));
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type));
+
+            XmlSerializer xsl = _serializers[type];
 
             using (var ms = new MemoryStream())
             {
@@ -122,21 +137,27 @@ namespace BESSy.Serialization
         /// <summary>
         /// Serializes the specified object.
         /// </summary>
-        /// <param name="obj">The objext.</param>
-        /// <param name="defaultNameSpace">The default namespace.</param>
+        /// <param property="jObj">The objext.</param>
+        /// <param property="defaultNameSpace">The default namespace.</param>
         /// <returns></returns>
         public static string Serialize<T>(T obj, string defaultNameSpace) where T : class
         {
             if (obj == null)
                 throw new ArgumentNullException();
 
-            //Create our own namespaces for the output
+            //Create our own namespaces for the compressed
             XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
 
-            //Add an empty namespace and empty value
+            //AddOrUpdate an empty namespace and empty qVal
             ns.Add("", defaultNameSpace);
 
-            XmlSerializer xsl = new XmlSerializer(typeof(T));
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type));
+
+            XmlSerializer xsl = _serializers[type];
 
             using (var ms = new MemoryStream())
             {
@@ -149,10 +170,10 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Tries to deserialize the specified xml as the specified inner type.
+        /// Tries to deserialize the specified xml as the specified inner tBuilder.
         /// </summary>
-        /// <param name="xml">The XML.</param>
-        /// <param name="output">The output.</param>
+        /// <param property="xml">The XML.</param>
+        /// <param property="compressed">The compressed.</param>
         /// <returns>True if the document was successfully deserialized.</returns>
         public static bool TryDeserialize<T>(string xml, out T output) where T : class
         {
@@ -171,10 +192,10 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Tries to deserialize the specified stream as the specified inner type.
+        /// Tries to deserialize the specified stream as the specified inner tBuilder.
         /// </summary>
-        /// <param name="stream">The stream.</param>
-        /// <param name="output">The output.</param>
+        /// <param property="stream">The stream.</param>
+        /// <param property="compressed">The compressed.</param>
         /// <returns>True if the document was successfully deserialized.</returns>
         public static bool TryDeserialize<T>(Stream stream, out T output) where T : class
         {
@@ -193,10 +214,10 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Tries to deserialize the specified xmlTextReader as the specified inner type.
+        /// Tries to deserialize the specified xmlTextReader as the specified inner tBuilder.
         /// </summary>
-        /// <param name="xmlTextReader">The XML text reader.</param>
-        /// <param name="output">The output.</param>
+        /// <param property="xmlTextReader">The XML text reader.</param>
+        /// <param property="compressed">The compressed.</param>
         /// <returns>True if the document was successfully deserialized.</returns>
         public static bool TryDeserialize<T>(XmlTextReader xmlTextReader, out T output) where T : class
         {
@@ -206,9 +227,9 @@ namespace BESSy.Serialization
         /// <summary>
         /// Tries the deserialize.
         /// </summary>
-        /// <typeparam name="ResourceType"></typeparam>
-        /// <param name="xmlReader">The XML reader.</param>
-        /// <param name="output">The output.</param>
+        /// <typeparam property="ResourceType"></typeparam>
+        /// <param property="xmlReader">The XML reader.</param>
+        /// <param property="compressed">The compressed.</param>
         /// <returns></returns>
         public static bool TryDeserialize<T>(XmlReader xmlReader, out T output) where T : class
         {
@@ -225,7 +246,13 @@ namespace BESSy.Serialization
 
             try
             {
-                XmlSerializer xsl = new XmlSerializer(typeof(T));
+                var type = typeof(T);
+
+                if (!_serializers.ContainsKey(type))
+                    lock (_syncRoot)
+                        _serializers.Add(type, new XmlSerializer(type));
+
+                XmlSerializer xsl = _serializers[type];
 
                 if (!xsl.CanDeserialize(xmlReader))
                     return false;
@@ -243,13 +270,19 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Deserializes the specified XML as the specified inner type.
+        /// Deserializes the specified XML as the specified inner tBuilder.
         /// </summary>
-        /// <param name="xml">The XML.</param>
+        /// <param property="xml">The XML.</param>
         /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(string xml) where T : class
         {
-            XmlSerializer xsl = new XmlSerializer(typeof(T));
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type));
+
+            XmlSerializer xsl = _serializers[type];
 
             T retVal = xsl.Deserialize(new StringReader(xml)) as T;
 
@@ -257,13 +290,19 @@ namespace BESSy.Serialization
         }
 
         /// <summary>
-        /// Deserializes the specified XML as the specified inner type.
+        /// Deserializes the specified XML as the specified inner tBuilder.
         /// </summary>
-        /// <param name="xml">The XML.</param>
+        /// <param property="xml">The XML.</param>
         /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(string xml, params Type[] types) where T : class
         {
-            XmlSerializer xsl = new XmlSerializer(typeof(T), types);
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type, types));
+
+            XmlSerializer xsl = _serializers[type];
 
             T retVal = xsl.Deserialize(new StringReader(xml)) as T;
 
@@ -273,12 +312,18 @@ namespace BESSy.Serialization
         /// <summary>
         /// Deserializes the specified XML under the specified namespace.
         /// </summary>
-        /// <param name="xml">The XML.</param>
-        /// <param name="defaultNamespace">The default namespace.</param>
+        /// <param property="xml">The XML.</param>
+        /// <param property="defaultNamespace">The default namespace.</param>
         /// <returns></returns>
         public static T Deserialize<T>(string xml, string defaultNamespace) where T : class
         {
-            XmlSerializer xsl = new XmlSerializer(typeof(T), defaultNamespace);
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type, defaultNamespace));
+
+            XmlSerializer xsl = _serializers[type];
 
             T retVal = xsl.Deserialize(new StringReader(xml)) as T;
 
@@ -288,11 +333,17 @@ namespace BESSy.Serialization
         /// <summary>
         /// Deserializes the specified stream reader as ResourceType.
         /// </summary>
-        /// <param name="streamReader">The stream reader.</param>
+        /// <param property="streamReader">The stream reader.</param>
         /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(StreamReader streamReader) where T : class
         {
-            XmlSerializer xsl = new XmlSerializer(typeof(T));
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type));
+
+            XmlSerializer xsl = _serializers[type];
 
             XmlTextReader xmlTextReader = new XmlTextReader(streamReader.BaseStream);
 
@@ -302,11 +353,17 @@ namespace BESSy.Serialization
         /// <summary>
         /// Deserializes the specified stream as ResourceType.
         /// </summary>
-        /// <param name="stream">The stream.</param>
+        /// <param property="stream">The stream.</param>
         /// <returns>returns the deserialized object ResourceType.</returns>
         public static T Deserialize<T>(Stream stream) where T : class
         {
-            XmlSerializer xsl = new XmlSerializer(typeof(T));
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type));
+
+            XmlSerializer xsl = _serializers[type];
 
             XmlTextReader xmlTextReader = new XmlTextReader(stream);
 
@@ -316,8 +373,8 @@ namespace BESSy.Serialization
         /// <summary>
         /// Deserializes the specified <see cref="XmlTextReader"/>.
         /// </summary>
-        /// <typeparam name="ResourceType"></typeparam>
-        /// <param name="reader">The reader.</param>
+        /// <typeparam property="ResourceType"></typeparam>
+        /// <param property="reader">The reader.</param>
         /// <returns></returns>
         public static T Deserialize<T>(XmlTextReader reader) where T : class
         {
@@ -327,12 +384,18 @@ namespace BESSy.Serialization
         /// <summary>
         /// Deserializes the specified <see cref="XmlReader"/>.
         /// </summary>
-        /// <typeparam name="ResourceType"></typeparam>
-        /// <param name="reader">The reader.</param>
+        /// <typeparam property="ResourceType"></typeparam>
+        /// <param property="reader">The reader.</param>
         /// <returns></returns>
         public static T Deserialize<T>(XmlReader reader) where T : class
         {
-            XmlSerializer xsl = new XmlSerializer(typeof(T));
+            var type = typeof(T);
+
+            if (!_serializers.ContainsKey(type))
+                lock (_syncRoot)
+                    _serializers.Add(type, new XmlSerializer(type));
+
+            XmlSerializer xsl = _serializers[type];
 
             T retVal = xsl.Deserialize(reader) as T;
 

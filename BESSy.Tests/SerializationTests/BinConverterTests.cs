@@ -40,6 +40,67 @@ namespace BESSy.Tests.SerializationTests.ConverterTests
 
         }
 
+
+        [Test]
+        public void BinConverterByteAllRoundTest()
+        {
+            var bin = new BinConverterByte();
+
+            var bytes = bin.ToBytes(3);
+
+            Assert.AreEqual(3, bin.FromBytes(bytes));
+            Assert.AreEqual(3, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(1, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(235, 235));
+
+            Assert.AreEqual(byte.MaxValue, bin.Max);
+            Assert.AreEqual(byte.MinValue, bin.Min);
+
+        }
+
+        [Test]
+        public void BinConverter16AllRoundTest()
+        {
+            var bin = new BinConverter16();
+
+            var bytes = bin.ToBytes(3);
+
+            Assert.AreEqual(3, bin.FromBytes(bytes));
+            Assert.AreEqual(3, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(2, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(9487, 9487));
+
+            Assert.AreEqual(short.MaxValue, bin.Max);
+            Assert.AreEqual(short.MinValue, bin.Min);
+
+        }
+
+        [Test]
+        public void BinConverterU16AllRoundTest()
+        {
+            var bin = new BinConverterU16();
+
+            var bytes = bin.ToBytes(3);
+
+            Assert.AreEqual(3, bin.FromBytes(bytes));
+            Assert.AreEqual(3, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(2, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(64875, 64875));
+
+            Assert.AreEqual(ushort.MaxValue, bin.Max);
+            Assert.AreEqual(ushort.MinValue, bin.Min);
+
+        }
+
         [Test]
         public void BinConverter64AllRoundTest()
         {
@@ -60,6 +121,26 @@ namespace BESSy.Tests.SerializationTests.ConverterTests
         }
 
         [Test]
+        public void BinConverterU64AllRoundTest()
+        {
+            var bin = new BinConverterU64();
+
+            var bytes = bin.ToBytes(3);
+
+            Assert.AreEqual(3, bin.FromBytes(bytes));
+            Assert.AreEqual(3, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(8, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(948752397450959734, 948752397450959734));
+
+            Assert.AreEqual(ulong.MaxValue, bin.Max);
+            Assert.AreEqual(ulong.MinValue, bin.Min);
+        }
+
+
+        [Test]
         public void BinConverter32AllRoundTest()
         {
             var bin = new BinConverter32();
@@ -76,6 +157,111 @@ namespace BESSy.Tests.SerializationTests.ConverterTests
 
             Assert.AreEqual(int.MaxValue, bin.Max);
             Assert.AreEqual(int.MinValue, bin.Min);
+
+        }
+
+        [Test]
+        public void BinConverterU32AllRoundTest()
+        {
+            var bin = new BinConverterU32();
+
+            var bytes = bin.ToBytes(3);
+
+            Assert.AreEqual(3, bin.FromBytes(bytes));
+            Assert.AreEqual(3, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(4, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(948752397, 948752397));
+
+            Assert.AreEqual(uint.MaxValue, bin.Max);
+            Assert.AreEqual(uint.MinValue, bin.Min);
+
+        }
+
+        [Test]
+        public void BinConverterDecimalAllRoundTest()
+        {
+            var bin = new BinConverterDecimal();
+
+            var d = (decimal)30034523.0001087365978;
+
+            var bytes = bin.ToBytes(d);
+
+            Assert.AreEqual(d, bin.FromBytes(bytes));
+            Assert.AreEqual(d, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(16, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(9487, 9487));
+
+            Assert.AreEqual(decimal.MaxValue, bin.Max);
+            Assert.AreEqual(decimal.MinValue, bin.Min);
+
+        }
+
+        [Test]
+        public void BinConverterDoubleAllRoundTest()
+        {
+            var bin = new BinConverterDouble();
+
+            var d = (double)30034523.0001087365978;
+            var bytes = bin.ToBytes(d);
+
+            Assert.AreEqual(d, bin.FromBytes(bytes));
+            Assert.AreEqual(d, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(8, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(64875, 64875));
+
+            Assert.AreEqual(double.MaxValue, bin.Max);
+            Assert.AreEqual(double.MinValue, bin.Min);
+
+        }
+
+        [Test]
+        public void BinConverterFloatAllRoundTest()
+        {
+            var bin = new BinConverterFloat();
+
+            var f = (float)3003.0001;
+            var bytes = bin.ToBytes(f);
+
+            Assert.AreEqual(f, bin.FromBytes(bytes));
+            Assert.AreEqual(f, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(4, bin.Length);
+            Assert.AreEqual(1, bin.Compare(4, 3));
+            Assert.AreEqual(-1, bin.Compare(3, 4));
+            Assert.AreEqual(0, bin.Compare(64875, 64875));
+
+            Assert.AreEqual(float.MaxValue, bin.Max);
+            Assert.AreEqual(float.MinValue, bin.Min);
+
+        }
+
+        [Test]
+        public void BinConverterDateTimeAllRoundTest()
+        {
+            var bin = new BinConverterDateTime();
+
+            var t = DateTime.Now;
+            var bytes = bin.ToBytes(t);
+
+            Assert.AreEqual(t, bin.FromBytes(bytes));
+            Assert.AreEqual(t, bin.FromStream(new MemoryStream(bytes)));
+            Assert.AreEqual(bytes.Length, bin.Length);
+            Assert.AreEqual(8, bin.Length);
+            Assert.AreEqual(1, bin.Compare(DateTime.Now.AddDays(1), DateTime.Now));
+            Assert.AreEqual(-1, bin.Compare(DateTime.Now, DateTime.Now.AddDays(1)));
+            Assert.AreEqual(0, bin.Compare(t, t));
+
+            Assert.AreEqual(DateTime.MaxValue, bin.Max);
+            Assert.AreEqual(DateTime.MinValue, bin.Min);
 
         }
 

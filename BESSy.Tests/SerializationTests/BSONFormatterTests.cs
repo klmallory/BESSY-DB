@@ -41,8 +41,7 @@ namespace BESSy.Tests.SerializationTests
         }
 
         [Test]
-        [ExpectedException(typeof(ArgumentNullException))]
-        public void BSONFormatterThrowsExceptionWithNullSettings()
+        public void BSONFormatterWithNullSettings()
         {
             new BSONFormatter(null);
         }
@@ -223,6 +222,8 @@ namespace BESSy.Tests.SerializationTests
 
             var unformatted = bson.Parse(stream);
 
+            var con = bson.AsQueryableObj(test);
+
             Assert.AreEqual(unformatted.Value<int>("Id"), test.Id);
             Assert.AreEqual(unformatted.Value<string>("Name"), test.Name);
             Assert.AreEqual((double)unformatted["GetSomeCheckSum"][0], test.GetSomeCheckSum[0]);
@@ -232,6 +233,44 @@ namespace BESSy.Tests.SerializationTests
             Assert.AreEqual((double)unformatted["Location"]["W"], test.Location.W);
             Assert.AreEqual((string)unformatted["ReferenceCode"], test.ReferenceCode);
             Assert.AreEqual((Guid)unformatted["ReplicationID"], test.ReplicationID);
+        }
+
+        [Test]
+        public void BSONWritesJObjectToStream()
+        {
+            var arraySettings = BSONFormatter.GetDefaultSettings();
+            arraySettings.TypeNameHandling = BESSy.Json.TypeNameHandling.Objects;
+
+            var test = TestResourceFactory.CreateRandom() as MockClassC;
+
+            var bson = new BSONFormatter(arraySettings);
+
+            var stream = bson.FormatObjStream(test);
+
+            var copy = new MemoryStream();
+            stream.Position = 0;
+            stream.CopyTo(copy);
+
+            var unformatted = bson.Parse(stream);
+
+            var formatted = bson.Unparse(unformatted);
+
+            copy.Position = formatted.Position = 0;
+
+            var orig = new StreamReader(copy).ReadToEnd();
+            var unparsed = new StreamReader(formatted).ReadToEnd();
+
+            //Console.Write(b);
+            //Console.WriteLine();
+            //Console.Write(unparsed);
+
+            Assert.AreEqual(copy.Length, formatted.Length);
+
+            var reformatted = bson.Parse(formatted);
+
+            Assert.AreEqual(unformatted, reformatted);
+
+            MockClassC.Validate(unformatted.ToObject<MockClassC>(), reformatted.ToObject<MockClassC>());
         }
     }
 }

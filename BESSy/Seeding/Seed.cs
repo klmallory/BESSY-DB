@@ -19,16 +19,14 @@ namespace BESSy.Seeding
 
         public Seed()
         {
-            Stride = 512;
-            MinimumSeedStride = 10240;
             OpenIds = new List<IdType>();
-            Source = Guid.NewGuid();
         }
 
         public Seed(IdType startingSeed)
             : this()
         {
             LastSeed = startingSeed;
+            Passive = false;
         }
 
         protected object _syncRoot = new object();
@@ -37,21 +35,10 @@ namespace BESSy.Seeding
         protected List<IdType> OpenIds { get; set; }
 
         [JsonProperty]
-        public Guid Source { get; protected set; }
-
-        [JsonProperty]
         public IdType LastSeed { get; protected set; }
 
-        public ISeed<int> SegmentSeed { get; set; }
-        public long LastReplicatedTimeStamp { get; set; }
-        public object PropertyConverter { get; set; }
-        public object IdConverter { get; set; }
-
-        public string IdProperty { get; set; }
-        public string CategoryIdProperty { get; set; }
-
-        public int MinimumSeedStride { get; set; }
-        public int Stride { get; set; }
+        [JsonProperty]
+        public bool Passive { get; protected set; }
 
         public virtual void Open(IdType id)
         {

@@ -23,32 +23,57 @@ using BESSy.Synchronization;
 using BESSy.Indexes;
 using BESSy.Seeding;
 using BESSy.Serialization.Converters;
+using BESSy.Cache;
 
 namespace BESSy.Factories
 {
     public interface IIndexFileFactory
     {
-        IIndexFileManager<IndexType, EntityType, int> Create<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
+         PTree<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken);
 
-        IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
-        IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer);
+        PTree<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>
+            (string fileNamePath, 
+            string indexToken, 
+            int startingSize, 
+            IBinConverter<IndexType> indexConverter, 
+            IBinConverter<SegmentType> segmentConverter, 
+            IQueryableFormatter formatter, 
+            IRowSynchronizer<long> rowSynchronizer, 
+            IRowSynchronizer<int> pageSynchronizer);
+
+        PTree<IndexType, EntityType, SegmentType> CreatePrimary<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken);
+
+        PTree<IndexType, EntityType, SegmentType> CreatePrimary<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer);
     }
 
-    public class IndexFileFactory : BESSy.Factories.IIndexFileFactory
+    public class IndexFileFactory : IIndexFileFactory
     {
-        public IIndexFileManager<IndexType, EntityType, int> Create<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+        public PTree<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken)
         {
-            return new IndexFileManager<IndexType, EntityType>(fileNamePath, indexToken, bufferSize, startingSize, maximumBlockSize, propertyConverter, formatter, rowSynchronizer);
+            return new PTree<IndexType, EntityType, SegmentType>(indexToken, fileNamePath, false);
         }
 
-        public IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, int bufferSize, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+        public PTree<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>
+            (string fileNamePath, 
+            string indexToken, 
+            int startingSize, 
+            IBinConverter<IndexType> indexConverter, 
+            IBinConverter<SegmentType> segmentConverter, 
+            IQueryableFormatter formatter, 
+            IRowSynchronizer<long> rowSynchronizer, 
+            IRowSynchronizer<int> pageSynchronizer)
         {
-            return new IndexFileManager<IndexType, EntityType>(fileNamePath, bufferSize, formatter, rowSynchronizer);
+            return new PTree<IndexType, EntityType, SegmentType>(indexToken, fileNamePath, false, startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer);
         }
 
-        public IIndexFileManager<IndexType, EntityType, int> CreatePrimary<IndexType, EntityType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, int maximumBlockSize, IBinConverter<IndexType> propertyConverter, IQueryableFormatter formatter, IRowSynchronizer<int> rowSynchronizer)
+        public PTree<IndexType, EntityType, SegmentType> CreatePrimary<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken)
         {
-            return new IndexFileManager<IndexType, EntityType>(fileNamePath, indexToken, bufferSize, startingSize, maximumBlockSize, formatter, rowSynchronizer, propertyConverter);
+            return new PTree<IndexType, EntityType, SegmentType>(indexToken, fileNamePath, true);
+        }
+
+        public PTree<IndexType, EntityType, SegmentType> CreatePrimary<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, int bufferSize, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer)
+        {
+            return new PTree<IndexType, EntityType, SegmentType>(fileNamePath, indexToken, true , startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer);
         }
     }
 }

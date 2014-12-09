@@ -40,6 +40,17 @@ namespace BESSy.Tests.Indexes
 {
     public class SecondaryIndexTests : FileTest
     {
+        protected override void Cleanup()
+        {
+            base.Cleanup();
+
+            var fi = new FileInfo(_testName + ".database.catIndex.location");
+            if (fi.Exists)
+                while (fi.IsFileLocked())
+                    Thread.Sleep(100);
+
+            fi.Delete();
+        }
 
         [Test]
         public void DatabaseLoadsAndUnloadsSecondaryIndex()
@@ -53,7 +64,7 @@ namespace BESSy.Tests.Indexes
             objs[1].Name = "Pluckers";
             objs[2].Name = "Pluckers";
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -83,8 +94,8 @@ namespace BESSy.Tests.Indexes
                 Assert.IsNotNull(check);
                 Assert.AreEqual(23, check.Count);
 
-                db.WithoutIndex<int>("notThere");
-                db.WithoutIndex<string>("catIndex");
+                db.WithoutIndex("notThere");
+                db.WithoutIndex("catIndex");
             }
         }
 
@@ -92,14 +103,13 @@ namespace BESSy.Tests.Indexes
         [ExpectedException(typeof(DuplicateKeyException))]
         public void DatabasedisallowsDuplicateIndexName()
         {
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
             }
         }
-
 
         [Test]
         public void DatabaseFetchesUpdatesAndDeletesWithSecondaryIndex()
@@ -111,17 +121,17 @@ namespace BESSy.Tests.Indexes
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var ids = new List<int>();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
 
-                objs.ToList().ForEach(o => ids.Add(db.Add(o.WithId(seed.Increment()))));
+                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
 
                 db.FlushAll();
             }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -137,7 +147,7 @@ namespace BESSy.Tests.Indexes
                 db.FlushAll();
             }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -156,7 +166,7 @@ namespace BESSy.Tests.Indexes
                 db.FlushAll();
             }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -167,6 +177,7 @@ namespace BESSy.Tests.Indexes
             }
         }
 
+        //TODO: why does this randomly fail?
         [Test]
         public void SecondaryIndexDeletesByIdAndByQuery()
         {
@@ -175,7 +186,7 @@ namespace BESSy.Tests.Indexes
 
             var objs = TestResourceFactory.GetMockClassAObjects(2500);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -191,7 +202,7 @@ namespace BESSy.Tests.Indexes
                 db.Flush();
             }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -227,7 +238,7 @@ namespace BESSy.Tests.Indexes
                 Assert.AreEqual(1500, db.Select(s => true).Count());
             }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>())
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -250,7 +261,7 @@ namespace BESSy.Tests.Indexes
             objs[1].Name = "Pluckers";
             objs[2].Name = "Pluckers";
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32()))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>()))
             {
                 db.Load();
 
@@ -265,7 +276,7 @@ namespace BESSy.Tests.Indexes
                 db.FlushAll();
             }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new Seed32())
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
                 .WithIndex<string>("catIndex", "CatalogName", new BinConverterString()))
             {
                 db.Load();
@@ -281,11 +292,10 @@ namespace BESSy.Tests.Indexes
                 Assert.IsNotNull(check);
                 Assert.AreEqual(2, check.Count);
 
-                check = db.FetchRangeFromIndexInclusive<string>("catIndex", "A", "C");
+                //check = db.FetchRangeFromIndexInclusive<string>("catIndex", "A", "C");
 
-                Assert.IsNotNull(check);
-                Assert.AreEqual(2498, check.Count);
-
+                //Assert.IsNotNull(check);
+                //Assert.AreEqual(2498, check.Count);
             }
         }
     }

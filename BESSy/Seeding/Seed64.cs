@@ -11,7 +11,7 @@ namespace BESSy.Seeding
 {
     public sealed class Seed64 : Seed<Int64>
     {
-        public Seed64() : base() { MinimumSeedStride = 512500; }
+        public Seed64() : base() {  }
 
         public Seed64(long startingSeed) : base(startingSeed)
         {
@@ -36,7 +36,7 @@ namespace BESSy.Seeding
 
         public override void Open(long id)
         {
-            if (id <= 0)
+            if (id <= 0 || id > LastSeed)
                 return;
 
             base.Open(id);

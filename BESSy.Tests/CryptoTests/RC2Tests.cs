@@ -41,7 +41,7 @@ namespace BESSy.Tests.CryptoTests
         [Test]
         public void RC2EncryptsDecryptsString()
         {
-            var text = " My Test String With Lot's of wierd ch@r@cters..~`;']{}[-=+_#%^&     ";
+            var text = " My Test String With Lot'aqn of wierd ch@r@cters..~`;']{}[-=+_#%^&     ";
 
             var encrypted = _crypto.Encrypt(text, _key);
 

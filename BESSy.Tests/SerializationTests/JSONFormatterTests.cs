@@ -39,8 +39,7 @@ namespace BESSy.Tests.SerializationTests
         }
 
         [Test]
-        [ExpectedException(typeof(ArgumentNullException))]
-        public void JSONFormatterThrowsExceptionWithNullSettings()
+        public void JSONFormatterWithNullSettings()
         {
             new JSONFormatter(null);
         }
@@ -75,6 +74,8 @@ namespace BESSy.Tests.SerializationTests
             var formatted = json.FormatObjStream(test);
 
             var unformatted = json.UnformatObj<MockClassA>(formatted) as MockClassC;
+
+            var con = json.AsQueryableObj(test);
 
             Assert.AreEqual(unformatted.Id, test.Id);
             Assert.AreEqual(unformatted.Name, test.Name);
@@ -208,7 +209,7 @@ namespace BESSy.Tests.SerializationTests
         }
 
         [Test]
-        public void BSONParsesJObjectFromStream()
+        public void JSONParsesJObjectFromStream()
         {
             var test = TestResourceFactory.CreateRandom() as MockClassC;
 
@@ -227,6 +228,44 @@ namespace BESSy.Tests.SerializationTests
             Assert.AreEqual((float)unformatted["Location"]["W"], test.Location.W);
             Assert.AreEqual((string)unformatted["ReferenceCode"], test.ReferenceCode);
             Assert.AreEqual((Guid)unformatted["ReplicationID"], test.ReplicationID);
+        }
+
+        [Test]
+        public void JSONWritesJObjectToStream()
+        {
+            var arraySettings = JSONFormatter.GetDefaultSettings();
+            arraySettings.TypeNameHandling = BESSy.Json.TypeNameHandling.Objects;
+
+            var test = TestResourceFactory.CreateRandom() as MockClassC;
+
+            var bson = new JSONFormatter(arraySettings);
+
+            var stream = bson.FormatObjStream(test);
+
+            var copy = new MemoryStream();
+            stream.Position = 0;
+            stream.CopyTo(copy);
+
+            var unformatted = bson.Parse(stream);
+
+            var formatted = bson.Unparse(unformatted);
+
+            copy.Position = formatted.Position = 0;
+
+            var orig = new StreamReader(copy).ReadToEnd();
+            var unparsed = new StreamReader(formatted).ReadToEnd();
+
+            //Console.Write(b);
+            //Console.WriteLine();
+            //Console.Write(unparsed);
+
+            var reformatted = bson.Parse(formatted);
+
+            Assert.AreEqual(copy.Length, formatted.Length);
+
+            Assert.AreEqual(unformatted, reformatted);
+
+            MockClassC.Validate(unformatted.ToObject<MockClassC>(), reformatted.ToObject<MockClassC>());
         }
     }
 }

@@ -85,8 +85,8 @@ namespace BESSy.Serialization.Converters
         /// <summary>
         /// Compares string item1 against string item2.
         /// </summary>
-        /// <param name="item1"></param>
-        /// <param name="item2"></param>
+        /// <param property="item1"></param>
+        /// <param property="item2"></param>
         /// <returns>1 if item is greater than item2, 0 if they are equal, and -1 if item2 is greater than item 1</returns>
         public int Compare(string item1, string item2)
         {

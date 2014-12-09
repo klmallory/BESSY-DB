@@ -24,14 +24,14 @@ namespace BESSy.Synchronization
 {
     public struct RowLock<RowType> : IDisposable
     {
-        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
+        [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public RowLock(IRowSynchronizer<RowType> sync, Range<RowType> rows, int threadId)
             : this(sync, rows, threadId, FileShare.None)
         {
 
         }
 
-        [TargetedPatchingOptOut("Performance critical to inline this type of method across NGen image boundaries")]
+        [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public RowLock(IRowSynchronizer<RowType> sync, Range<RowType> rows, int threadId, FileShare share)
             : this()
         {

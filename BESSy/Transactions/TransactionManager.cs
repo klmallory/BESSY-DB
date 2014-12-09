@@ -28,14 +28,28 @@ using BESSy.Serialization.Converters;
 
 namespace BESSy.Transactions
 {
+    public enum TransactionEnlistmentType
+    {
+        None = 0,
+        SinglePhasePromotable,
+        FullEnlistmentNotification
+    }
+
     public delegate void TransactionCommit<IdType, EntityType>
     (ITransaction<IdType, EntityType> transaction);
 
+    internal interface ISynchronizedTransactionManager<IdType, EntityType>
+    {
+        void ForceSychronizedCommit(ITransaction<IdType, EntityType> transaction);
+        void ForceSychronizedRollback(ITransaction<IdType, EntityType> transaction);
+    }
+
     public interface ITransactionManager<IdType, EntityType> : IDisposable
     {
-        bool HasActiveTransaction { get; }
         bool HasActiveTransactions { get; }
         Guid Source { get; set; }
+        TransactionEnlistmentType DistributedScopeEnlistment { get; set; }
+        ITransaction<IdType, EntityType> CurrentTransaction { get; }
         TransactionLock<IdType, EntityType> GetActiveTransaction(bool canCreateNew);
         IDictionary<IdType, EntityType> GetActiveItems();
         TransactionLock<IdType, EntityType> BeginTransaction();
@@ -47,7 +61,7 @@ namespace BESSy.Transactions
         event TransactionCommit<IdType, EntityType> TransactionCommitted;
     }
 
-    public class TransactionManager<IdType, EntityType> : ITransactionManager<IdType, EntityType>, IDisposable
+    public class TransactionManager<IdType, EntityType> : ITransactionManager<IdType, EntityType>, ISynchronizedTransactionManager<IdType, EntityType>, IDisposable
     {
         public TransactionManager()
             : this(new TransactionFactory<IdType, EntityType>(), new TransactionSynchronizer<IdType, EntityType>()) { }
@@ -61,11 +75,11 @@ namespace BESSy.Transactions
         object _syncRoot = new object();
         object _syncRollbackAll = new object();
 
-        ITransactionSynchronizer<IdType, EntityType> _sync;
-        ITransactionFactory<IdType, EntityType> _transactionFactory;
+        protected ITransactionSynchronizer<IdType, EntityType> _sync;
+        protected ITransactionFactory<IdType, EntityType> _transactionFactory;
 
-        IDictionary<int, ITransaction<IdType, EntityType>> _ambientCache = new Dictionary<int, ITransaction<IdType, EntityType>>();
-        IDictionary<int, Stack<ITransaction<IdType, EntityType>>> _transactionCache = new Dictionary<int, Stack<ITransaction<IdType, EntityType>>>();
+        protected IDictionary<int, ITransaction<IdType, EntityType>> _ambientCache = new Dictionary<int, ITransaction<IdType, EntityType>>();
+        protected IDictionary<int, Stack<ITransaction<IdType, EntityType>>> _transactionCache = new Dictionary<int, Stack<ITransaction<IdType, EntityType>>>();
 
         ITransaction<IdType, EntityType> CreateAmbientTransaction()
         {
@@ -80,7 +94,7 @@ namespace BESSy.Transactions
 
                 _ambientCache.Add(id, tran);
 
-                Trace.TraceInformation("Ambient transaction created {0}", tran.Id);
+                Trace.TraceInformation("Ambient trans created {0}", tran.Id);
 
                 return tran;
             }
@@ -115,17 +129,60 @@ namespace BESSy.Transactions
                 return new Stack<ITransaction<IdType, EntityType>>();
         }
 
-        public Guid Source { get; set; }
-
-        public bool HasActiveTransaction
+        protected bool ForceRollback(ITransaction<IdType, EntityType> trans)
         {
-            get
+            TransactionLock<IdType, EntityType> lck = default(TransactionLock<IdType, EntityType>);
+            try
             {
-                var id = Thread.CurrentThread.ManagedThreadId;
+                if (!trans.IsComplete && !trans.CommitInProgress && _sync.TryLock(trans, 5000, out lck))
+                {
+                    lck.Transaction.Rollback();
+                    return true;
+                }
+                else if (!trans.IsComplete || trans.CommitInProgress)
+                {
+                    lck = _sync.GetExistingLockFor(trans);
+                    _sync.Unlock(lck);
+                    lck.Transaction.Rollback();
 
-                return (_transactionCache.ContainsKey(id) && _transactionCache[id].Count > 0) || (_ambientCache.ContainsKey(id));
+                    return true;
+                }
+                else
+                    Trace.TraceError("Forcing a rollback failed becuase of a conflicting transaction lock, this process was chosen as the deadlock victim");
             }
+            finally { lck.Dispose(); }
+
+            return false;
         }
+
+        protected bool ForceCommit(ITransaction<IdType, EntityType> trans)
+        {
+            TransactionLock<IdType, EntityType> lck = default(TransactionLock<IdType, EntityType>);
+            try
+            {
+                if (!trans.IsComplete && !trans.CommitInProgress && _sync.TryLock(trans, 5000, out lck))
+                {
+                    lck.Transaction.Commit();
+                    return true;
+                }
+                else if (!trans.IsComplete || trans.CommitInProgress)
+                {
+                    lck = _sync.GetExistingLockFor(trans);
+                    _sync.Unlock(lck);
+                    lck.Transaction.Commit();
+
+                    return true;
+                }
+                else
+                    Trace.TraceError("Forcing a commit failed becuase of a conflicting transaction lock, this process was chosen as the deadlock victim");
+            }
+            finally { lck.Dispose(); }
+
+            return false;
+        }
+
+        public Guid Source { get; set; }
+        public TransactionEnlistmentType DistributedScopeEnlistment { get; set; }
 
         public bool HasActiveTransactions
         {
@@ -154,26 +211,28 @@ namespace BESSy.Transactions
             }
         }
 
+        public ITransaction<IdType, EntityType> CurrentTransaction
+        {
+            get { return ActiveTransaction; }
+        }
+
         public TransactionLock<IdType, EntityType> GetActiveTransaction(bool canCreateNew)
         {
-            lock (_syncRoot)
-            {
-                var active = ActiveTransaction;
+            var active = ActiveTransaction;
 
-                if (active != null)
-                {
-                    return _sync.Lock(active);
-                }
-                else if (canCreateNew)
-                {
-                    active = CreateTransaction();
-                    return _sync.Lock(active);
-                }
-                else
-                {
-                    active = CreateAmbientTransaction();
-                    return _sync.Lock(active);
-                }
+            if (active != null)
+            {
+                return _sync.Lock(active);
+            }
+            else if (canCreateNew)
+            {
+                active = CreateTransaction();
+                return _sync.Lock(active);
+            }
+            else
+            {
+                active = CreateAmbientTransaction();
+                return _sync.Lock(active);
             }
         }
 
@@ -205,54 +264,84 @@ namespace BESSy.Transactions
 
             var id = Thread.CurrentThread.ManagedThreadId;
 
+            var count = 0;
+            var containsKey = false;
             lock (_syncRoot)
             {
-                while ((allThreads && _transactionCache.Count > 0) || _transactionCache.ContainsKey(id))
-                {
-                    var kv = _transactionCache.LastOrDefault();
+                count = _transactionCache.Count;
+                containsKey = _transactionCache.ContainsKey(id);
+            }
 
-                    if (!allThreads && kv.Key != id)
+            TransactionLock<IdType, EntityType> lck = default(TransactionLock<IdType, EntityType>);
+
+            while ((allThreads && count > 0) || containsKey)
+            {
+                var kv = _transactionCache.LastOrDefault();
+
+                if (!allThreads && kv.Key != id)
+                    continue;
+
+                var stack = kv.Value;
+
+                lock (_syncRoot)
+                    if (stack == null)
+                    {
+                        if (_transactionCache.ContainsKey(id))
+                            _transactionCache.Remove(id);
+
+                        containsKey = false;
+                        count = _transactionCache.Count;
                         continue;
+                    }
 
-                    var stack = kv.Value;
+                while (stack.Count > 0)
+                {
+                    ITransaction<IdType, EntityType> trans = null;
 
-                    while (stack.Count > 0)
+                    trans = stack.Peek();
+
+                    if (!ForceRollback(trans))
                     {
-                        ITransaction<IdType, EntityType> trans = null;
-
-                        trans = stack.Peek();
-
-                        using (_sync.Lock(trans))
-                            trans.Rollback();
+                        lock (_syncRoot)
+                            if (stack.Count > 0 && trans.Id == stack.Peek().Id)
+                                stack.Pop();
                     }
                 }
+            }
 
-                if (!allThreads && _ambientCache.ContainsKey(id))
-                {
-                    var tran = _ambientCache[id];
+            lock (_syncRoot)
+                containsKey = _ambientCache.ContainsKey(id);
 
-                    using (var tLock = _sync.Lock(tran))
-                        tLock.Transaction.Rollback();
-                }
-                else if (allThreads)
-                {
+            if (!allThreads && containsKey)
+            {
+                var tran = _ambientCache[id];
+
+                if (!ForceRollback(tran))
                     lock (_syncRoot)
-                    {
-                        while (_ambientCache.Count > 0)
-                        {
-                            var ambient = _ambientCache.First();
+                        _ambientCache.Remove(id);
+            }
+            else if (allThreads)
+            {
+                lock (_syncRoot)
+                    count = _ambientCache.Count;
 
-                            using (var tLock = _sync.Lock(ambient.Value))
-                                tLock.Transaction.Rollback();
-                        }
-                    }
+                while (count > 0)
+                {
+                    var ambient = _ambientCache.First();
+
+                    if (!ForceRollback(ambient.Value))
+                        lock (_syncRoot)
+                            _ambientCache.Remove(ambient.Key);
+
+                    lock (_syncRoot)
+                        count = _ambientCache.Count;
                 }
             }
         }
 
         public void RollBack(ITransaction<IdType, EntityType> transaction)
         {
-            Trace.TraceInformation("Rolling back transaction {0}", transaction.Id);
+            Trace.TraceInformation("Rolling back trans {0}", transaction.Id);
 
             if (transaction == null || transaction.IsComplete)
                 return;
@@ -271,8 +360,13 @@ namespace BESSy.Transactions
             if ((stack == null || stack.Count <= 0) && !ambient.HasValue)
                 throw new TransactionStateException(string.Format("Transaction is no longer active: {0}", transaction.Id));
 
-            using (_sync.Lock(transaction))
+            TransactionLock<IdType, EntityType> lck = default(TransactionLock<IdType, EntityType>);
+
+            try
             {
+                if (!_sync.TryLock(transaction, 5000, out lck))
+                    throw new TransactionLockTimeoutException("Transaction rollback conflicted with another lock on this transaction, this process was chosen as the deadlock victim");
+
                 if (stack != null)
                 {
                     while (stack.Count > 0 && stack.Peek().Id != transaction.Id)
@@ -282,10 +376,18 @@ namespace BESSy.Transactions
                         lock (_syncRoot)
                             child = stack.Peek();
 
-                        Trace.TraceInformation("Rolling back child transaction {0}", child.Id);
+                        Trace.TraceInformation("Rolling back child trans {0}", child.Id);
 
-                        using (_sync.Lock(child))
-                            child.Rollback();
+                        TransactionLock<IdType, EntityType> childLock = default(TransactionLock<IdType, EntityType>);
+
+                        try
+                        {
+                            if (_sync.TryLock(child, 5000, out childLock))
+                                child.Rollback();
+                            else
+                                Trace.TraceError("Rolling back child transaction failed because of confliting transaction lock, this process was chosen as the deadlock victim");
+                        }
+                        finally { childLock.Dispose(); }
                     }
 
                     lock (_syncRoot)
@@ -304,38 +406,61 @@ namespace BESSy.Transactions
                     lock (_syncRoot)
                         _ambientCache.Remove(ambient.Value.Key);
 
-                using (_sync.Lock(transaction))
-                    transaction.MarkComplete();
+                transaction.MarkComplete();
             }
+            finally { lck.Dispose(); }
+
         }
 
         public void CommitAmbientTransactions()
         {
             lock (_syncRoot)
-            {
                 if (_ambientCache == null || _ambientCache.Count <= 0)
                     return;
 
-                while (_ambientCache.Count > 0)
+            var count = 0;
+
+            lock (_syncRoot)
+                count = _ambientCache.Count;
+
+            while (count > 0)
+            {
+                var a = _ambientCache.First();
+
+                if (a.Value == null || a.Value.IsComplete)
                 {
-                    var a = _ambientCache.First();
-
-                    if (a.Value == null || a.Value.IsComplete)
-                        continue;
-
-                    using (var tLock = _sync.Lock(a.Value))
-                    {
-                        Trace.TraceInformation("Committing ambient transaction {0}", a.Value.Id);
-
-                        a.Value.Commit();
-                    }
+                    _ambientCache.Remove(a.Key);
+                    continue;
                 }
+
+                TransactionLock<IdType, EntityType> lck = default(TransactionLock<IdType, EntityType>);
+
+                try
+                {
+                    if (!_sync.TryLock(a.Value, 5000, out lck))
+                        throw new TransactionLockTimeoutException("Ambient transaction commit conflicted with another lock on this transaction, this process was chosen as the deadlock victim");
+
+                    Trace.TraceInformation("Committing ambient trans {0}", a.Value.Id);
+
+                    a.Value.Commit();
+                }
+                finally
+                {
+                    lck.Dispose();
+
+                    lock (_syncRoot)
+                        if (_ambientCache.ContainsKey(a.Key))
+                            _ambientCache.Remove(a.Key);
+                }
+
+                lock (_syncRoot)
+                    count = _ambientCache.Count;
             }
         }
 
         public void Commit(ITransaction<IdType, EntityType> transaction)
         {
-            Trace.TraceInformation("Committing transaction {0}", transaction.Id);
+            Trace.TraceInformation("Committing trans {0}", transaction.Id);
 
             if (transaction.IsComplete)
                 throw new TransactionStateException("Transaction is no longer active.");
@@ -354,8 +479,13 @@ namespace BESSy.Transactions
             if ((stack == null || stack.Count <= 0) && !ambient.HasValue)
                 throw new TransactionStateException(string.Format("Transaction is no longer active: {0}", transaction.Id));
 
-            using (_sync.Lock(transaction))
+            TransactionLock<IdType, EntityType> lck = default(TransactionLock<IdType, EntityType>);
+
+            try
             {
+                if (!_sync.TryLock(transaction, 5000, out lck))
+                    throw new TransactionLockTimeoutException("Transaction commit conflicted with another lock on this transaction, this process was chosen as the deadlock victim");
+
                 if (stack != null)
                 {
                     while (stack != null && stack.Count > 0 && stack.Peek().Id != transaction.Id)
@@ -365,7 +495,7 @@ namespace BESSy.Transactions
                         lock (_syncRoot)
                             child = stack.Peek();
 
-                        Trace.TraceInformation("Committing child transaction {0}", child.Id);
+                        Trace.TraceInformation("Committing child trans {0}", child.Id);
 
                         using (_sync.Lock(child))
                             child.Commit();
@@ -392,6 +522,7 @@ namespace BESSy.Transactions
 
                 InvokeTransactionCommit(transaction);
             }
+            finally { lck.Dispose(); }
         }
 
         public void CommitAll(bool allThreads)
@@ -400,49 +531,90 @@ namespace BESSy.Transactions
 
             var id = Thread.CurrentThread.ManagedThreadId;
 
+            var count = 0;
+            var containsKey = false;
+
             lock (_syncRoot)
             {
-                while ((allThreads && _transactionCache.Count > 0) || _transactionCache.ContainsKey(id))
-                {
-                    var kv = _transactionCache.LastOrDefault();
+                count = _transactionCache.Count;
+                containsKey = _transactionCache.ContainsKey(id);
+            }
 
-                    if (!allThreads && kv.Key != id)
-                        continue;
+            while ((allThreads && count > 0) || containsKey)
+            {
 
-                    var stack = kv.Value;
+                var kv = _transactionCache.LastOrDefault();
 
-                    while (stack.Count > 0)
+                if (!allThreads && kv.Key != id)
+                    continue;
+
+                var stack = kv.Value;
+
+                lock (_syncRoot)
+                    if (stack == null)
                     {
-                        ITransaction<IdType, EntityType> trans = null;
+                        if (_transactionCache.ContainsKey(id))
+                            _transactionCache.Remove(id);
 
+                        containsKey = false;
+                        count = _transactionCache.Count;
+                        continue;
+                    }
+
+                while (stack.Count > 0)
+                {
+                    ITransaction<IdType, EntityType> trans = null;
+
+                    lock (_syncRoot)
                         trans = stack.Peek();
 
-                        using (_sync.Lock(trans))
-                            trans.Commit();
-                    }
+                    if (!ForceCommit(trans))
+                        lock (_syncRoot)
+                            if (stack.Count > 0 && trans.Id == stack.Peek().Id)
+                                stack.Pop();
                 }
 
-                if (!allThreads && _ambientCache.ContainsKey(id))
-                {
-                    var tran = _ambientCache[id];
+                lock (_syncRoot)
+                    _transactionCache.Remove(kv.Key);
 
-                    using (var tLock = _sync.Lock(tran))
-                        tLock.Transaction.Rollback();
-                }
-                else if (allThreads)
+                lock (_syncRoot)
                 {
-                    lock (_syncRoot)
-                    {
-                        while (_ambientCache.Count > 0)
-                        {
-                            var ambient = _ambientCache.First();
-
-                            using (var tLock = _sync.Lock(ambient.Value))
-                                tLock.Transaction.Commit();
-                        }
-                    }
+                    count = _transactionCache.Count;
+                    containsKey = _transactionCache.ContainsKey(id);
                 }
             }
+
+            lock (_syncRoot)
+                containsKey = _ambientCache.ContainsKey(id);
+
+            if (!allThreads && containsKey)
+            {
+                var tran = _ambientCache[id];
+
+                if (!ForceCommit(tran))
+                    lock (_syncRoot)
+                        if (_ambientCache.ContainsKey(id))
+                            _ambientCache.Remove(id);
+            }
+            else if (allThreads)
+            {
+                lock (_syncRoot)
+                    count = _ambientCache.Count;
+
+                while (count > 0)
+                {
+                    var ambient = _ambientCache.First();
+
+                    if (!ForceCommit(ambient.Value))
+                        lock (_syncRoot)
+                            if (_ambientCache.ContainsKey(ambient.Key))
+                                _ambientCache.Remove(ambient.Key);
+
+                    lock (_syncRoot)
+                        count = _ambientCache.Count;
+                }
+            }
+
         }
 
         public IEnumerable<EntityType> GetCached()
@@ -469,11 +641,38 @@ namespace BESSy.Transactions
 
             var items = stack.Where(s => !s.IsComplete).SelectMany(s => s.GetEnlistedItems()).Reverse();
 
-            Trace.TraceInformation("Returning {0} cached transaction enlisted actions", items.Count());
+            Trace.TraceInformation("Returning {0} cached trans enlisted actions", items.Count());
 
             return items;
         }
 
+        #region ISynchronizedTransactionManager Members
+
+        void ISynchronizedTransactionManager<IdType, EntityType>.ForceSychronizedCommit(ITransaction<IdType, EntityType> transaction)
+        {
+            if (!transaction.IsComplete || transaction.CommitInProgress)
+            {
+                using (var lck = _sync.GetExistingLockFor(transaction))
+                {
+                    _sync.Unlock(lck);
+                    lck.Transaction.Commit();
+                }
+            }
+        }
+
+        void ISynchronizedTransactionManager<IdType, EntityType>.ForceSychronizedRollback(ITransaction<IdType, EntityType> transaction)
+        {
+            if (!transaction.IsComplete || transaction.CommitInProgress)
+            {
+                using (var lck = _sync.GetExistingLockFor(transaction))
+                {
+                    _sync.Unlock(lck);
+                    lck.Transaction.Rollback();
+                }
+            }
+        }
+
+        #endregion
 
         #region TransactionCommit Event
 
@@ -504,6 +703,11 @@ namespace BESSy.Transactions
             lock (_syncRoot)
                 if (_transactionCache.Count > 0)
                     Trace.TraceError("Not all active transactions have been committed or rolled back. Data was lost.");
+
+            if (_sync != null)
+                _sync.Dispose();
         }
+
+
     }
 }

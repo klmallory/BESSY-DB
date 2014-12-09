@@ -116,6 +116,15 @@
             the reader is closed; otherwise false. The default is true.
             </value>
         </member>
+        <member name="P:BESSy.Json.JsonReader.SupportMultipleContent">
+            <summary>
+            Gets or sets a value indicating whether multiple pieces of JSON content can
+            be read from a continuous stream without erroring.
+            </summary>
+            <value>
+            true to support reading multiple pieces of JSON content; otherwise false. The default is false.
+            </value>
+        </member>
         <member name="P:BESSy.Json.JsonReader.QuoteChar">
             <summary>
             Gets the quotation mark character used to enclose the value of a string.
@@ -1236,6 +1245,38 @@
             	<c>true</c> if this instance can convert the specified object type; otherwise, <c>false</c>.
             </returns>
         </member>
+        <member name="T:BESSy.Json.Converters.DiscriminatedUnionConverter">
+            <summary>
+            Converts a F# discriminated union type to and from JSON.
+            </summary>
+        </member>
+        <member name="M:BESSy.Json.Converters.DiscriminatedUnionConverter.WriteJson(BESSy.Json.JsonWriter,System.Object,BESSy.Json.JsonSerializer)">
+            <summary>
+            Writes the JSON representation of the object.
+            </summary>
+            <param name="writer">The <see cref="T:BESSy.Json.JsonWriter"/> to write to.</param>
+            <param name="value">The value.</param>
+            <param name="serializer">The calling serializer.</param>
+        </member>
+        <member name="M:BESSy.Json.Converters.DiscriminatedUnionConverter.ReadJson(BESSy.Json.JsonReader,System.Type,System.Object,BESSy.Json.JsonSerializer)">
+            <summary>
+            Reads the JSON representation of the object.
+            </summary>
+            <param name="reader">The <see cref="T:BESSy.Json.JsonReader"/> to read from.</param>
+            <param name="objectType">Type of the object.</param>
+            <param name="existingValue">The existing value of object being read.</param>
+            <param name="serializer">The calling serializer.</param>
+            <returns>The object value.</returns>
+        </member>
+        <member name="M:BESSy.Json.Converters.DiscriminatedUnionConverter.CanConvert(System.Type)">
+            <summary>
+            Determines whether this instance can convert the specified object type.
+            </summary>
+            <param name="objectType">Type of the object.</param>
+            <returns>
+            	<c>true</c> if this instance can convert the specified object type; otherwise, <c>false</c>.
+            </returns>
+        </member>
         <member name="T:BESSy.Json.Converters.EntityKeyMemberConverter">
             <summary>
             Converts an Entity Framework EntityKey to and from JSON.
@@ -1409,6 +1450,11 @@
             Converts an <see cref="T:System.Enum"/> to and from its name string value.
             </summary>
         </member>
+        <member name="M:BESSy.Json.Converters.StringEnumConverter.#ctor">
+            <summary>
+            Initializes a new instance of the <see cref="T:BESSy.Json.Converters.StringEnumConverter"/> class.
+            </summary>
+        </member>
         <member name="M:BESSy.Json.Converters.StringEnumConverter.WriteJson(BESSy.Json.JsonWriter,System.Object,BESSy.Json.JsonSerializer)">
             <summary>
             Writes the JSON representation of the object.
@@ -1441,6 +1487,12 @@
             Gets or sets a value indicating whether the written enum text should be camel case.
             </summary>
             <value><c>true</c> if the written enum text will be camel case; otherwise, <c>false</c>.</value>
+        </member>
+        <member name="P:BESSy.Json.Converters.StringEnumConverter.AllowIntegerValues">
+            <summary>
+            Gets or sets a value indicating whether integer values are allowed.
+            </summary>
+            <value><c>true</c> if integers are allowed; otherwise, <c>false</c>.</value>
         </member>
         <member name="T:BESSy.Json.ConstructorHandling">
             <summary>
@@ -1727,8 +1779,30 @@
         </member>
         <member name="T:BESSy.Json.JsonExtensionDataAttribute">
             <summary>
-            Instructs the <see cref="T:BESSy.Json.JsonSerializer"/> to populate properties with no matching class member onto the specified collection.
+            Instructs the <see cref="T:BESSy.Json.JsonSerializer"/> to deserialize properties with no matching class member into the specified collection
+            and write values during serialization.
             </summary>
+        </member>
+        <member name="M:BESSy.Json.JsonExtensionDataAttribute.#ctor">
+            <summary>
+            Initializes a new instance of the <see cref="T:BESSy.Json.JsonExtensionDataAttribute"/> class.
+            </summary>
+        </member>
+        <member name="P:BESSy.Json.JsonExtensionDataAttribute.WriteData">
+            <summary>
+            Gets or sets a value that indicates whether to write extension data when serializing the object.
+            </summary>
+            <value>
+            	<c>true</c> to write extension data when serializing the object; otherwise, <c>false</c>. The default is <c>true</c>.
+            </value>
+        </member>
+        <member name="P:BESSy.Json.JsonExtensionDataAttribute.ReadData">
+            <summary>
+            Gets or sets a value that indicates whether to read extension data when deserializing the object.
+            </summary>
+            <value>
+            	<c>true</c> to read extension data when deserializing the object; otherwise, <c>false</c>. The default is <c>true</c>.
+            </value>
         </member>
         <member name="T:BESSy.Json.Serialization.DiagnosticsTraceWriter">
             <summary>
@@ -2022,6 +2096,21 @@
             </summary>
             <value>The current line position or 0 if no line information is available (for example, HasLineInfo returns false).</value>
         </member>
+        <member name="T:BESSy.Json.SpecialPropertyHandling">
+            <summary>
+            Specifies special property handling options for the <see cref="T:BESSy.Json.JsonSerializer"/>.
+            </summary>
+        </member>
+        <member name="F:BESSy.Json.SpecialPropertyHandling.Default">
+            <summary>
+            Read special properties located at the start of a JSON object.
+            </summary>
+        </member>
+        <member name="F:BESSy.Json.SpecialPropertyHandling.ReadAhead">
+            <summary>
+            Read special properties located anywhere in a JSON object. Note that this setting will impact performance.
+            </summary>
+        </member>
         <member name="T:BESSy.Json.StringEscapeHandling">
             <summary>
             Specifies how strings are escaped when writing JSON text.
@@ -2267,6 +2356,13 @@
             <param name="value">The value.</param>
             <returns>The result of the conversion.</returns>
         </member>
+        <member name="M:BESSy.Json.Linq.JToken.op_Explicit(BESSy.Json.Linq.JToken)~System.SByte">
+            <summary>
+            Performs an explicit conversion from <see cref="T:BESSy.Json.Linq.JToken"/> to <see cref="T:System.SByte"/>.
+            </summary>
+            <param name="value">The value.</param>
+            <returns>The result of the conversion.</returns>
+        </member>
         <member name="M:BESSy.Json.Linq.JToken.op_Explicit(BESSy.Json.Linq.JToken)~System.Nullable{System.Int32}">
             <summary>
             Performs an explicit conversion from <see cref="T:BESSy.Json.Linq.JToken"/> to <see cref="T:System.Nullable`1"/>.
@@ -2289,6 +2385,13 @@
             <returns>The result of the conversion.</returns>
         </member>
         <member name="M:BESSy.Json.Linq.JToken.op_Explicit(BESSy.Json.Linq.JToken)~System.Nullable{System.Byte}">
+            <summary>
+            Performs an explicit conversion from <see cref="T:BESSy.Json.Linq.JToken"/> to <see cref="T:System.Nullable`1"/>.
+            </summary>
+            <param name="value">The value.</param>
+            <returns>The result of the conversion.</returns>
+        </member>
+        <member name="M:BESSy.Json.Linq.JToken.op_Explicit(BESSy.Json.Linq.JToken)~System.Nullable{System.SByte}">
             <summary>
             Performs an explicit conversion from <see cref="T:BESSy.Json.Linq.JToken"/> to <see cref="T:System.Nullable`1"/>.
             </summary>
@@ -2424,6 +2527,34 @@
         <member name="M:BESSy.Json.Linq.JToken.op_Implicit(System.DateTimeOffset)~BESSy.Json.Linq.JToken">
             <summary>
             Performs an implicit conversion from <see cref="T:System.DateTimeOffset"/> to <see cref="T:BESSy.Json.Linq.JToken"/>.
+            </summary>
+            <param name="value">The value to create a <see cref="T:BESSy.Json.Linq.JValue"/> from.</param>
+            <returns>The <see cref="T:BESSy.Json.Linq.JValue"/> initialized with the specified value.</returns>
+        </member>
+        <member name="M:BESSy.Json.Linq.JToken.op_Implicit(System.Byte)~BESSy.Json.Linq.JToken">
+            <summary>
+            Performs an implicit conversion from <see cref="T:System.Byte"/> to <see cref="T:BESSy.Json.Linq.JToken"/>.
+            </summary>
+            <param name="value">The value to create a <see cref="T:BESSy.Json.Linq.JValue"/> from.</param>
+            <returns>The <see cref="T:BESSy.Json.Linq.JValue"/> initialized with the specified value.</returns>
+        </member>
+        <member name="M:BESSy.Json.Linq.JToken.op_Implicit(System.Nullable{System.Byte})~BESSy.Json.Linq.JToken">
+            <summary>
+            Performs an implicit conversion from <see cref="T:System.Nullable`1"/> to <see cref="T:BESSy.Json.Linq.JToken"/>.
+            </summary>
+            <param name="value">The value to create a <see cref="T:BESSy.Json.Linq.JValue"/> from.</param>
+            <returns>The <see cref="T:BESSy.Json.Linq.JValue"/> initialized with the specified value.</returns>
+        </member>
+        <member name="M:BESSy.Json.Linq.JToken.op_Implicit(System.SByte)~BESSy.Json.Linq.JToken">
+            <summary>
+            Performs an implicit conversion from <see cref="T:System.SByte"/> to <see cref="T:BESSy.Json.Linq.JToken"/>.
+            </summary>
+            <param name="value">The value to create a <see cref="T:BESSy.Json.Linq.JValue"/> from.</param>
+            <returns>The <see cref="T:BESSy.Json.Linq.JValue"/> initialized with the specified value.</returns>
+        </member>
+        <member name="M:BESSy.Json.Linq.JToken.op_Implicit(System.Nullable{System.SByte})~BESSy.Json.Linq.JToken">
+            <summary>
+            Performs an implicit conversion from <see cref="T:System.Nullable`1"/> to <see cref="T:BESSy.Json.Linq.JToken"/>.
             </summary>
             <param name="value">The value to create a <see cref="T:BESSy.Json.Linq.JValue"/> from.</param>
             <returns>The <see cref="T:BESSy.Json.Linq.JValue"/> initialized with the specified value.</returns>
@@ -2713,28 +2844,41 @@
         </member>
         <member name="M:BESSy.Json.Linq.JToken.SelectToken(System.String)">
             <summary>
-            Selects the token that matches the object path.
+            Selects a <see cref="T:BESSy.Json.Linq.JToken"/> using a JPath expression. Selects the token that matches the object path.
             </summary>
             <param name="path">
-            The object path from the current <see cref="T:BESSy.Json.Linq.JToken"/> to the <see cref="T:BESSy.Json.Linq.JToken"/>
-            to be returned. This must be a string of property names or array indexes separated
-            by periods, such as <code>Tables[0].DefaultView[0].Price</code> in C# or
-            <code>Tables(0).DefaultView(0).Price</code> in Visual Basic.
+            A <see cref="T:System.String"/> that contains a JPath expression.
             </param>
-            <returns>The <see cref="T:BESSy.Json.Linq.JToken"/> that matches the object path or a null reference if no matching token is found.</returns>
+            <returns>A <see cref="T:BESSy.Json.Linq.JToken"/>, or null.</returns>
         </member>
         <member name="M:BESSy.Json.Linq.JToken.SelectToken(System.String,System.Boolean)">
             <summary>
-            Selects the token that matches the object path.
+            Selects a <see cref="T:BESSy.Json.Linq.JToken"/> using a JPath expression. Selects the token that matches the object path.
             </summary>
             <param name="path">
-            The object path from the current <see cref="T:BESSy.Json.Linq.JToken"/> to the <see cref="T:BESSy.Json.Linq.JToken"/>
-            to be returned. This must be a string of property names or array indexes separated
-            by periods, such as <code>Tables[0].DefaultView[0].Price</code> in C# or
-            <code>Tables(0).DefaultView(0).Price</code> in Visual Basic.
+            A <see cref="T:System.String"/> that contains a JPath expression.
             </param>
-            <param name="errorWhenNoMatch">A flag to indicate whether an error should be thrown if no token is found.</param>
-            <returns>The <see cref="T:BESSy.Json.Linq.JToken"/> that matches the object path.</returns>
+            <param name="errorWhenNoMatch">A flag to indicate whether an error should be thrown if no tokens are found when evaluating part of the expression.</param>
+            <returns>A <see cref="T:BESSy.Json.Linq.JToken"/>.</returns>
+        </member>
+        <member name="M:BESSy.Json.Linq.JToken.SelectTokens(System.String)">
+            <summary>
+            Selects a collection of elements using a JPath expression.
+            </summary>
+            <param name="path">
+            A <see cref="T:System.String"/> that contains a JPath expression.
+            </param>
+            <returns>An <see cref="T:System.Collections.Generic.IEnumerable`1"/> that contains the selected elements.</returns>
+        </member>
+        <member name="M:BESSy.Json.Linq.JToken.SelectTokens(System.String,System.Boolean)">
+            <summary>
+            Selects a collection of elements using a JPath expression.
+            </summary>
+            <param name="path">
+            A <see cref="T:System.String"/> that contains a JPath expression.
+            </param>
+            <param name="errorWhenNoMatch">A flag to indicate whether an error should be thrown if no tokens are found when evaluating part of the expression.</param>
+            <returns>An <see cref="T:System.Collections.Generic.IEnumerable`1"/> that contains the selected elements.</returns>
         </member>
         <member name="M:BESSy.Json.Linq.JToken.GetMetaObject(System.Linq.Expressions.Expression)">
             <summary>
@@ -2786,7 +2930,7 @@
         </member>
         <member name="P:BESSy.Json.Linq.JToken.HasValues">
             <summary>
-            Gets a value indicating whether this token has childen tokens.
+            Gets a value indicating whether this token has child tokens.
             </summary>
             <value>
             	<c>true</c> if this token has child values; otherwise, <c>false</c>.
@@ -2839,6 +2983,12 @@
             </summary>
             <param name="value">The value.</param>
         </member>
+        <member name="M:BESSy.Json.Linq.JValue.#ctor(System.Decimal)">
+            <summary>
+            Initializes a new instance of the <see cref="T:BESSy.Json.Linq.JValue"/> class with the given value.
+            </summary>
+            <param name="value">The value.</param>
+        </member>
         <member name="M:BESSy.Json.Linq.JValue.#ctor(System.Char)">
             <summary>
             Initializes a new instance of the <see cref="T:BESSy.Json.Linq.JValue"/> class with the given value.
@@ -2864,6 +3014,12 @@
             <param name="value">The value.</param>
         </member>
         <member name="M:BESSy.Json.Linq.JValue.#ctor(System.DateTime)">
+            <summary>
+            Initializes a new instance of the <see cref="T:BESSy.Json.Linq.JValue"/> class with the given value.
+            </summary>
+            <param name="value">The value.</param>
+        </member>
+        <member name="M:BESSy.Json.Linq.JValue.#ctor(System.DateTimeOffset)">
             <summary>
             Initializes a new instance of the <see cref="T:BESSy.Json.Linq.JValue"/> class with the given value.
             </summary>
@@ -3022,7 +3178,7 @@
         </member>
         <member name="P:BESSy.Json.Linq.JValue.HasValues">
             <summary>
-            Gets a value indicating whether this token has childen tokens.
+            Gets a value indicating whether this token has child tokens.
             </summary>
             <value>
             	<c>true</c> if this token has child values; otherwise, <c>false</c>.
@@ -3195,12 +3351,11 @@
             Represents a view of a <see cref="T:BESSy.Json.Linq.JProperty"/>.
             </summary>
         </member>
-        <member name="M:BESSy.Json.Linq.JPropertyDescriptor.#ctor(System.String,System.Type)">
+        <member name="M:BESSy.Json.Linq.JPropertyDescriptor.#ctor(System.String)">
             <summary>
             Initializes a new instance of the <see cref="T:BESSy.Json.Linq.JPropertyDescriptor"/> class.
             </summary>
             <param name="name">The name.</param>
-            <param name="propertyType">Type of the property.</param>
         </member>
         <member name="M:BESSy.Json.Linq.JPropertyDescriptor.CanResetValue(System.Object)">
             <summary>
@@ -3395,7 +3550,7 @@
             <summary>
             Ignore members where the member value is the same as the member's default value when serializing objects
             so that is is not written to JSON.
-            This option will ignore all default values (e.g. <c>null</c> for objects and nullable typesl; <c>0</c> for integers,
+            This option will ignore all default values (e.g. <c>null</c> for objects and nullable types; <c>0</c> for integers,
             decimals and floating point numbers; and <c>false</c> for booleans). The default value ignored can be changed by
             placing the <see cref="T:System.ComponentModel.DefaultValueAttribute"/> on the property.
             </summary>
@@ -3521,6 +3676,12 @@
             Gets or sets how type name writing and reading is handled by the serializer.
             </summary>
             <value>The type name handling.</value>
+        </member>
+        <member name="P:BESSy.Json.JsonSerializerSettings.SpecialPropertyHandling">
+            <summary>
+            Gets or sets how special properties are used during deserialization.
+            </summary>
+            <value>The special properties handling.</value>
         </member>
         <member name="P:BESSy.Json.JsonSerializerSettings.TypeNameAssemblyFormat">
             <summary>
@@ -4733,6 +4894,22 @@
             A JSON string representation of the object.
             </returns>
         </member>
+        <member name="M:BESSy.Json.JsonConvert.SerializeObject(System.Object,System.Type,BESSy.Json.JsonSerializerSettings)">
+            <summary>
+            Serializes the specified object to a JSON string using a type, formatting and <see cref="T:BESSy.Json.JsonSerializerSettings"/>.
+            </summary>
+            <param name="value">The object to serialize.</param>
+            <param name="settings">The <see cref="T:BESSy.Json.JsonSerializerSettings"/> used to serialize the object.
+            If this is null, default serialization settings will be is used.</param>
+            <param name="type">
+            The type of the value being serialized.
+            This parameter is used when <see cref="T:BESSy.Json.TypeNameHandling"/> is Auto to write out the type name if the type of the value does not match.
+            Specifing the type is optional.
+            </param>
+            <returns>
+            A JSON string representation of the object.
+            </returns>
+        </member>
         <member name="M:BESSy.Json.JsonConvert.SerializeObject(System.Object,BESSy.Json.Formatting,BESSy.Json.JsonSerializerSettings)">
             <summary>
             Serializes the specified object to a JSON string using formatting and <see cref="T:BESSy.Json.JsonSerializerSettings"/>.
@@ -5002,7 +5179,7 @@
         </member>
         <member name="M:BESSy.Json.JsonConvert.SerializeXmlNode(System.Xml.XmlNode,BESSy.Json.Formatting,System.Boolean)">
             <summary>
-            Serializes the XML node to a JSON string using formatting and omits the root object if <see cref="!:omitRootObject"/> is <c>true</c>.
+            Serializes the XML node to a JSON string using formatting and omits the root object if <paramref name="omitRootObject"/> is <c>true</c>.
             </summary>
             <param name="node">The node to serialize.</param>
             <param name="formatting">Indicates how the output is formatted.</param>
@@ -5018,7 +5195,7 @@
         </member>
         <member name="M:BESSy.Json.JsonConvert.DeserializeXmlNode(System.String,System.String)">
             <summary>
-            Deserializes the XmlNode from a JSON string nested in a root elment specified by <see cref="!:deserializeRootElementName"/>.
+            Deserializes the XmlNode from a JSON string nested in a root elment specified by <paramref name="deserializeRootElementName"/>.
             </summary>
             <param name="value">The JSON string.</param>
             <param name="deserializeRootElementName">The name of the root element to append when deserializing.</param>
@@ -5026,7 +5203,7 @@
         </member>
         <member name="M:BESSy.Json.JsonConvert.DeserializeXmlNode(System.String,System.String,System.Boolean)">
             <summary>
-            Deserializes the XmlNode from a JSON string nested in a root elment specified by <see cref="!:deserializeRootElementName"/>
+            Deserializes the XmlNode from a JSON string nested in a root elment specified by <paramref name="deserializeRootElementName"/>
             and writes a .NET array attribute for collections.
             </summary>
             <param name="value">The JSON string.</param>
@@ -5054,7 +5231,7 @@
         </member>
         <member name="M:BESSy.Json.JsonConvert.SerializeXNode(System.Xml.Linq.XObject,BESSy.Json.Formatting,System.Boolean)">
             <summary>
-            Serializes the <see cref="T:System.Xml.Linq.XNode"/> to a JSON string using formatting and omits the root object if <see cref="!:omitRootObject"/> is <c>true</c>.
+            Serializes the <see cref="T:System.Xml.Linq.XNode"/> to a JSON string using formatting and omits the root object if <paramref name="omitRootObject"/> is <c>true</c>.
             </summary>
             <param name="node">The node to serialize.</param>
             <param name="formatting">Indicates how the output is formatted.</param>
@@ -5070,7 +5247,7 @@
         </member>
         <member name="M:BESSy.Json.JsonConvert.DeserializeXNode(System.String,System.String)">
             <summary>
-            Deserializes the <see cref="T:System.Xml.Linq.XNode"/> from a JSON string nested in a root elment specified by <see cref="!:deserializeRootElementName"/>.
+            Deserializes the <see cref="T:System.Xml.Linq.XNode"/> from a JSON string nested in a root elment specified by <paramref name="deserializeRootElementName"/>.
             </summary>
             <param name="value">The JSON string.</param>
             <param name="deserializeRootElementName">The name of the root element to append when deserializing.</param>
@@ -5078,7 +5255,7 @@
         </member>
         <member name="M:BESSy.Json.JsonConvert.DeserializeXNode(System.String,System.String,System.Boolean)">
             <summary>
-            Deserializes the <see cref="T:System.Xml.Linq.XNode"/> from a JSON string nested in a root elment specified by <see cref="!:deserializeRootElementName"/>
+            Deserializes the <see cref="T:System.Xml.Linq.XNode"/> from a JSON string nested in a root elment specified by <paramref name="deserializeRootElementName"/>
             and writes a .NET array attribute for collections.
             </summary>
             <param name="value">The JSON string.</param>
@@ -5343,6 +5520,12 @@
             Gets or sets how constructors are used during deserialization.
             </summary>
             <value>The constructor handling.</value>
+        </member>
+        <member name="P:BESSy.Json.JsonSerializer.SpecialPropertyHandling">
+            <summary>
+            Gets or sets how special properties are used during deserialization.
+            </summary>
+            <value>The special properties handling.</value>
         </member>
         <member name="P:BESSy.Json.JsonSerializer.Converters">
             <summary>
@@ -5634,7 +5817,7 @@
         </member>
         <member name="P:BESSy.Json.Linq.JContainer.HasValues">
             <summary>
-            Gets a value indicating whether this token has childen tokens.
+            Gets a value indicating whether this token has child tokens.
             </summary>
             <value>
             	<c>true</c> if this token has child values; otherwise, <c>false</c>.
@@ -6320,6 +6503,11 @@
             <returns>
             true if the next token was read successfully; false if there are no more tokens to read.
             </returns>
+        </member>
+        <member name="P:BESSy.Json.Linq.JTokenReader.Path">
+            <summary>
+            Gets the path of the current JSON token. 
+            </summary>
         </member>
         <member name="T:BESSy.Json.Linq.JTokenWriter">
             <summary>
@@ -7112,7 +7300,7 @@
         </member>
         <member name="P:BESSy.Json.Serialization.ErrorContext.Error">
             <summary>
-            Gets or sets the error.
+            Gets the error.
             </summary>
             <value>The error.</value>
         </member>
@@ -7185,6 +7373,12 @@
             <param name="o">The object to set extension data on.</param>
             <param name="key">The extension data key.</param>
             <param name="value">The extension data value.</param>
+        </member>
+        <member name="T:BESSy.Json.Serialization.ExtensionDataGetter">
+            <summary>
+            Gets extension data for an object during serialization.
+            </summary>
+            <param name="o">The object to set extension data on.</param>
         </member>
         <member name="T:BESSy.Json.Serialization.JsonDictionaryContract">
             <summary>
@@ -7273,31 +7467,31 @@
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.MemberConverter">
             <summary>
-            Gets the member converter.
+            Gets or sets the member converter.
             </summary>
             <value>The member converter.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.Ignored">
             <summary>
-            Gets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is ignored.
+            Gets or sets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is ignored.
             </summary>
             <value><c>true</c> if ignored; otherwise, <c>false</c>.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.Readable">
             <summary>
-            Gets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is readable.
+            Gets or sets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is readable.
             </summary>
             <value><c>true</c> if readable; otherwise, <c>false</c>.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.Writable">
             <summary>
-            Gets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is writable.
+            Gets or sets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is writable.
             </summary>
             <value><c>true</c> if writable; otherwise, <c>false</c>.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.HasMemberAttribute">
             <summary>
-            Gets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> has a member attribute.
+            Gets or sets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> has a member attribute.
             </summary>
             <value><c>true</c> if has a member attribute; otherwise, <c>false</c>.</value>
         </member>
@@ -7309,13 +7503,13 @@
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.Required">
             <summary>
-            Gets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is required.
+            Gets or sets a value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is required.
             </summary>
             <value>A value indicating whether this <see cref="T:BESSy.Json.Serialization.JsonProperty"/> is required.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.IsReference">
             <summary>
-            Gets a value indicating whether this property preserves object references.
+            Gets or sets a value indicating whether this property preserves object references.
             </summary>
             <value>
             	<c>true</c> if this instance is reference; otherwise, <c>false</c>.
@@ -7323,31 +7517,31 @@
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.NullValueHandling">
             <summary>
-            Gets the property null value handling.
+            Gets or sets the property null value handling.
             </summary>
             <value>The null value handling.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.DefaultValueHandling">
             <summary>
-            Gets the property default value handling.
+            Gets or sets the property default value handling.
             </summary>
             <value>The default value handling.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.ReferenceLoopHandling">
             <summary>
-            Gets the property reference loop handling.
+            Gets or sets the property reference loop handling.
             </summary>
             <value>The reference loop handling.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.ObjectCreationHandling">
             <summary>
-            Gets the property object creation handling.
+            Gets or sets the property object creation handling.
             </summary>
             <value>The object creation handling.</value>
         </member>
         <member name="P:BESSy.Json.Serialization.JsonProperty.TypeNameHandling">
             <summary>
-            Gets or sets the type name handling.
+            Gets or sets or sets the type name handling.
             </summary>
             <value>The type name handling.</value>
         </member>
@@ -7898,6 +8092,11 @@
             Gets or sets the extension data setter.
             </summary>
         </member>
+        <member name="P:BESSy.Json.Serialization.JsonObjectContract.ExtensionDataGetter">
+            <summary>
+            Gets or sets the extension data getter.
+            </summary>
+        </member>
         <member name="T:BESSy.Json.Serialization.JsonStringContract">
             <summary>
             Contract details for a <see cref="T:System.Type"/> used by the <see cref="T:BESSy.Json.JsonSerializer"/>.
@@ -8000,27 +8199,6 @@
             <summary>
             Include the .NET type name when the type of the object being serialized is not the same as its declared type.
             </summary>
-        </member>
-        <member name="M:BESSy.Json.Utilities.ConvertUtils.Convert(System.Object,System.Globalization.CultureInfo,System.Type)">
-            <summary>
-            Converts the value to the specified type.
-            </summary>
-            <param name="initialValue">The value to convert.</param>
-            <param name="culture">The culture to use when converting.</param>
-            <param name="targetType">The type to convert the value to.</param>
-            <returns>The converted type.</returns>
-        </member>
-        <member name="M:BESSy.Json.Utilities.ConvertUtils.TryConvert(System.Object,System.Globalization.CultureInfo,System.Type,System.Object@)">
-            <summary>
-            Converts the value to the specified type.
-            </summary>
-            <param name="initialValue">The value to convert.</param>
-            <param name="culture">The culture to use when converting.</param>
-            <param name="targetType">The type to convert the value to.</param>
-            <param name="convertedValue">The converted value if the conversion was successful or the default value of <c>T</c> if it failed.</param>
-            <returns>
-            	<c>true</c> if <c>initialValue</c> was converted successfully; otherwise, <c>false</c>.
-            </returns>
         </member>
         <member name="M:BESSy.Json.Utilities.ConvertUtils.ConvertOrCast(System.Object,System.Globalization.CultureInfo,System.Type)">
             <summary>

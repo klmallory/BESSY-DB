@@ -75,7 +75,7 @@ namespace BESSy.Tests.DatabaseTests
             {
                 db.Load();
 
-                objs.ToList().ForEach(o => ids.Add(db.Add(o.WithId(_seed.Increment()))));
+                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
 
                 db.FlushAll();
             }
@@ -101,7 +101,6 @@ namespace BESSy.Tests.DatabaseTests
                 }
             }
         }
-
 
         [Test]
         public void DatabaseFetchesUpdatesAndDeletes()
@@ -164,7 +163,7 @@ namespace BESSy.Tests.DatabaseTests
         }
 
         [Test]
-        public void DatabaseUpdatesIdFieldAndIndex()
+        public void DatabaseUpdatesIdFieldAndIndexes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
@@ -176,7 +175,7 @@ namespace BESSy.Tests.DatabaseTests
             {
                 db.Load();
 
-                objs.ToList().ForEach(o => ids.Add(db.Add(o.WithId(_seed.Increment()))));
+                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
 
                 db.FlushAll();
             }
@@ -199,6 +198,10 @@ namespace BESSy.Tests.DatabaseTests
 
                 Assert.AreEqual(1024, last.Id);
 
+                var old = db.Fetch(oldId);
+
+                Assert.IsNull(old);
+
                 db.FlushAll();
             }
 
@@ -216,9 +219,10 @@ namespace BESSy.Tests.DatabaseTests
 
                 Assert.IsNotNull(db.Fetch(objs.First().Id));
 
-                db.Delete(objs.First().Id);
+                db.Delete(new int[] { objs.First().Id, objs.Last().Id });
 
                 Assert.IsNull(db.Fetch(objs.First().Id));
+                Assert.IsNull(db.Fetch(objs.Last().Id));
 
                 db.FlushAll();
             }

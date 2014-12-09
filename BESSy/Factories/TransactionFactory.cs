@@ -29,12 +29,12 @@ namespace BESSy.Factories
 
     internal class TransactionFactory<IdType, EntityType> : ITransactionFactory<IdType, EntityType>
     {
-        public ITransaction<IdType, EntityType> Create(ITransactionManager<IdType, EntityType> transactionManager)
+        public virtual ITransaction<IdType, EntityType> Create(ITransactionManager<IdType, EntityType> transactionManager)
         {
             return new Transaction<IdType, EntityType>(transactionManager);
         }
 
-        public ITransaction<IdType, EntityType> Create(int timeToLive, ITransactionManager<IdType, EntityType> transactionManager)
+        public virtual ITransaction<IdType, EntityType> Create(int timeToLive, ITransactionManager<IdType, EntityType> transactionManager)
         {
             return new Transaction<IdType, EntityType>(timeToLive, transactionManager);
         }

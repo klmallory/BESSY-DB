@@ -22,26 +22,26 @@ using BESSy.Extensions;
 
 namespace BESSy.Parallelization
 {
-    public struct IndexingCPUGroup<I>
+    public struct IndexingCPUGroup
     {
-        public int StartSegment;
-        public int EndSegment;
+        public long StartSegment;
+        public long EndSegment;
 
         //TODO: support greater than 1MB filesize
-        public int OldOffset;
+        public long OldOffset;
 
-        public IList<IndexingInsertSubset<I>> Inserts;
+        //public IList<IndexingInsertSubset<I>> Inserts;
     }
 
-    public struct IndexingInsertSubset<I>
-    {
-        public int StartNewSegment;
-        public int EndNewSegment;
-        public IList<I> IdsToAdd;
+    //public struct IndexingInsertSubset<I>
+    //{
+    //    public long StartNewSegment;
+    //    public long EndNewSegment;
+    //    public IList<I> IdsToAdd;
 
-        //TODO: support greater than 1MB filesize
-        public int NewOffset;
-    }
+    //    //TODO: support greater than 1MB filesize
+    //    public long NewOffset;
+    //}
 
     public static class TaskGrouping
     {
@@ -52,23 +52,28 @@ namespace BESSy.Parallelization
 
         public static List<int> GetSegmentedTaskGroups(int length, int stride)
         {
-            int rem;
+            return GetSegmentedTaskGroups((long)length, (long)stride).Select(s => (int)s).ToList();
+        }
 
-            var procs = (Environment.ProcessorCount).Clamp(1, int.MaxValue);
+        public static List<long> GetSegmentedTaskGroups(long length, long stride)
+        {
+            long rem;
+
+            var procs = (long)(Environment.ProcessorCount).Clamp(1, int.MaxValue);
 
             if (length < procs * 10 && stride < MemoryLimit)
-                return new List<int>() { length - 1 };
+                return new List<long>() { length - 1 };
 
-            if (stride >= ReadLimit / 2 )
+            if (stride >= ReadLimit / 2)
                 procs = Math.Max(length, 1);
             else if (((length * (long)stride) / procs) > ReadLimit)
                 procs = (int)((length * (long)stride) / ReadLimit);
 
             var len = Math.Max(Math.DivRem(length, procs, out rem), 1);
 
-            var paras = new List<int>();
+            var paras = new List<long>();
 
-            for (int i = 1; i <= procs; i++)
+            for (var i = 1L; i <= procs; i++)
                 paras.Add((i * len) - 1);
 
             if (rem > 0)
@@ -77,145 +82,42 @@ namespace BESSy.Parallelization
             return paras;
         }
 
-        public static List<IndexingCPUGroup<I>> GetCPUGroupsFor<I, T>
-            (IDictionary<I, T> items
-            , IDictionary<int, I> groups
-            , IBinConverter<I> _idConverter
-            , int stride, int newStride)
+        public static List<IndexingCPUGroup> GetCPUGroupsFor(IList<int> groups)
         {
-            var maxAdd = (InsertLimit / newStride).Clamp(1, InsertLimit);
-
-            var newGroups = new List<IndexingCPUGroup<I>>();
-
-            var keys = groups.OrderBy(g => g.Value).Select(r => r.Key).ToArray();
-
-            var idsToAppend = new Dictionary<int, IList<I>>();
-
-            List<I> added = new List<I>();
-
-            for (var k = 0; k < keys.Length; k++)
-            {
-                if (k == 0)
-                {
-                    var toAdd = items.Keys.Where
-                        (i => _idConverter.Compare(i, groups[keys[k]]) < 0)
-                        .ToList();
-
-                    var group = GetGroup<I>(maxAdd, 0, keys[k], ref added, ref toAdd);
-
-                    newGroups.Add(group);
-                }
-                else if (k < keys.Length - 1)
-                {
-                    var toAdd = items.Keys.Where
-                        (i => _idConverter.Compare(i, groups[keys[k]]) < 0
-                            && _idConverter.Compare(i, groups[keys[k - 1]]) > 0
-                            && !added.Contains(i)).ToList();
-
-                    var group = GetGroup<I>(maxAdd, keys[k - 1] + 1, keys[k], ref added, ref toAdd);
-
-                    newGroups.Add(group);
-                }
-                else if (k < keys.Length)
-                {
-                    var toAdd = items.Keys.Where
-                        (i => _idConverter.Compare(i, groups[keys[k - 1]]) > 0
-                            && !added.Contains(i)).ToList();
-
-                    var group = GetGroup<I>(maxAdd, keys[k - 1] + 1, keys[k], ref added, ref toAdd);
-
-                    newGroups.Add(group);
-                }
-            }
-
-            return newGroups;
+            return GetCPUGroupsFor(groups.Select(s => (long)s).ToList());
         }
 
-        public static IndexingCPUGroup<I> GetGroup<I>(int maxAdd, int startSegment, int endSegment, ref List<I> added, ref List<I> toAdd)
+        public static List<IndexingCPUGroup> GetCPUGroupsFor(IList<long> groups)
         {
-            var group = new IndexingCPUGroup<I>()
-            {
-                StartSegment = startSegment,
-                EndSegment = endSegment,
-                Inserts = new List<IndexingInsertSubset<I>>()
-            };
+            var newGroups = new List<IndexingCPUGroup>();
 
-            if (toAdd.Count <= 0)
-                group.Inserts.Add
-                    (new IndexingInsertSubset<I>()
-                        {
-                            StartNewSegment = startSegment + added.Count,
-                            EndNewSegment = endSegment + added.Count,
-                            IdsToAdd = new List<I>()
-                        });
-            else
-                for (var i = 0; i < toAdd.Count; i += maxAdd)
-                {
-                    var sub = toAdd.Skip(i).Take(maxAdd).ToList();
-
-                    var insert = new IndexingInsertSubset<I>();
-
-                    if (i == 0)
-                    {
-                        insert.StartNewSegment = startSegment + added.Count;
-                        insert.EndNewSegment = endSegment + added.Count + sub.Count;
-                    }
-                    else
-                    {
-                        insert.StartNewSegment = group.Inserts.Last().EndNewSegment +1;
-                        insert.EndNewSegment = (insert.StartNewSegment + sub.Count) -1;
-                    }
-
-                    insert.IdsToAdd = sub;
-
-                    group.Inserts.Add(insert);
-
-                    added.AddRange(sub);
-                }
-
-            return group;
-        }
-
-        public static List<IndexingCPUGroup<I>> GetCPUGroupsFor<I>(IDictionary<int, I> groups)
-        {
-            var newGroups = new List<IndexingCPUGroup<I>>();
-
-            var keys = groups.OrderBy(g => g.Value).Select(r => r.Key).ToArray();
+            var keys = groups.OrderBy(g => g).Select(r => r).ToArray();
 
             for (var k = 0; k < keys.Length; k++)
             {
                 if (k == 0)
                 {
                     if (keys[k] > 0)
-                        newGroups.Add(new IndexingCPUGroup<I>()
+                        newGroups.Add(new IndexingCPUGroup()
                         {
                             StartSegment = 0,
-                            //StartNewSegment = 0,
                             EndSegment = keys[k]
-                            //EndNewSegment = keys[k],
-                            //IdsToAdd = new List<I>()
                         });
                 }
                 else if (k < keys.Length - 1)
                 {
-                    newGroups.Add(new IndexingCPUGroup<I>()
+                    newGroups.Add(new IndexingCPUGroup()
                     {
                         StartSegment = keys[k - 1],
-                        //StartNewSegment = keys[k - 1],
                         EndSegment = keys[k]
-                        //EndNewSegment = keys[k],
-                        //IdsToAdd = new List<I>()
                     });
                 }
                 else if (k < keys.Length)
                 {
-                    newGroups.Add(new IndexingCPUGroup<I>()
+                    newGroups.Add(new IndexingCPUGroup()
                     {
                         StartSegment = keys[k - 1],
-                        //StartNewSegment = keys[k - 1],
                         EndSegment = keys[k]
-                        //EndNewSegment = keys[k],
-                        //IdsToAdd = new List<I>()
                     });
                 }
             }

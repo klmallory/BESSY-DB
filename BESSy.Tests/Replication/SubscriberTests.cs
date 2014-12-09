@@ -8,6 +8,7 @@ using System.Threading;
 using BESSy.Extensions;
 using BESSy.Tests.Mocks;
 using NUnit.Framework;
+using BESSy.Replication;
 
 namespace BESSy.Tests.Replication
 {
@@ -29,14 +30,14 @@ namespace BESSy.Tests.Replication
             Cleanup();
 
             using (var pdb = new Database<int, MockClassA>(_testName + ".publisher" + ".database", "Id")
-                .WithPublishing(Path.Combine(Environment.CurrentDirectory, _testName)))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
             {
                 pdb.Load();
 
                 Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
                 using (var sdb = new Database<int, MockClassA>(_testName + ".subscriber" + ".database", "Id")
-                    .WithSubscription(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500)))
+                    .WithSubscription("Test", new FileSubscriber<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
                 {
                     sdb.Load();
 
@@ -56,20 +57,21 @@ namespace BESSy.Tests.Replication
             Cleanup();
 
             using (var pdb = new Database<Guid, MockClassA>(_testName + ".publisher" + ".database", "ReplicationID")
-                .WithPublishing(Path.Combine(Environment.CurrentDirectory, _testName)))
+                .WithPublishing("Test", new FilePublisher<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
             {
                 pdb.Load();
 
                 Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
                 using (var sdb = new Database<Guid, MockClassA>(_testName + ".subscriber" + ".database", "ReplicationID")
-                    .WithSubscription(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500)))
+                    .WithSubscription("Test", new FileSubscriber<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
                 {
                     sdb.Load();
 
                     Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
                     var objects = TestResourceFactory.GetMockClassAObjects(25).OfType<MockClassC>().ToList();
+                    objects.ForEach(o => o.ReplicationID = Guid.Empty);
 
                     using (var tran = pdb.BeginTransaction())
                     {
@@ -101,17 +103,17 @@ namespace BESSy.Tests.Replication
             Cleanup();
 
             using (var pdb = new Database<int, MockClassA>(_testName + ".publisher" + ".database", "Id")
-                .WithPublishing(Path.Combine(Environment.CurrentDirectory, _testName)))
+                .WithPublishing("Test", new FilePublisher<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
             {
                 pdb.Load();
 
                 Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
                 using (var sdb = new Database<int, MockClassA>(_testName + ".subscriber" + ".database", "Id")
-                    .WithSubscription(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500)))
+                    .WithSubscription("Test", new FileSubscriber<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
                 {
                     sdb.Load();
-                    sdb.WithoutSubscription();
+                    sdb.WithoutSubscription("Test");
 
                     Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 

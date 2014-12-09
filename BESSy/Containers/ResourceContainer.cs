@@ -22,7 +22,7 @@ using System.IO;
 using BESSy.Files;
 using BESSy.Json.Converters;
 
-namespace BESSy
+namespace BESSy.Containers
 {
     public abstract class ResourceContainer
     {

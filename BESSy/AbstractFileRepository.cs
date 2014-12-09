@@ -60,7 +60,7 @@ namespace BESSy
         protected string _fileName { get; set; }
         protected abstract I GetId(T item);
 
-        public int Load()
+        public long Load()
         {
             lock (_syncRoot)
             {
@@ -120,7 +120,16 @@ namespace BESSy
                     _cache.Remove(id);
         }
 
-        public int Length
+        public void Delete(IEnumerable<I> ids)
+        {
+            if (ids == null)
+                return;
+
+            foreach (var id in ids)
+                Delete(id);
+        }
+
+        public long Length
         {
             get
             {

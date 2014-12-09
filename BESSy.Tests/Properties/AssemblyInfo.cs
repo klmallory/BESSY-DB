@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security;
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
@@ -10,13 +11,15 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Genco")]
 [assembly: AssemblyProduct("BESSy.Tests")]
-[assembly: AssemblyCopyright("Copyright © Genco 2012")]
+[assembly: AssemblyCopyright("Copyright © KlInk 2012-2014")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
+[assembly: AllowPartiallyTrustedCallers]
+
 // Setting ComVisible to false makes the types in this assembly not visible 
-// to COM components.  If you need to access a type in this assembly from 
-// COM, set the ComVisible attribute to true on that type.
+// to COM components.  If you need to access a tBuilder in this assembly from 
+// COM, set the ComVisible attribute to true on that tBuilder.
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM

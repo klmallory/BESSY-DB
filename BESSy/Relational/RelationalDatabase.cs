@@ -37,12 +37,29 @@ using BESSy.Json.Linq;
 
 namespace BESSy.Relational
 {
-    public class RelationalDatabase<IdType> : AbstractTransactionalDatabase<IdType, RelationshipEntity<IdType>>
+    public interface IRelationalDatabase<IdType, EntityType> : ITransactionalDatabase<IdType, EntityType>
     {
-                /// <summary>
+        IBinConverter<IdType> IdConverter { get; }
+        void UpdateCascade(Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>> cascade);
+    }
+
+    public interface IRelationalEntity<IdType, EntityType>
+    {
+        IRelationalDatabase<IdType, EntityType> Repository { set; }
+        IdType Id { get; set; }
+    }
+
+    internal interface IRelationalAccessor<IdType, EntityType>
+    {
+        IDictionary<string, IdType[]> RelationshipIds { get; }
+    }
+
+    public class RelationalDatabase<IdType, EntityType> : AbstractTransactionalDatabase<IdType, EntityType>, IRelationalDatabase<IdType, EntityType> where EntityType : IRelationalEntity<IdType, EntityType>
+    {
+        /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
+        /// <param property="fileName"></param>
         public RelationalDatabase(string fileName)
             : this(fileName
             , new BSONFormatter())
@@ -53,10 +70,10 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
+        /// <param property="fileName"></param>
         public RelationalDatabase(string fileName, IQueryableFormatter formatter)
             : this(fileName, formatter
-            , new TransactionManager<IdType, RelationshipEntity<IdType>>())
+            , new TransactionManager<IdType, EntityType>())
         {
 
         }
@@ -64,11 +81,11 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
         public RelationalDatabase(string fileName
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager)
+            , ITransactionManager<IdType, EntityType> transactionManager)
             : this(fileName, formatter, transactionManager
             , new AtomicFileManagerFactory())
         {
@@ -78,15 +95,15 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
         public RelationalDatabase(string fileName
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager
+            , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory)
             : this(fileName, formatter, transactionManager, fileManagerFactory
-            , new RepositoryCacheFactory())
+            , new DatabaseCacheFactory())
         {
 
         }
@@ -94,15 +111,15 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public RelationalDatabase(string fileName
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager
+            , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory)
+            , IDatabaseCacheFactory cacheFactory)
             : this(fileName, formatter, transactionManager, fileManagerFactory, cacheFactory
             , new IndexFileFactory()
             , new IndexFactory())
@@ -113,21 +130,21 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
-        /// <param name="indexFileFactory"></param>
-        /// <param name="indexFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public RelationalDatabase(string fileName
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager
+            , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory
+            , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory)
             : base(fileName, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
-            , new RowSynchronizer<int>(new BinConverter32()))
+            , new RowSynchronizer<long>(new BinConverter64()))
         {
 
         }
@@ -135,11 +152,11 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
         public RelationalDatabase(string fileName, string idToken)
             : this(fileName, idToken
-            ,TypeFactory.GetSeedFor<IdType>())
+            ,TypeFactory.GetFileCoreFor<IdType, long>())
         {
 
         }
@@ -147,12 +164,12 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
         public RelationalDatabase(string fileName, string idToken
-            , ISeed<IdType> seed)
-            : this(fileName, idToken, seed            
+            , IFileCore<IdType, long> core)
+            : this(fileName, idToken, core            
             , TypeFactory.GetBinConverterFor<IdType>())
         {
 
@@ -161,14 +178,14 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
         public RelationalDatabase(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter)
-            : this(fileName, idToken, seed, converter
+            : this(fileName, idToken, core, converter
             , new BSONFormatter())
         {
 
@@ -177,18 +194,18 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
         public RelationalDatabase(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter)
-            : this(fileName, idToken, seed, converter, formatter, 
-            new TransactionManager<IdType, RelationshipEntity<IdType>>())
+            : this(fileName, idToken, core, converter, formatter,
+            new TransactionManager<IdType, EntityType>())
         {
 
         }
@@ -196,18 +213,18 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
         public RelationalDatabase(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager)
-            : this(fileName, idToken, seed, converter, formatter, transactionManager
+            , ITransactionManager<IdType, EntityType> transactionManager)
+            : this(fileName, idToken, core, converter, formatter, transactionManager
             , new AtomicFileManagerFactory())
         {
 
@@ -216,21 +233,21 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
         public RelationalDatabase(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager
+            , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory)
-            : this(fileName, idToken, seed, converter, formatter, transactionManager, fileManagerFactory
-            , new RepositoryCacheFactory())
+            : this(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory
+            , new DatabaseCacheFactory())
         {
 
         }
@@ -238,22 +255,22 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public RelationalDatabase(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager
+            , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory)
-            : this(fileName, idToken, seed, converter, formatter, transactionManager, fileManagerFactory, cacheFactory
+            , IDatabaseCacheFactory cacheFactory)
+            : this(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory, cacheFactory
             , new IndexFileFactory()
             , new IndexFactory())
         {
@@ -263,32 +280,79 @@ namespace BESSy.Relational
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <param name="idToken"></param>
-        /// <param name="segmentSeed"></param>
-        /// <param name="converter"></param>
-        /// <param name="formatter"></param>
-        /// <param name="transactionManager"></param>
-        /// <param name="fileManagerFactory"></param>
-        /// <param name="cacheFactory"></param>
-        /// <param name="indexFileFactory"></param>
-        /// <param name="indexFactory"></param>
+        /// <param property="fileName"></param>
+        /// <param property="idToken"></param>
+        /// <param property="segmentSeed"></param>
+        /// <param property="converter"></param>
+        /// <param property="formatter"></param>
+        /// <param property="transactionManager"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
+        /// <param property="cacheFactory"></param>
         public RelationalDatabase(string fileName, string idToken
-            , ISeed<IdType> seed
+            , IFileCore<IdType, long> core
             , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
-            , ITransactionManager<IdType, RelationshipEntity<IdType>> transactionManager
+            , ITransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
-            , IRepositoryCacheFactory cacheFactory
+            , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory)
-            : base(fileName, idToken, seed, converter, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
-            , new RowSynchronizer<int>(new BinConverter32()))
+            : base(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
+            , new RowSynchronizer<long>(new BinConverter64()))
         {
 
         }
 
-        public override RelationshipEntity<IdType> Fetch(IdType id)
+        protected IIndex<string, EntityType, IdType> _cascadeIndex = null;
+
+        public IBinConverter<IdType> IdConverter { get { return _idConverter; } }
+
+        public override long Load()
+        {
+            var length = base.Load();
+
+            _cascadeIndex = new Index<string, EntityType, IdType>(_fileName + ".cascade" + ".index", null, false);
+
+            _cascadeIndex.Load();
+
+            return length;
+        }
+
+        protected override void OnTransactionCommitted(ITransaction<IdType, EntityType> transaction)
+        {
+            Trace.TraceInformation("Updating cascades for transaction {0} commit", transaction.Id);
+
+            foreach (var c in transaction.GetCascades())
+            {
+                try
+                {
+                    var indexUpdate = _cascadeIndex as IIndexUpdate<string, IdType>;
+
+                    indexUpdate.PopIndexes(new string[] { c.Item1 });
+                    indexUpdate.PushIndexes(c.Item2.Select(s => new NTreeItem<string, IdType>(c.Item1, s)));
+
+                    long tmp;
+                    foreach (var id in c.Item3)
+                        if (_cascadeIndex.FetchIndex(id, out tmp) == null && tmp == 0)
+                            transaction.Enlist(Action.Delete, id, default(EntityType));
+                }
+                catch (Exception ex) { Trace.TraceError("Error cascading index for {0}: {1}", c.Item1, ex); }
+            }
+
+            base.OnTransactionCommitted(transaction);
+        }
+
+        public void UpdateCascade(Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>> cascade)
+        {
+            using (var tLock = _transactionManager.GetActiveTransaction(false))
+            {
+                tLock.Transaction.Cascade(cascade);
+            }
+        }
+
+        public override EntityType Fetch(IdType id)
         {
             var item = base.Fetch(id);
 
@@ -298,7 +362,7 @@ namespace BESSy.Relational
             return item;
         }
 
-        public override IList<RelationshipEntity<IdType>> Select(Func<JObject, bool> selector)
+        public override IList<EntityType> Select(Func<JObject, bool> selector)
         {
             var selects = base.Select(selector);
 
@@ -308,7 +372,7 @@ namespace BESSy.Relational
             return selects;
         }
 
-        public override IList<RelationshipEntity<IdType>> SelectFirst(Func<JObject, bool> selector, int max)
+        public override IList<EntityType> SelectFirst(Func<JObject, bool> selector, int max)
         {
             var first = base.SelectFirst(selector, max);
 
@@ -318,7 +382,7 @@ namespace BESSy.Relational
             return first;
         }
 
-        public override IList<RelationshipEntity<IdType>> SelectLast(Func<JObject, bool> selector, int max)
+        public override IList<EntityType> SelectLast(Func<JObject, bool> selector, int max)
         {
             var last = base.SelectLast(selector, max);
 
@@ -326,6 +390,25 @@ namespace BESSy.Relational
                 s.Repository = this;
 
             return last;
+        }
+
+        public override IList<EntityType> FetchFromIndex<IndexType>(string name, IndexType indexProperty)
+        {
+            var list = base.FetchFromIndex<IndexType>(name, indexProperty);
+
+            foreach (var i in list)
+                i.Repository = this;
+
+            return list;
+        }
+
+        public override void Dispose()
+        {
+            lock (_syncIndex)
+                if (_cascadeIndex != null)
+                    _cascadeIndex.Dispose();
+
+            base.Dispose();
         }
     }
 }

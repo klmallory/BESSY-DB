@@ -6,10 +6,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Reflection;
+using System.Security.Permissions;
 
 namespace BESSy.Tests.Mocks
 {
-    [Serializable]
+    //[SecurityPermission(SecurityAction.Assert, Flags = SecurityPermissionFlag.ControlEvidence)]
+    //[ReflectionPermission(SecurityAction.Assert, Flags = ReflectionPermissionFlag.MemberAccess, Unrestricted = true, MemberAccess = true)]
     public class MockClassA : Object
     {
         public int Id { get; set; }
@@ -19,7 +22,7 @@ namespace BESSy.Tests.Mocks
         public virtual string CatalogNameNull { get { return null; } }
     }
 
-    internal static class Extend
+    public static class Extend
     {
         public static MockClassA WithName(this MockClassA mock, string name)
         {
