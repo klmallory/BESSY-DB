@@ -8,9 +8,11 @@ using BESSy.Extensions;
 using BESSy.Json;
 using System.IO.Compression;
 using BESSy.Json.Linq;
+using System.Security;
 
 namespace BESSy.Serialization
 {
+    [SecuritySafeCritical]
     public class LZ4ZipFormatter : IQueryableFormatter
     {
         public LZ4ZipFormatter(IQueryableFormatter serializer)
@@ -111,6 +113,7 @@ namespace BESSy.Serialization
             return false; 
         }
 
+        [SecuritySafeCritical]
         public byte[] FormatObj<T>(T obj)
         {
             var stream = _serializer.FormatObjStream<T>(obj);
@@ -126,6 +129,7 @@ namespace BESSy.Serialization
             return compressed.ToArray();
         }
 
+        [SecuritySafeCritical]
         public System.IO.Stream FormatObjStream<T>(T obj)
         {
             var stream = _serializer.FormatObjStream<T>(obj);
@@ -141,6 +145,7 @@ namespace BESSy.Serialization
              return compressed;
         }
 
+        [SecuritySafeCritical]
         public T UnformatObj<T>(byte[] buffer)
         {
             using (var compressed = new MemoryStream(buffer))
@@ -156,6 +161,7 @@ namespace BESSy.Serialization
             }
         }
 
+        [SecuritySafeCritical]
         public T UnformatObj<T>(System.IO.Stream inStream)
         {
             inStream.Position = 0;
@@ -204,6 +210,7 @@ namespace BESSy.Serialization
             return false;
         }
 
+        [SecuritySafeCritical]
         public byte[] Format(byte[] buffer)
         {
             using (var output = new MemoryStream())
@@ -221,6 +228,7 @@ namespace BESSy.Serialization
             }
         }
 
+        [SecuritySafeCritical]
         public Stream Format(System.IO.Stream inStream)
         {
             var output = new MemoryStream();
@@ -236,6 +244,7 @@ namespace BESSy.Serialization
             return output;
         }
 
+        [SecuritySafeCritical]
         public byte[] Unformat(byte[] buffer)
         {
             var compressed = new MemoryStream(buffer);
@@ -249,6 +258,7 @@ namespace BESSy.Serialization
             return uncompressed.ToArray();
         }
 
+        [SecuritySafeCritical]
         public System.IO.Stream Unformat(System.IO.Stream inStream)
         {
             inStream.Position = 0;

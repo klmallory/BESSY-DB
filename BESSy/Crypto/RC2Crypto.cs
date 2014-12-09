@@ -31,10 +31,7 @@ namespace BESSy.Crypto
     /// <summary>
     /// Provides a simple RC2 encryption algorithm.
     /// </summary>
-    [SecurityCritical()]
-    [SECP.KeyContainerPermission(SECP.SecurityAction.Demand)]
-    [SECP.ReflectionPermission(SECP.SecurityAction.Demand)]
-    [SECP.EnvironmentPermission(SECP.SecurityAction.Demand)]
+[SecuritySafeCritical]
     public class RC2Crypto : ICrypto
     {
         byte[] _simpleVector = new byte[8] { 124, 53, 89, 243, 163, 62, 47, 191 };
@@ -85,6 +82,7 @@ namespace BESSy.Crypto
         /// <param property="name">the secure string to derrive the name from.</param>
         /// <param property="keySize">the _length of the name.</param>
         /// <returns>the name</returns>
+        [SecuritySafeCritical]
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public virtual byte[] GetKey(SecureString key, int keySize)
         {
@@ -111,6 +109,7 @@ namespace BESSy.Crypto
             return buf;
         }
 
+        [SecuritySafeCritical]
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         private byte[] GetVector(SecureString key, int keySize)
         {
@@ -179,6 +178,7 @@ namespace BESSy.Crypto
         /// <param property="inStream"></param>
         /// <param property="name"></param>
         /// <returns></returns>
+        [SecuritySafeCritical]
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public virtual MemoryStream Encrypt(Stream inStream, byte[] key)
         {
@@ -232,6 +232,7 @@ namespace BESSy.Crypto
         /// <param property="qVal">The qVal.</param>
         /// <param property="name">The name.</param>
         /// <returns></returns>
+        [SecuritySafeCritical]
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public virtual byte[] Decrypt(byte[] value, byte[] key)
         {
@@ -271,6 +272,7 @@ namespace BESSy.Crypto
         /// <param property="inStream"><typeparamref property="System.IO.Stream"/> to decrypt</param>
         /// <param property="name">the hash name</param>
         /// <returns>the decrypted <typeparamref property="System.IO.MemoryStream"/></returns>
+        [SecuritySafeCritical]
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public virtual MemoryStream Decrypt(Stream inStream, byte[] key)
         {

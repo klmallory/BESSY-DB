@@ -390,7 +390,7 @@ namespace BESSy.Factories
         {
             IDictionary<string, string> parameters = new Dictionary<string, string>();
 
-            var regEx = new Regex(@"([\w|\aqn]*)=([^;]*);?", RegexOptions.IgnoreCase);
+            var regEx = new Regex(@"([\w|\aqn|\s]*)=([^;]*);?", RegexOptions.IgnoreCase);
 
             var match = regEx.Match(createString);
 
@@ -398,12 +398,9 @@ namespace BESSy.Factories
             {
                 if (string.IsNullOrWhiteSpace(match.Groups[1].Value)
                     || string.IsNullOrWhiteSpace(match.Groups[2].Value))
-                {
                     Trace.TraceError("Could not parse arguments {0} & {1}", match.Groups[1].Value, match.Groups[2].Value);
-                    continue;
-                }
-
-                parameters.Add(match.Groups[1].Value.Trim().ToLower(), match.Groups[2].Value.Trim());
+                else
+                    parameters.Add(match.Groups[1].Value.Trim().ToLower(), match.Groups[2].Value.Trim());
 
                 match = match.NextMatch();
             }

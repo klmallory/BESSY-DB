@@ -25,6 +25,7 @@ using BESSy.Json.Linq;
 
 namespace BESSy.Serialization
 {
+    [SecuritySafeCritical]
     public class QueryCryptoFormatter : CryptoFormatter, IQueryableFormatter
     {
         public QueryCryptoFormatter(ICrypto cryptoProvider, IQueryableFormatter serializer, SecureString hash)

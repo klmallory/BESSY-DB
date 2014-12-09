@@ -22,6 +22,7 @@ using System.Security;
 
 namespace BESSy.Crypto
 {
+    [SecuritySafeCritical]
     public interface ICrypto
     {
         /// <summary>

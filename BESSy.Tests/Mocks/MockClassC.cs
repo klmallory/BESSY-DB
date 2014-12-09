@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using NUnit.Framework;
 using System.Security.Permissions;
+using System.Xml.Serialization;
 
 namespace BESSy.Tests.Mocks
 {
@@ -22,7 +23,9 @@ namespace BESSy.Tests.Mocks
         public MockStruct Location { get; set; }
         IDictionary<int, MockClassD> Ds { get; set; }
         public virtual MockClassC Friend { get; set; }
+        [XmlIgnore]
         public virtual MockDomain Other { get; set; }
+
 
         public static void Validate(MockClassC item, MockClassC orig)
         {

@@ -35,7 +35,8 @@ namespace BESSy.Serialization
     {
         JsonSerializer _serializer;
 
-        public BSONFormatter() : this(_defaultSettings)
+        public BSONFormatter()
+            : this(GetDefaultSettings())
         {
         }
 
@@ -283,7 +284,7 @@ namespace BESSy.Serialization
 
         #endregion
 
-        static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()
+        internal static readonly JsonSerializerSettings _defaultSettings = new JsonSerializerSettings()
         {
             NullValueHandling = NullValueHandling.Ignore,
             DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind,

@@ -29,10 +29,7 @@ using System.Runtime.InteropServices;
 
 namespace BESSy.Serialization
 {
-    [SecurityCritical()]
-    [SECP.KeyContainerPermission(SECP.SecurityAction.Demand)]
-    [SECP.ReflectionPermission(SECP.SecurityAction.Demand)]
-    [SECP.EnvironmentPermission(SECP.SecurityAction.Demand)]
+    [SecuritySafeCritical]
     public class CryptoFormatter : ISafeFormatter
     {
         public CryptoFormatter(ICrypto cryptoProvider, IFormatter serializer, SecureString hash)
