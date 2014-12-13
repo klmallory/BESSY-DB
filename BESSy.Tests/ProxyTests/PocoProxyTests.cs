@@ -227,6 +227,20 @@ namespace BESSy.Tests.ProxyTests
 
                     t.Commit();
                 }
+
+                using (var t = db.BeginTransaction())
+                {
+                    var proxy = db.Fetch(99999);
+
+                    proxy.Name = "Proxy Update Test";
+
+                    db.Update(proxy, proxy.Id);
+
+                    var p = db.Fetch(99999);
+                    (proxy as MockDomain).Validate(p as MockDomain);
+
+                    t.Commit();
+                }
             }
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
@@ -240,6 +254,7 @@ namespace BESSy.Tests.ProxyTests
 
                 var d = db.Fetch(domain.Id);
 
+                domain.Name = "Proxy Update Test";
                 (d as MockDomain).Validate(domain as MockDomain);
             }
         }
