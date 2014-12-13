@@ -54,5 +54,25 @@ namespace BESSy.Tests.DatabaseTests
             Assert.AreEqual(unformatted.Name, test.Name);
             Assert.AreEqual(unformatted.GetResource<Bitmap>().Size.Width, test.GetResource<Bitmap>().Size.Width);
         }
+
+        [Test]
+        public void DatabaseCompressesVeryLargeFileStreams()
+        {
+            var test = new Mocks.MockStreamContainer(new MemoryStream(testRes.MiscAngelic)) { Name = "MiscAngelic" };
+
+            var bson = new BSONFormatter();
+            var zip = new LZ4ZipFormatter(bson);
+
+            var bytes = bson.FormatObjStream(test);
+
+            var binFormatted = zip.Format(bytes);
+
+            var buffer = zip.Unformat(binFormatted);
+
+            var unformatted = bson.UnformatObj<ResourceStreamContainer>(buffer) as MockStreamContainer;
+
+            Assert.AreEqual(unformatted.Name, test.Name);
+            Assert.AreEqual(unformatted.GetResource<Stream>().Length, test.GetResource<Stream>().Length);
+        }
     }
 }

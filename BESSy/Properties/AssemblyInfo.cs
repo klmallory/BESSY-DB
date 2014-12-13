@@ -48,7 +48,7 @@ using System;
 [assembly: NeutralResourcesLanguageAttribute("en-US")]
 
 
-#if NCRUNCH || DEBUG
+#if NCRUNCH
 [assembly: InternalsVisibleTo(@"BESSy.Tests")]
 [assembly: InternalsVisibleTo(@"BESSy.TestAssembly")]
 #else

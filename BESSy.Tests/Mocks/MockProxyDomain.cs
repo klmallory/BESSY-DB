@@ -29,8 +29,8 @@ namespace BESSy.Tests.Mocks
             if (instance == null)
                 return;
 
-            var exposed = ExposedObject.From(instance);
-            var local = ExposedObject.From(this);
+            var exposed = DynamicMemberManager.GetManager(instance);
+            var local = DynamicMemberManager.GetManager(this);
 
             local._fieldTest = exposed._fieldTest;
 

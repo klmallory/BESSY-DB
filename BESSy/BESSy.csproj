@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET40</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\Debug\BESSy.XML</DocumentationFile>
@@ -198,15 +198,14 @@
     <Compile Include="Queries\CompareToken.cs" />
     <Compile Include="Queries\DeleteExpression.cs" />
     <Compile Include="Queries\ExpressionResolver.cs" />
+    <Compile Include="Queries\ScalarSelectJoinExpression.cs" />
     <Compile Include="Queries\UpdateToken.cs" />
     <Compile Include="Queries\ValueEnum.cs" />
     <Compile Include="Queries\ScalarSelectExpression.cs" />
     <Compile Include="Queries\WhereExpression.cs" />
     <Compile Include="Queries\UpdateExpression.cs" />
     <Compile Include="Queries\ValueTypeEvaluator.cs" />
-    <Compile Include="Reflection\ExposedClass.cs" />
-    <Compile Include="Reflection\ExposedObject.cs" />
-    <Compile Include="Reflection\ExposedObjectHelper.cs" />
+    <Compile Include="Reflection\DynamicMemberManager.cs" />
     <Compile Include="Relational\PocoProxyFactory.cs" />
     <Compile Include="Relational\PocoProxyHandler.cs" />
     <Compile Include="Relational\PocoRelationalDatabase.cs" />

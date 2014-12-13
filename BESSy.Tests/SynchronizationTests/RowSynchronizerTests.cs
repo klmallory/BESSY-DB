@@ -107,7 +107,6 @@ namespace BESSy.Tests.SynchronizationTests
 
             var sync = new RowSynchronizer<int>(new BinConverter32());
 
-
             using (var lock1 = sync.Lock(new Range<int>(10, 20)))
             {
                 Parallel.For(1, 4, delegate(int i)
@@ -116,7 +115,7 @@ namespace BESSy.Tests.SynchronizationTests
                     {
                         if (Thread.CurrentThread.ManagedThreadId != threadId)
                             using (var lock2 = sync.Lock(new Range<int>(12, 22), 100))
-                            { exceptionThrown = false; }
+                            { exceptionThrown ^= false; }
                         else
                             Thread.Sleep(100);
                     }

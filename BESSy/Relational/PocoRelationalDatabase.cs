@@ -478,6 +478,78 @@ namespace BESSy.Relational
             finally { lock (_syncOperations) _operations.Pop(); }
         }
 
+        public override void Update(EntityType item, IdType id)
+        {
+            var newId = _idGet(item);
+            var deleteFirst = (_idConverter.Compare(newId, id) != 0);
+
+            lock (_syncOperations)
+                _operations.Push(3);
+
+            var hash = item.GetHashCode();
+
+            var oldSeg = _primaryIndex.FetchSegment(id);
+
+            try
+            {
+                using (var tLock = _transactionManager.GetActiveTransaction(false))
+                {
+                    EntityType proxy = default(EntityType);
+                    IBESSyProxy<IdType, EntityType> proxyItem = null;
+
+                    lock (_hashRoot)
+                    {
+                        if (!_transactionHashMash.ContainsKey(tLock.TransactionId))
+                            _transactionHashMash.Add(tLock.TransactionId, new Dictionary<int, IdType>());
+
+                    }
+
+                    if (!(item is IBESSyProxy<IdType, EntityType>))
+                    {
+                        proxy = _proxyFactory.GetInstanceFor(this, item);
+
+                        proxyItem = (proxy as IBESSyProxy<IdType, EntityType>);
+                        proxyItem.Bessy_Proxy_Shallow_Copy_From(item);
+
+                        lock (_hashRoot)
+                            if (!_transactionHashMash.ContainsKey(tLock.TransactionId))
+                                _transactionHashMash[tLock.TransactionId].Add(item.GetHashCode(), id);
+
+                        if (deleteFirst)
+                        {
+                            tLock.Transaction.Enlist(Action.Delete, id, proxy);
+                            tLock.Transaction.Enlist(Action.Create, newId, proxy);
+                        }
+                        else
+                            tLock.Transaction.Enlist(Action.Update, newId, proxy);
+
+                        proxyItem.Bessy_Proxy_Deep_Copy_From(item);
+                    }
+                    else
+                    {
+                        if (deleteFirst)
+                        {
+                            tLock.Transaction.Enlist(Action.Delete, id, item);
+                            tLock.Transaction.Enlist(Action.Create, newId, item);
+                        }
+                        else
+                            tLock.Transaction.Enlist(Action.Update, newId, item);
+                    }
+                }
+            }
+            finally { lock (_syncOperations) _operations.Pop(); }
+        }
+
+        public override void Update(Type type, JObject obj, IdType id)
+        {
+            base.Update(type, obj, id);
+        }
+
+        public override int UpdateScalar(Type updateType, Func<JObject, bool> selector, Action<JObject> update)
+        {
+            return base.UpdateScalar(updateType, selector, update);
+        }
+
         public override EntityType Fetch(IdType id)
         {
             var item = base.Fetch(id);

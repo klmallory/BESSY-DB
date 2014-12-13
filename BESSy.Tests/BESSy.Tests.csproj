@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET40</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <UseVSHostingProcess>true</UseVSHostingProcess>
@@ -198,6 +198,7 @@
     <Compile Include="FileTest.cs" />
     <Compile Include="Indexes\IndexTests.cs" />
     <Compile Include="Indexes\SecondaryIndexTests.cs" />
+    <Compile Include="Mocks\MockAudioContainer.cs" />
     <Compile Include="Mocks\MockBatchFileManager.cs" />
     <Compile Include="Mocks\MockClassA.cs" />
     <Compile Include="Mocks\MockClassB.cs" />
@@ -211,6 +212,7 @@
     <Compile Include="Mocks\MockProxyC.cs" />
     <Compile Include="Mocks\MockProxyDomain.cs" />
     <Compile Include="Mocks\MockProxyFactory.cs" />
+    <Compile Include="Mocks\MockStreamConverter.cs" />
     <Compile Include="Mocks\MockTransaction.cs" />
     <Compile Include="Mocks\MockTransactionFactory.cs" />
     <Compile Include="Mocks\Tcp\MockTcpPublisher.cs" />
@@ -269,7 +271,9 @@
       <Name>BESSy</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Folder Include="ExtensionsTest\" />
+  </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="ResourceRepositoryTests\Resources\testRes.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>

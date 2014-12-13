@@ -181,7 +181,9 @@ namespace BESSy.Files
         
 
         MemoryMappedFile _fileMap;
-
+        /// <summary>
+        /// Synchronization root
+        /// </summary>
         protected object _syncRoot = new object();
         protected string _ioError = "File property {0}, could not be found or accessed: {1}.";
         protected string _serializerError = "File could not be serialized : \r\n {0} \r\n {1}";
@@ -1047,10 +1049,10 @@ namespace BESSy.Files
             }
         }
 
-        protected void CopySegmentTo(int newStride, int newSeedPosition, string newFileName, int startSegment, int endSegment)
-        {
-            CopySegmentTo(newStride,newSeedPosition,newFileName,startSegment,endSegment);
-        }
+        //protected void CopySegmentTo(int newStride, int newSeedPosition, string newFileName, int startSegment, int endSegment)
+        //{
+        //    CopySegmentTo(newStride,newSeedPosition,newFileName,startSegment,endSegment);
+        //}
 
         protected void CopySegmentTo(int newStride, int newSeedPosition, string newFileName, long startSegment, long endSegment)
         {

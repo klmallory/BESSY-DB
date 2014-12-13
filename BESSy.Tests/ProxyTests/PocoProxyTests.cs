@@ -13,7 +13,6 @@ using NUnit.Framework;
 namespace BESSy.Tests.ProxyTests
 {
     [TestFixture]
-    [Category("Performance")]
     public class PocoProxyTests : FileTest
     {
         [Test]
@@ -178,5 +177,72 @@ namespace BESSy.Tests.ProxyTests
                 (d as MockDomain).Validate(domain as MockDomain);
             }
         }
+
+        [Test]
+        public void PocoProxyUpdatesExternalDomain()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var domain = TestResourceFactory.CreateRandomDomain();
+
+            domain = (domain as MockDomain).WithIds() as MockClassA;
+                    var c = (domain as MockClassC);
+
+            using (var db = new PocoRelationalDatabase<int, MockClassA>
+                (_testName + ".database", "Id",
+                new FileCore<int, long>(new Seed32(999)), new BinConverter32(), new BSONFormatter(),
+                new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
+            {
+                db.Load();
+
+                using (var t = db.BeginTransaction())
+                {
+                    domain.Id = db.Add(domain);
+
+                    c.LittleId =7;
+                    var oldId = c.Id;
+                    c.Id = 99999;
+
+                    db.Update(c, oldId);
+
+                    c.Location.X = 999;
+                    db.Update(c, c.Id);
+
+                    var d = db.Fetch(c.Id);
+
+                    (domain as MockDomain).Validate(d as MockDomain);
+
+                    var prox = db.Fetch(c.Id);
+
+                    var g = Guid.NewGuid();
+                    prox.ReplicationID = g;
+
+                    db.Update(prox, prox.Id);
+
+                    d = db.Fetch(prox.Id);
+
+                    domain.ReplicationID = g;
+                    (domain as MockDomain).Validate(d as MockDomain);
+
+                    t.Commit();
+                }
+            }
+
+            using (var db = new PocoRelationalDatabase<int, MockClassA>
+                (_testName + ".database",
+                new BSONFormatter(),
+                new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
+            {
+                db.Load();
+
+                Assert.AreEqual(9, db.Length);
+
+                var d = db.Fetch(domain.Id);
+
+                (d as MockDomain).Validate(domain as MockDomain);
+            }
+        }
+
     }
 }

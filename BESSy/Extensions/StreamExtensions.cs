@@ -49,6 +49,31 @@ namespace BESSy.Extensions
         //        inStream.SetLength(lastNonZeroIndex + 1);
         //}
 
+        public static byte[] ReadAll(this Stream stream)
+        {
+            if (stream == null)
+                return new byte[0];
+
+            stream.Position = 0;
+            byte[] b = new byte[stream.Length];
+
+            stream.Position = 0;
+
+            var buffer = new byte[Environment.SystemPageSize];
+            var soFar = 0;
+            var read = stream.Read(buffer, 0, buffer.Length);
+
+            while (read > 0)
+            {
+                Array.Copy(buffer, 0, b, soFar, read);
+
+                soFar += read;
+                read = stream.Read(buffer, 0, buffer.Length);
+            }
+
+            return b;
+        }
+
         public static void WriteAllTo(this Stream inStream, Stream outStream)
         {
             var buffer = new byte[Environment.SystemPageSize];

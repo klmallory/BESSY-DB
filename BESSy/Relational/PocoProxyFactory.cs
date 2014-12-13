@@ -26,6 +26,7 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Remoting.Proxies;
+using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using BESSy.Cache;
@@ -37,15 +38,14 @@ using BESSy.Json;
 using BESSy.Json.Linq;
 using BESSy.Parallelization;
 using BESSy.Queries;
+using BESSy.Reflection;
 using BESSy.Replication;
 using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
 using BESSy.Synchronization;
 using BESSy.Transactions;
-using System.Security;
 using Microsoft.CSharp.RuntimeBinder;
-using BESSy.Reflection;
 
 namespace BESSy.Relational
 {
@@ -68,7 +68,6 @@ namespace BESSy.Relational
         Func<EntityType, IdType> IdGet { get; set; }
         Action<EntityType, IdType> IdSet { get; set; }
 
-        //T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository) where T : EntityType;
         T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType;
     }
 
@@ -104,44 +103,37 @@ namespace BESSy.Relational
             new Type[] { typeof(BESSy.Relational.IBESSyProxy<IdType, EntityType>), typeof(String), typeof(IEnumerable<EntityType>) },
             null);
 
-        //method1
-        MethodInfo exposedObjectFrom = typeof(ExposedObject).GetMethod("From",
+        MethodInfo exposedObjectFrom = typeof(DynamicMemberManager).GetMethod("GetManager",
             BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
             null, new Type[] { typeof(Object) }, null);
 
-        //method3
         MethodInfo getTypeFromHandle = typeof(Type).GetMethod("GetTypeFromHandle",
         BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
         null, new Type[] { typeof(RuntimeTypeHandle) }, null);
 
-        //method4
         MethodInfo create = typeof(CSharpArgumentInfo).GetMethod(
             "Create",
             BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
             null,
             new Type[] { typeof(CSharpArgumentInfoFlags), typeof(String) }, null);
 
-        //method9
+
         MethodInfo binderGetMember = typeof(Microsoft.CSharp.RuntimeBinder.Binder).GetMethod("GetMember",
             BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
             null, new Type[]{ typeof(CSharpBinderFlags),typeof(String), typeof(Type),typeof(System.Collections.Generic.IEnumerable<>)
             .MakeGenericType(typeof(CSharpArgumentInfo))}, null);
 
-        //method5
         MethodInfo binderSetMember = typeof(Microsoft.CSharp.RuntimeBinder.Binder).GetMethod("SetMember",
             BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
             null, new Type[]{ typeof(CSharpBinderFlags),typeof(String),typeof(Type),
             typeof(System.Collections.Generic.IEnumerable<>).MakeGenericType(typeof(CSharpArgumentInfo))}, null);
 
-        //method6 
         MethodInfo callSiteCreate4 = typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>)
             .GetMethod("Create", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
             null, new Type[] { typeof(CallSiteBinder) }, null);
 
-        //field7
         FieldInfo callSiteTarget4 = typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>).GetField("Target");
 
-        //method10
         MethodInfo callSiteCreate3 = typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object>>)
             .GetMethod("Create", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
             null, new Type[] { typeof(CallSiteBinder) }, null);
@@ -162,8 +154,6 @@ namespace BESSy.Relational
         public PocoProxyFactory()
         {
             getIdFromFactory = this.GetType().GetMethod("get_IdGet");
-
-            //AppDomain.CurrentDomain.AssemblyResolve += (s, a) => MyResolveEventHandler(s, a);
         }
 
         public PocoProxyFactory(string assemblyName, bool useTransientAssembly)
@@ -182,42 +172,10 @@ namespace BESSy.Relational
         public Action<EntityType, IdType> IdSet { get; set; }
         public string IdToken { get; set; }
 
-        //public T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository) where T : EntityType
-        //{
-        //    return GetProxyFor<T>(repository);
-        //}
-
         public T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType
         {
             return GetProxyFor<T>(repository, instance);
         }
-
-        //protected T GetProxyFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository) where T : EntityType
-        //{
-        //    var inType = typeof(T);
-        //    var typeName = inType.AssemblyQualifiedName;
-
-        //    while (inType.Assembly.IsDynamic)
-        //    {
-        //        if (inType.BaseType == null)
-        //            throw new ProxyCreationException(string.Format("Unable to create proxy of another proxy: {0}", inType.GetType()));
-
-        //        inType = inType.BaseType;
-        //        typeName = inType.AssemblyQualifiedName;
-        //    }
-
-        //    var name = "BESSy.Proxy." + Path.GetFileNameWithoutExtension(inType.Module.Name);
-
-        //    lock (_syncRoot)
-        //        if (!_assemblyBuilderCache.ContainsKey(name))
-        //            BuildDomainProxies(name);
-
-        //    lock (_syncRoot)
-        //        if (_typeCache.ContainsKey(typeName))
-        //            return (T)Activator.CreateInstance(_typeCache[typeName], repository, this);
-        //        else
-        //            throw new ProxyCreationException(string.Format("Proxy not found for type of {0}, for assembly {1}", inType.FullName, inType.Assembly.FullName));
-        //}
 
         protected T GetProxyFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType
         {
@@ -1164,20 +1122,9 @@ namespace BESSy.Relational
 
         #endregion
 
-        public Assembly MyResolveEventHandler(object sender, ResolveEventArgs args)
-        {
-            //lock (_syncRoot)
-            //    if (_assemblyBuilderCache.ContainsKey(args.Name))
-            //        return _assemblyBuilderCache[args.Name];
-
-            //return Assembly.GetExecutingAssembly();
-
-            return null;
-        }
-
         public void Dispose()
         {
-            //AppDomain.CurrentDomain.AssemblyResolve -= (s, a) => MyResolveEventHandler(s, a);
+            throw new NotImplementedException();
         }
     }
 }

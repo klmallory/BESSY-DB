@@ -115,10 +115,12 @@ namespace BESSy.Factories
                 throw new ReplicationFactoryException("create string missing required field 'segmenttype'");
             if (!typeParameters.ContainsKey("filename"))
                 throw new ReplicationFactoryException("create string missing required field 'entitytype'");
-            else
-                throw new ReplicationFactoryException("no known index tBuilder");
+            //else
+            //    throw new ReplicationFactoryException("no known index tBuilder");
 
             var index = ConstructIndexFrom(typeParameters);
+
+            return index;
         }
 
         internal static dynamic ConstructIndexFrom(IDictionary<string, Object> typeParameters)
