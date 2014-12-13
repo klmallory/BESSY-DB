@@ -42,8 +42,8 @@ using System;
 //sn -p BESSy.Tests.keyfile.pfx BESSy.Tests.keyfile.pub
 //sn -tp BESSy.Tests.keyfile.pub
 
-[assembly: AssemblyVersion("0.9.1.3")]
-[assembly: AssemblyFileVersion("0.9.1.3")]
+[assembly: AssemblyVersion("0.9.1.4")]
+[assembly: AssemblyFileVersion("0.9.1.4")]
 [assembly: CLSCompliant(true)]
 [assembly: NeutralResourcesLanguageAttribute("en-US")]
 

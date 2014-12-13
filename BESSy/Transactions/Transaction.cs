@@ -36,7 +36,6 @@ namespace BESSy.Transactions
             Action = action;
             Entity = entity;
         }
-
         public Action Action { get; set; }
         public EntityType Entity { get; set; }
         public object DbSegment { get; set; }
