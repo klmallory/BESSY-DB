@@ -172,7 +172,6 @@
     <Compile Include="AbstractTransactionalDatabase_Fluent.cs" />
     <Compile Include="AbstractTransactionalDatabase_IProvideMetaData.cs" />
     <Compile Include="AbstractTransactionalDatabase_Server.cs" />
-    <Compile Include="AssemblyConstants.cs" />
     <Compile Include="Cache\NTree.cs" />
     <Compile Include="Cache\PTree.cs" />
     <Compile Include="Containers\ResourceStreamContainer.cs" />
@@ -209,7 +208,6 @@
     <Compile Include="Reflection\DynamicMemberManager.cs" />
     <Compile Include="Relational\PocoProxyFactory.cs" />
     <Compile Include="Relational\PocoProxyHandler.cs" />
-    <Compile Include="Relational\PocoProxySerializer.cs" />
     <Compile Include="Relational\PocoRelationalDatabase.cs" />
     <Compile Include="Relational\ProxyCreationException.cs" />
     <Compile Include="Relational\ProxyWatchList.cs" />

@@ -35,6 +35,19 @@ namespace BESSy.Serialization
             get { return _serializer.Serializer; }
         }
 
+        public JsonSerializerSettings Settings
+        {
+            get
+            {
+                return _serializer != null ? _serializer.Settings : null;
+            }
+            set
+            {
+                if (_serializer != null && _serializer.Settings != null)
+                    _serializer.Settings = value;
+            }
+        }
+
         public bool Trim
         {
             get { return true; }

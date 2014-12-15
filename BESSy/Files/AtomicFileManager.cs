@@ -552,222 +552,117 @@ namespace BESSy.Files
         {
             Trace.TraceInformation("Filemanager committing trans");
             long segment = 0;
+
             object syncBuffer = new object();
             object syncSegment = new object();
             object syncLock = new object();
 
+            var stride = Stride > 0 ? Stride : 512;
+
             try
             {
+                if (trans.EnlistCount <= 0)
+                    return new Dictionary<IdType, long>();
+
+                var returnSegments = new Dictionary<IdType, long>();
+                var updateSegments = new Dictionary<IdType, object>();
+
                 using (var locks = new RowLockContainer<long>())
                 {
+                    var groupSize = (TaskGrouping.MemoryLimit / stride).Clamp(1, trans.EnlistCount);
 
-                    var actions = trans.GetEnlistedActions();
-                    IDictionary<IdType, Stream> buffers = new Dictionary<IdType, Stream>();
-                    var returnSegments = new Dictionary<IdType, long>();
-                    var updateSegments = new Dictionary<IdType, object>();
+                    var tGroups = GetGroups(trans.EnlistCount, groupSize);
 
-                    KeyValuePair<IdType, EnlistedAction<EntityType>>[] creates;
-                    KeyValuePair<IdType, EnlistedAction<EntityType>>[] updates;
-                    KeyValuePair<IdType, EnlistedAction<EntityType>>[] deletes;
-
-                    var maxRowSize = 0;
-
-                    Parallel.Invoke(new System.Action[]
+                    for (var index = 0; index < tGroups; index++)
                     {
+                        var actions = trans.GetEnlistedActions(index * groupSize, groupSize);
 
-                        #region Create Buffers
+                        IDictionary<IdType, Stream> buffers = new Dictionary<IdType, Stream>();
 
-                        new System.Action(delegate() {
-                            creates = actions.Where
-                            (a => (a.Value.Action == Action.Create)).ToArray();
+                        KeyValuePair<IdType, EnlistedAction<EntityType>>[] creates;
+                        KeyValuePair<IdType, EnlistedAction<EntityType>>[] updates;
+                        KeyValuePair<IdType, EnlistedAction<EntityType>>[] deletes;
 
-                            if (creates.Count() > 0)
+                        var maxRowSize = 0;
+
+                        Parallel.Invoke(new System.Action[]
+                        {
+                            new System.Action(delegate() {
+                                creates = FillCreateBuffers<IdType>(syncBuffer, actions, buffers, ref maxRowSize);
+                            }),
+
+                            new System.Action(delegate() {
+
+                                updates = FillUpdateBuffers<IdType>(segments, segment, syncBuffer, locks, actions, buffers, ref maxRowSize);
+                            }),
+
+                            new System.Action( delegate() {
+
+                                deletes = FillDeleteBuffers<IdType>(segments, segment, locks, actions, buffers);
+                            })
+                        });
+
+                        if (buffers.Count > 0)
+                        {
+
+                            var newRows = actions.Values.Count(a => a.Action == Action.Create);
+
+                            if (maxRowSize > Stride || newRows + Length >= MaxLength)
                             {
-                                int rem = 0;
-                                var count = Math.DivRem(creates.Length, Environment.ProcessorCount, out rem);
-                                var groups = Environment.ProcessorCount;
+                                Rebuild(Math.Max(maxRowSize, Stride), newRows + Length, CorePosition);
+                            }
 
-                                if (creates.Length <= Environment.ProcessorCount * 12)
+                            foreach (var buffer in buffers)
+                            {
+                                var action = actions[buffer.Key].Action;
+
+                                if (action == Action.Create)
                                 {
-                                    count = creates.Length;
-                                    groups = 1;
-                                    rem = 0;
+                                    segment = SegmentSeed.Increment();
+                                    locks.Add(_rowSynchronizer.Lock(segment));
                                 }
+                                else
+                                    segment = segments[buffer.Key];
 
-                                Parallel.For(0, rem > 0 ? groups + 1 : groups, delegate(int g)
+                                if (segment > MaxLength)
                                 {
-                                    var buffer = new Dictionary<IdType, Stream>();
-
-                                    if (rem > 0 && g == groups)
-                                        for (var i = (g * count); i < (g * count) + rem; i++)
-                                            buffer.Add(creates[i].Key, _formatter.FormatObjStream(creates[i].Value.Entity));
-                                    else
-                                        for (var i = (g * count); i < (g * count) + count; i++)
-                                            buffer.Add(creates[i].Key, _formatter.FormatObjStream(creates[i].Value.Entity));
-
-                                    lock (syncBuffer)
+                                    lock (_syncRoot)
                                     {
-                                        buffers.Merge(buffer);
+                                        ResizeDataFile(GetSizeWithGrowthFactor(segment), Stride);
 
-                                        maxRowSize = Math.Max(maxRowSize, (int)buffer.Max(b => b.Value.Length));
+                                        foreach (var rl in locks)
+                                            _rowSynchronizer.Lock(rl.Rows);
                                     }
-                                });
-                            }
-                        }),
-                        #endregion
-
-                        #region Update Buffers
-
-                        new System.Action(delegate() {
-
-                            updates = actions.Where
-                                (a => a.Value.Action == Action.Update).ToArray();
-
-                            if (updates.Count() > 0)
-                            {
-                                int rem = 0;
-                                var count = Math.DivRem(updates.Length, Environment.ProcessorCount, out rem);
-                                var groups = Environment.ProcessorCount;
-
-                                if (updates.Length <= Environment.ProcessorCount * 12)
-                                {
-                                    count = updates.Length;
-                                    groups = 1;
-                                    rem = 0;
                                 }
 
-                                Parallel.For(0, rem > 0 ? groups + 1 : groups, delegate(int g)
+                                using (var stream = GetWritableFileStream(segment, 1))
                                 {
-                                    var buffer = new Dictionary<IdType, Stream>();
-
-                                    if (rem > 0 && g == groups)
-                                        for (var i = (g * count); i < (g * count) + rem; i++)
-                                        {
-                                            buffer.Add(updates[i].Key, _formatter.FormatObjStream(updates[i].Value.Entity));
-
-                                            RowLock<long> rowLock;
-
-                                            if (!_rowSynchronizer.TryLock(segments[updates[i].Key], 5000, out rowLock))
-                                                throw new RowLockTimeoutException(string.Format("Row deadlock for id {0}, row {1}", updates[i].Key, segment));
-
-                                            locks.Add(rowLock);
-                                        }
-                                    else
-                                        for (var i = (g * count); i < (g * count) + count; i++)
-                                        {
-                                            buffer.Add(updates[i].Key, _formatter.FormatObjStream(updates[i].Value.Entity));
-
-
-                                            RowLock<long> rowLock;
-
-                                            if (!_rowSynchronizer.TryLock(segments[updates[i].Key], 5000, out rowLock))
-                                                throw new RowLockTimeoutException(string.Format("Row deadlock for id {0}, row {1}", updates[i].Key, segment));
-
-                                            locks.Add(rowLock);
-                                        }
-
-                                    lock (syncBuffer)
+                                    try
                                     {
-                                        buffers.Merge(buffer);
+                                        buffer.Value.WriteAllTo(stream, Stride);
 
-                                        maxRowSize = Math.Max(maxRowSize, (int)buffer.Max(b => b.Value.Length));
+                                        stream.Flush();
                                     }
-
-
-                                });
-                            }
-                        }),
-                        #endregion
-
-                        #region Delete Buffers
-
-                        new System.Action( delegate() {
-
-                            deletes = actions.Where
-                                (a => a.Value.Action == Action.Delete
-                                && segments.ContainsKey(a.Key) && segments[a.Key] > -1).ToArray();
-
-                            if (deletes.Length > 0)
-                            {
-                                var buffer = new Dictionary<IdType, Stream>();
-
-                                foreach (var d in deletes)
-                                {
-                                    buffer.Add(d.Key, new MemoryStream(new byte[Stride]));
-
-                                    RowLock<long> rowLock;
-
-                                    if (!_rowSynchronizer.TryLock(segments[d.Key], 5000, out rowLock))
-                                        throw new RowLockTimeoutException(string.Format("Row deadlock for id {0}, row {1}", d.Key, segment));
-
-                                    locks.Add(rowLock);
+                                    catch (Exception ex) { Trace.TraceError("Error writing location {0} to database: {1}", segment, ex); throw; }
                                 }
 
-                                buffers.Merge(buffer);
+                                var a = actions[buffer.Key];
+                                if (action != Action.Delete)
+                                {
+                                    returnSegments.Add(buffer.Key, segment);
+                                    updateSegments.Add(buffer.Key, segment);
+                                }
+                                else
+                                {
+                                    SegmentSeed.Open(segment);
+
+                                    updateSegments.Add(buffer.Key, segment);
+                                }
                             }
-                        })
-                        #endregion
-                    });
 
-                    if (buffers.Count == 0)
-                        return returnSegments;
-
-                    var newRows = actions.Values.Count(a => a.Action == Action.Create);
-
-                    if (maxRowSize > Stride || newRows + Length >= MaxLength)
-                    {
-                        Rebuild(Math.Max(maxRowSize, Stride), newRows + Length, CorePosition);
-                    }
-
-                    foreach (var buffer in buffers)
-                    {
-                        var action = actions[buffer.Key].Action;
-
-                        if (action == Action.Create)
-                        {
-                            segment = SegmentSeed.Increment();
-                            locks.Add(_rowSynchronizer.Lock(segment));
-                        }
-                        else
-                            segment = segments[buffer.Key];
-
-                        if (segment > MaxLength)
-                        {
-                            lock (_syncRoot)
-                            {
-                                ResizeDataFile(GetSizeWithGrowthFactor(segment), Stride);
-
-                                foreach (var rl in locks)
-                                    _rowSynchronizer.Lock(rl.Rows);
-                            }
-                        }
-
-                        using (var stream = GetWritableFileStream(segment, 1))
-                        {
-                            try
-                            {
-                                buffer.Value.WriteAllTo(stream, Stride);
-
-                                stream.Flush();
-                            }
-                            catch (Exception ex) { Trace.TraceError("Error writing location {0} to database: {1}", segment, ex); throw; }
-                        }
-
-                        var a = actions[buffer.Key];
-                        if (action != Action.Delete)
-                        {
-                            
-                            returnSegments.Add(buffer.Key, segment);
-                            updateSegments.Add(buffer.Key, segment);
-                        }
-                        else
-                        {
-                            SegmentSeed.Open(segment);
-                            updateSegments.Add(buffer.Key, segment);
+                            trans.UpdateSegments(updateSegments);
                         }
                     }
-
-                    trans.UpdateSegments(updateSegments);
 
                     InvokeTransactionCommitted<IdType>(trans);
 
@@ -779,6 +674,156 @@ namespace BESSy.Files
             catch (IOException ioEx) { Trace.TraceError(String.Format(_ioError, "", ioEx)); throw; }
             catch (SystemException sysEx) { Trace.TraceError(sysEx.ToString()); throw; }
             finally { GC.Collect(); }
+        }
+
+        private KeyValuePair<IdType, EnlistedAction<EntityType>>[] FillDeleteBuffers<IdType>(IDictionary<IdType, long> segments, long segment, RowLockContainer<long> locks, IDictionary<IdType, EnlistedAction<EntityType>> actions, IDictionary<IdType, Stream> buffers)
+        {
+            KeyValuePair<IdType, EnlistedAction<EntityType>>[] deletes;
+            deletes = actions.Where
+                (a => a.Value.Action == Action.Delete
+                && segments.ContainsKey(a.Key) && segments[a.Key] > -1).ToArray();
+
+            if (deletes.Length > 0)
+            {
+                var buffer = new Dictionary<IdType, Stream>();
+
+                foreach (var d in deletes)
+                {
+                    buffer.Add(d.Key, new MemoryStream(new byte[Stride]));
+
+                    RowLock<long> rowLock;
+
+                    if (!_rowSynchronizer.TryLock(segments[d.Key], 5000, out rowLock))
+                        throw new RowLockTimeoutException(string.Format("Row deadlock for id {0}, row {1}", d.Key, segment));
+
+                    locks.Add(rowLock);
+                }
+
+                buffers.Merge(buffer);
+            }
+            return deletes;
+        }
+
+        private KeyValuePair<IdType, EnlistedAction<EntityType>>[] FillUpdateBuffers<IdType>(IDictionary<IdType, long> segments, long segment, object syncBuffer, RowLockContainer<long> locks, IDictionary<IdType, EnlistedAction<EntityType>> actions, IDictionary<IdType, Stream> buffers, ref int maxRowSize)
+        {
+            var size = maxRowSize;
+
+            KeyValuePair<IdType, EnlistedAction<EntityType>>[] updates;
+            updates = actions.Where
+                (a => a.Value.Action == Action.Update).ToArray();
+
+            if (updates.Count() > 0)
+            {
+                int rem = 0;
+                var count = Math.DivRem(updates.Length, Environment.ProcessorCount, out rem);
+                var groups = Environment.ProcessorCount;
+
+                if (updates.Length <= Environment.ProcessorCount * 12)
+                {
+                    count = updates.Length;
+                    groups = 1;
+                    rem = 0;
+                }
+
+                Parallel.For(0, rem > 0 ? groups + 1 : groups, delegate(int g)
+                {
+                    var buffer = new Dictionary<IdType, Stream>();
+
+                    if (rem > 0 && g == groups)
+                        for (var i = (g * count); i < (g * count) + rem; i++)
+                        {
+                            buffer.Add(updates[i].Key, _formatter.FormatObjStream(updates[i].Value.Entity));
+
+                            RowLock<long> rowLock;
+
+                            if (!_rowSynchronizer.TryLock(segments[updates[i].Key], 5000, out rowLock))
+                                throw new RowLockTimeoutException(string.Format("Row deadlock for id {0}, row {1}", updates[i].Key, segment));
+
+                            locks.Add(rowLock);
+                        }
+                    else
+                        for (var i = (g * count); i < (g * count) + count; i++)
+                        {
+                            buffer.Add(updates[i].Key, _formatter.FormatObjStream(updates[i].Value.Entity));
+
+                            RowLock<long> rowLock;
+
+                            if (!_rowSynchronizer.TryLock(segments[updates[i].Key], 5000, out rowLock))
+                                throw new RowLockTimeoutException(string.Format("Row deadlock for id {0}, row {1}", updates[i].Key, segment));
+
+                            locks.Add(rowLock);
+                        }
+
+                    lock (syncBuffer)
+                    {
+                        buffers.Merge(buffer);
+
+                        size = Math.Max(size, (int)buffer.Max(b => b.Value.Length));
+                    }
+
+
+                });
+            }
+
+            maxRowSize = size;
+
+            return updates;
+        }
+
+        private KeyValuePair<IdType, EnlistedAction<EntityType>>[] FillCreateBuffers<IdType>(object syncBuffer, IDictionary<IdType, EnlistedAction<EntityType>> actions, IDictionary<IdType, Stream> buffers, ref int maxRowSize)
+        {
+            var size = maxRowSize;
+
+            KeyValuePair<IdType, EnlistedAction<EntityType>>[] creates;
+            creates = actions.Where
+            (a => (a.Value.Action == Action.Create)).ToArray();
+
+            if (creates.Count() > 0)
+            {
+                int rem = 0;
+                var count = Math.DivRem(creates.Length, Environment.ProcessorCount, out rem);
+                var groups = Environment.ProcessorCount;
+
+                if (creates.Length <= Environment.ProcessorCount * 12)
+                {
+                    count = creates.Length;
+                    groups = 1;
+                    rem = 0;
+                }
+
+                Parallel.For(0, rem > 0 ? groups + 1 : groups, delegate(int g)
+                {
+                    var buffer = new Dictionary<IdType, Stream>();
+
+                    if (rem > 0 && g == groups)
+                        for (var i = (g * count); i < (g * count) + rem; i++)
+                            buffer.Add(creates[i].Key, _formatter.FormatObjStream(creates[i].Value.Entity));
+                    else
+                        for (var i = (g * count); i < (g * count) + count; i++)
+                            buffer.Add(creates[i].Key, _formatter.FormatObjStream(creates[i].Value.Entity));
+
+                    lock (syncBuffer)
+                    {
+                        buffers.Merge(buffer);
+
+                        size = Math.Max(size, (int)buffer.Max(b => b.Value.Length));
+                    }
+                });
+            }
+
+            maxRowSize = size;
+
+            return creates;
+        }
+
+        private static int GetGroups(int count, int groupSize)
+        {
+            int tRem = 0;
+            var tGroups = groupSize > 0 ? Math.DivRem(count, groupSize, out tRem) : 1;
+
+            if (tRem > 0)
+                tGroups++;
+            return tGroups;
         }
 
         public virtual EntityType LoadSegmentFrom(long segment)

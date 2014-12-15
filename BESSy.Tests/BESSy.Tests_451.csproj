@@ -174,7 +174,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AssemblyConstants.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerCRUDTests.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerHelper.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerQueryTests.cs" />

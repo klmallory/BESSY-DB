@@ -8,6 +8,7 @@ namespace BESSy.Seeding
 {
     public interface IFileCore<SegmentType>
     {
+        long InitialDbSize { get; set; }
         string CategoryIdProperty { get; set; }
         object IdConverter { get; set; }
         string IdProperty { get; set; }
@@ -48,11 +49,14 @@ namespace BESSy.Seeding
             MinimumCoreStride = 10240;
             IdSeed = idSeed;
             SegmentSeed = segmentSeed;
-
+            InitialDbSize = 512;
             Indexes = new List<string>();
             Subscribers = new List<string>();
             Publishers = new List<string>();
         }
+
+        [JsonIgnore]
+        public long InitialDbSize { get; set; }
 
         [JsonProperty]
         public Guid Source { get; protected set; }

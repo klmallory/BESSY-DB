@@ -35,5 +35,19 @@ namespace BESSy.Tests.Mocks
 
             throw new Exception("No Bueno.");
         }
+
+        public Type GetProxyTypeFor(Type type)
+        {
+            if (type == typeof(MockDomain))
+            {
+                return typeof(MockProxyDomain);
+            }
+            else if (type == typeof(MockClassC))
+            {
+                return typeof(MockProxyC);
+            }
+
+            return type;
+        }
     }
 }

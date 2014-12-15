@@ -34,16 +34,36 @@ namespace BESSy.Tests.Mocks
             _fieldTest = value;
         }
 
+        [JsonProperty("_fieldTest2")]
+        private int _fieldTest2;
+
+        public int GetFieldTest2Value()
+        {
+            return _fieldTest2;
+        }
+
+        public void SetFieldTest2Value(int value)
+        {
+            _fieldTest2 = value;
+        }
+
         public MockClassA ADomain;
+
+        public virtual MockClassB BullD { get { return BDomain; } }
+
+        public virtual MockClassB[] BullDs { get { return BDomains; } }
 
         public virtual MockClassB BDomain { get; set; }
 
         public virtual MockClassC CDomain { get; set; }
 
         public virtual IList<MockClassC> CDomains { get; set; }
+        
         public virtual MockClassB[] BDomains { get; set; }
 
         public virtual Dictionary<int, string> MyHashMash { get; set; }
+
+        public override MockClassC Friend {get; set;}
 
         public MockDomain WithIds()
         {

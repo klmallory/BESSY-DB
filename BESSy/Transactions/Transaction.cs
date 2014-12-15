@@ -54,6 +54,7 @@ namespace BESSy.Transactions
         void Rollback();
         void Commit();
         void MarkComplete();
+        void SuspendCascades();
     }
 
     public interface ITransaction<EntityType> : ITransaction
@@ -67,6 +68,7 @@ namespace BESSy.Transactions
         void Enlist(Action action, IdType id, EntityType entity);
         void EnlistObj(Action action, IdType id, object entity);
         IDictionary<IdType, EnlistedAction<EntityType>> GetEnlistedActions();
+        IDictionary<IdType, EnlistedAction<EntityType>> GetEnlistedActions(int start, int count);
         IList<Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>>> GetCascades();
         bool Contains(IdType id);
         void UpdateSegments(IDictionary<IdType, object> segments);
@@ -117,6 +119,7 @@ namespace BESSy.Transactions
         Enlistment _enlistment;
         TransactionScope _scope;
         bool _isCommitted = false;
+        bool _cascadesOn = true;
 
         ITransactionManager<IdType, EntityType> _transactionManager;
 
@@ -210,6 +213,11 @@ namespace BESSy.Transactions
         [JsonProperty]
         public bool CommitInProgress { get; private set; }
 
+        public void SuspendCascades()
+        {
+            _cascadesOn = false;
+        }
+
         public virtual void Enlist(Action action, IdType id, EntityType entity)
         {
             lock (_syncRoot)
@@ -245,6 +253,9 @@ namespace BESSy.Transactions
 
         public void Cascade(Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>> cascade)
         {
+            if (!_cascadesOn)
+                return;
+
             lock (_syncRoot)
             {
                 if (IsComplete || CommitInProgress) throw new TransactionStateException("Transaction is no longer active. No furthur cascades are possible.");
@@ -277,6 +288,14 @@ namespace BESSy.Transactions
         public IDictionary<IdType, EnlistedAction<EntityType>> GetEnlistedActions()
         {
             return new Dictionary<IdType, EnlistedAction<EntityType>>(_enlistedActions);
+        }
+
+        public IDictionary<IdType, EnlistedAction<EntityType>> GetEnlistedActions(int start, int count)
+        {
+            return (from entry in _enlistedActions orderby entry.Key select entry)
+                    .Skip(start)
+                   .Take(count)
+                   .ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
         public IList<EnlistedAction<EntityType>> GetActions()

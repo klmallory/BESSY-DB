@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using BESSy.Relational;
 using BESSy.Json;
+using BESSy.Reflection;
 
 namespace BESSy.Tests.Mocks
 {
@@ -38,8 +39,7 @@ namespace BESSy.Tests.Mocks
             if (instance.GetSomeCheckSum != null)
                 GetSomeCheckSum = instance.GetSomeCheckSum.ToArray();
 
-            PocoProxyHandler<int, MockClassA>.CopyVaueField(ref LittleId, ref instance.LittleId);
-
+            LittleId = instance.LittleId;
             BigId = instance.BigId;
             DecAnimal = instance.DecAnimal;
             Location = instance.Location;
@@ -83,6 +83,7 @@ namespace BESSy.Tests.Mocks
         [JsonProperty("$simpleTypeName")]
 
         public string Bessy_Proxy_Simple_Type_Name { get; set; }
+
         [JsonIgnore]
         public override MockClassC Friend
         {

@@ -23,6 +23,7 @@ namespace BESSy.Serialization
 {
     public interface IQueryableFormatter : ISafeFormatter
     {
+        JsonSerializerSettings Settings { get; set; }
         JsonSerializer Serializer { get; }
         JObject AsQueryableObj<T>(T obj);
         JObject Parse(Stream inStream);

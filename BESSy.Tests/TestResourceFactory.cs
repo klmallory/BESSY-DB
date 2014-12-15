@@ -204,6 +204,7 @@ namespace BESSy.Tests
             d.CDomain.Other = d;
             d.CDomains.ToList().ForEach(c => c.Other = d);
             d.SetFieldTestValue(random.Next());
+            d.SetFieldTest2Value(random.Next());
 
             return d;
         }

@@ -450,9 +450,9 @@ namespace BESSy
                 lock (_syncTrans)
                 {
                     if (_createNew)
-                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, Caching.DetermineOptimumCacheSize(_core.Stride), _core,  Formatter, _rowSynchronizer);
+                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, (int)_core.InitialDbSize, Caching.DetermineOptimumCacheSize(_core.Stride), _core,  Formatter, _rowSynchronizer);
                     else
-                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, 0, Formatter,_rowSynchronizer);
+                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, 0, Formatter, _rowSynchronizer);
 
                     _fileManager.Load<IdType>();
 

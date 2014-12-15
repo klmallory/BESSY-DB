@@ -16,6 +16,7 @@ namespace BESSy.Tests.ProxyTests
     public class PocoProxyTests : FileTest
     {
         [Test]
+        [Category("Performance")]
         public void ProxySavesData()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -25,7 +26,7 @@ namespace BESSy.Tests.ProxyTests
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
                 (_testName + ".database", "Id", 
-                new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(), 
+                new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(),
                 new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
             {
                 db.Load();
@@ -36,7 +37,7 @@ namespace BESSy.Tests.ProxyTests
 
                     var d = db.Fetch(domain.Id);
 
-                    (domain as MockDomain).Validate(d as MockDomain);
+                    Validation.ValidateDomain(d, domain as MockDomain);
 
                     t.Commit();
                 }
@@ -53,11 +54,12 @@ namespace BESSy.Tests.ProxyTests
 
                 var d = db.Fetch(domain.Id);
 
-                (d as MockDomain).Validate(domain as MockDomain);
+                Validation.ValidateDomain(d, domain as MockDomain);
             }
         }
 
         [Test]
+        [Category("Performance")]
         public void ProxyReusesTypes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -66,7 +68,7 @@ namespace BESSy.Tests.ProxyTests
             var domain = TestResourceFactory.CreateRandomDomain();
             var domain2 = TestResourceFactory.CreateRandomDomain();
 
-            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(), new PocoProxyFactory<int, MockClassA>()))
+            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(), new PocoProxyFactory<int, MockClassA>()))
             {
                 db.Load();
 
@@ -77,7 +79,7 @@ namespace BESSy.Tests.ProxyTests
 
                     var d = db.Fetch(domain2.Id);
 
-                    (domain2 as MockDomain).Validate(d as MockDomain);
+                    Validation.ValidateDomain(d, domain2 as MockDomain);
 
                     t.Commit();
                 }
@@ -91,11 +93,12 @@ namespace BESSy.Tests.ProxyTests
 
                 Assert.AreEqual(18, db.Length);
 
-                (d as MockDomain).Validate(domain as MockDomain);
+                Validation.ValidateDomain(d, domain as MockDomain);
             }
         }
 
         [Test]
+        [Category("Performance")]
         public void ProxyOverridesIdAndStoresOldId()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -103,7 +106,7 @@ namespace BESSy.Tests.ProxyTests
 
             var domain = TestResourceFactory.CreateRandomDomain();
 
-            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(), new PocoProxyFactory<int, MockClassA>()))
+            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(), new PocoProxyFactory<int, MockClassA>()))
             {
                 db.Load();
 
@@ -114,7 +117,7 @@ namespace BESSy.Tests.ProxyTests
                     var d = db.Fetch(domain.Id);
                     var obj = db.FetchJObj(domain.Id);
 
-                    (domain as MockDomain).Validate(d as MockDomain);
+                    Validation.ValidateDomain(d, domain as MockDomain);
 
                     Assert.AreEqual(0, obj.Value<int>("Bessy_Proxy_OldId"));
 
@@ -130,11 +133,12 @@ namespace BESSy.Tests.ProxyTests
 
                 var d = db.Fetch(domain.Id);
 
-                (d as MockDomain).Validate(domain as MockDomain);
+                Validation.ValidateDomain(d, domain as MockDomain);
             }
         }
 
         [Test]
+        [Category("Performance")]
         public void PocoProxyConvertsExternalDomain()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -146,7 +150,7 @@ namespace BESSy.Tests.ProxyTests
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
                 (_testName + ".database", "Id",
-                new FileCore<int, long>(new Seed32(999)), new BinConverter32(), new BSONFormatter(),
+                new FileCore<int, long>(new Seed32(999)), new BSONFormatter(), new BinConverter32(),
                 new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
             {
                 db.Load();
@@ -157,7 +161,7 @@ namespace BESSy.Tests.ProxyTests
 
                     var d = db.Fetch(domain.Id);
 
-                    (domain as MockDomain).Validate(d as MockDomain);
+                    Validation.ValidateA(domain, d as MockDomain);
 
                     t.Commit();
                 }
@@ -174,11 +178,12 @@ namespace BESSy.Tests.ProxyTests
 
                 var d = db.Fetch(domain.Id);
 
-                (d as MockDomain).Validate(domain as MockDomain);
+                Validation.ValidateDomain(d, domain as MockDomain);
             }
         }
 
         [Test]
+        [Category("Performance")]
         public void PocoProxyUpdatesExternalDomain()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -191,7 +196,7 @@ namespace BESSy.Tests.ProxyTests
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
                 (_testName + ".database", "Id",
-                new FileCore<int, long>(new Seed32(999)), new BinConverter32(), new BSONFormatter(),
+                new FileCore<int, long>(new Seed32(999)), new BSONFormatter(), new BinConverter32(),
                 new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
             {
                 db.Load();
@@ -211,7 +216,7 @@ namespace BESSy.Tests.ProxyTests
 
                     var d = db.Fetch(c.Id);
 
-                    (domain as MockDomain).Validate(d as MockDomain);
+                    Validation.ValidateDomain(d, domain as MockDomain);
 
                     var prox = db.Fetch(c.Id);
 
@@ -223,7 +228,7 @@ namespace BESSy.Tests.ProxyTests
                     d = db.Fetch(prox.Id);
 
                     domain.ReplicationID = g;
-                    (domain as MockDomain).Validate(d as MockDomain);
+                    Validation.ValidateDomain(d, domain as MockDomain);
 
                     t.Commit();
                 }
@@ -236,8 +241,9 @@ namespace BESSy.Tests.ProxyTests
 
                     db.Update(proxy, proxy.Id);
 
+                    domain.Name = "Proxy Update Test";
                     var p = db.Fetch(99999);
-                    (proxy as MockDomain).Validate(p as MockDomain);
+                    Validation.ValidateDomain(p, domain as MockDomain);
 
                     t.Commit();
                 }
@@ -255,9 +261,8 @@ namespace BESSy.Tests.ProxyTests
                 var d = db.Fetch(domain.Id);
 
                 domain.Name = "Proxy Update Test";
-                (d as MockDomain).Validate(domain as MockDomain);
+                Validation.ValidateDomain(d, domain as MockDomain);
             }
         }
-
     }
 }

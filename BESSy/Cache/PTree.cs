@@ -501,8 +501,8 @@ namespace BESSy.Cache
                 IEnumerable<SegmentType> deletes;
 
                 var actions = transaction.GetActions();
-                inserts = actions.Where(i => i.Action != Action.Delete).Select(s => new NTreeItem<IndexType, SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment));
-                deletes = actions.Where(i => i.Action == Action.Delete && i.DbSegment != null).Select(s => s.DbSegment).Cast<SegmentType>();
+                inserts = actions.Where(i => i.Action != Action.Delete).Select(s => new NTreeItem<IndexType, SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment)).ToList();
+                deletes = actions.Where(i => i.Action == Action.Delete && i.DbSegment != null).Select(s => s.DbSegment).Cast<SegmentType>().ToList();
 
                 Pop(deletes);
                 Push(inserts);

@@ -549,8 +549,8 @@ namespace BESSy.Tests.DatabaseFactoryTests
                 , "BigId"
                 , typeof(long).FullName
                 , typeof(MockClassC).AssemblyQualifiedName
-                , "BESSy.TestAssembly.LongSeed, BESSy.TestAssembly"
-                , "BESSy.TestAssembly.LongConverter, BESSy.TestAssembly"
+                , AssemblyConstants.TEST_ASSEMBLY_NAME + ".LongSeed, " + AssemblyConstants.TEST_ASSEMBLY_NAME
+                , AssemblyConstants.TEST_ASSEMBLY_NAME + ".LongConverter, " + AssemblyConstants.TEST_ASSEMBLY_NAME
                 , typeof(BSONFormatter).AssemblyQualifiedName
                 , settings
                 , Path.Combine(Environment.CurrentDirectory, "BESSy.TestAssembly.dll"));

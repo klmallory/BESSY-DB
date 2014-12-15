@@ -5,6 +5,7 @@ using System.Text;
 using BESSy.Relational;
 using BESSy.Json;
 using BESSy.Reflection;
+using System.Reflection;
 
 namespace BESSy.Tests.Mocks
 {
@@ -29,10 +30,9 @@ namespace BESSy.Tests.Mocks
             if (instance == null)
                 return;
 
-            var exposed = DynamicMemberManager.GetManager(instance);
-            var local = DynamicMemberManager.GetManager(this);
+            var fields = new string[2] { "_fieldTest", "_fieldTest2" };
 
-            local._fieldTest = exposed._fieldTest;
+            PocoProxyHandler<int, MockClassA>.CopyFields(this, instance, this.GetType(), instance.GetType(), fields);
 
             LittleId = instance.LittleId;
 
@@ -91,6 +91,12 @@ namespace BESSy.Tests.Mocks
 
         [JsonProperty("$simpleTypeName")]
         public string Bessy_Proxy_Simple_Type_Name { get; set; }
+
+        [JsonIgnore]
+        public MockClassB Bull
+        {
+            get { return base.BDomain; }
+        }
 
         [JsonIgnore]
         public override MockClassB BDomain

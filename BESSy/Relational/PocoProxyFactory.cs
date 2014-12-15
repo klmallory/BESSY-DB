@@ -67,7 +67,7 @@ namespace BESSy.Relational
         string IdToken { get; set; }
         Func<EntityType, IdType> IdGet { get; set; }
         Action<EntityType, IdType> IdSet { get; set; }
-
+        Type GetProxyTypeFor(Type type);
         T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType;
     }
 
@@ -103,46 +103,14 @@ namespace BESSy.Relational
             new Type[] { typeof(BESSy.Relational.IBESSyProxy<IdType, EntityType>), typeof(String), typeof(IEnumerable<EntityType>) },
             null);
 
-        MethodInfo exposedObjectFrom = typeof(DynamicMemberManager).GetMethod("GetManager",
-            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-            null, new Type[] { typeof(Object) }, null);
+        MethodInfo getType = typeof(Object).GetMethod("GetType", 
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { }, null);
 
-        MethodInfo getTypeFromHandle = typeof(Type).GetMethod("GetTypeFromHandle",
-        BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-        null, new Type[] { typeof(RuntimeTypeHandle) }, null);
+        MethodInfo copyFields = typeof(BESSy.Relational.PocoProxyHandler<IdType, EntityType>).GetMethod("CopyFields", 
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, 
+            null, new Type[]{ typeof(Object), typeof(Object), typeof(Type), typeof(Type), typeof(String[]) },  null);
 
-        MethodInfo create = typeof(CSharpArgumentInfo).GetMethod(
-            "Create",
-            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-            null,
-            new Type[] { typeof(CSharpArgumentInfoFlags), typeof(String) }, null);
-
-
-        MethodInfo binderGetMember = typeof(Microsoft.CSharp.RuntimeBinder.Binder).GetMethod("GetMember",
-            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-            null, new Type[]{ typeof(CSharpBinderFlags),typeof(String), typeof(Type),typeof(System.Collections.Generic.IEnumerable<>)
-            .MakeGenericType(typeof(CSharpArgumentInfo))}, null);
-
-        MethodInfo binderSetMember = typeof(Microsoft.CSharp.RuntimeBinder.Binder).GetMethod("SetMember",
-            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-            null, new Type[]{ typeof(CSharpBinderFlags),typeof(String),typeof(Type),
-            typeof(System.Collections.Generic.IEnumerable<>).MakeGenericType(typeof(CSharpArgumentInfo))}, null);
-
-        MethodInfo callSiteCreate4 = typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>)
-            .GetMethod("Create", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-            null, new Type[] { typeof(CallSiteBinder) }, null);
-
-        FieldInfo callSiteTarget4 = typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>).GetField("Target");
-
-        MethodInfo callSiteCreate3 = typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object>>)
-            .GetMethod("Create", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-            null, new Type[] { typeof(CallSiteBinder) }, null);
-
-        FieldInfo callSiteTarget3 = typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object>>).GetField("Target");
-
-        MethodInfo callsiteInvoke3 = typeof(System.Func<CallSite, Object, Object>).GetMethod("Invoke");
-
-        MethodInfo callsiteInvoke4 = typeof(System.Func<CallSite, Object, Object, Object>).GetMethod("Invoke");
 
         readonly MethodInfo getIdFromFactory = null;
 
@@ -175,6 +143,42 @@ namespace BESSy.Relational
         public T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType
         {
             return GetProxyFor<T>(repository, instance);
+        }
+
+        public Type GetProxyTypeFor(Type type)
+        {
+            var ttw = type;
+
+            if (ttw.GetInterface("IBESSyProxy`2", true) != null)
+                return ttw;
+
+            while (ttw.DeclaringType != null)
+                if (ttw.DeclaringType.GetInterface("IBESSyProxy`2", true) != null)
+                    return ttw.DeclaringType;
+                else
+                    ttw = ttw.DeclaringType;
+
+            ttw = type;
+
+            while (ttw.Assembly.IsDynamic)
+            {
+                if (ttw.BaseType == null)
+                    throw new ProxyCreationException(string.Format("Unable to create proxy of another proxy: {0}", type));
+
+                ttw = ttw.BaseType;
+            }
+
+            var name = "BESSy.Proxy." + Path.GetFileNameWithoutExtension(ttw.Module.Name);
+
+            lock (_syncRoot)
+                if (!_assemblyBuilderCache.ContainsKey(name))
+                    BuildDomainProxies(name);
+
+            lock (_syncRoot)
+                if (_typeCache.ContainsKey(ttw.AssemblyQualifiedName))
+                    return _typeCache[ttw.AssemblyQualifiedName];
+                else
+                    throw new ProxyCreationException(string.Format("Proxy not found for type of {0}, for assembly {1}", type.FullName, type.Assembly.FullName));
         }
 
         protected T GetProxyFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType
@@ -269,40 +273,6 @@ namespace BESSy.Relational
             return assBuilder;
         }
 
-        private Type GetSiteContainer(string name, TypeBuilder typeBuilder, out FieldBuilder[] siteContainerField)
-        {
-            var shallowSiteContainer = typeBuilder.DefineNestedType(
-                name + "+<Bessy_Proxy_Shallow_Copy_From>o__SiteContainer0",
-                TypeAttributes.NestedPrivate | TypeAttributes.BeforeFieldInit | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.AnsiClass | TypeAttributes.AutoClass,
-                typeBuilder);
-
-            shallowSiteContainer.SetParent(typeof(System.Object));
-
-            var site1 = shallowSiteContainer.DefineField(
-                "<>p__Site1",
-                typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>),
-                  FieldAttributes.Public | FieldAttributes.Static);
-
-            var site2 = shallowSiteContainer.DefineField(
-                "<>p__Site2",
-                typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object>>),
-                  FieldAttributes.Public | FieldAttributes.Static);
-
-            var site3 = shallowSiteContainer.DefineField(
-                   "<>p__Site3",
-                   typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>),
-                     FieldAttributes.Public | FieldAttributes.Static);
-
-            var site4 = shallowSiteContainer.DefineField(
-                    "<>p__Site4",
-                    typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object>>),
-                      FieldAttributes.Public | FieldAttributes.Static);
-
-            siteContainerField = new FieldBuilder[] { site1, site2, site3, site4 };
-
-            return shallowSiteContainer.CreateType();
-        }
-
         protected Type BuildProxyForType(Type instanceType, ModuleBuilder moduleBuilder)
         {
             var originalType = instanceType;
@@ -320,7 +290,7 @@ namespace BESSy.Relational
 
             //we can't override dictionaries
             var propOverrides = instanceType.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                .Where(p => IsEntityType(p.PropertyType) && p.CanRead && p.CanWrite).ToList();
+                .Where(p => IsEntityType(p.PropertyType)).ToList();
 
             var typeName = moduleBuilder.ScopeName + "." + originalType.Name + "BESSyProxy";
 
@@ -329,8 +299,7 @@ namespace BESSy.Relational
             typeBuilder.AddInterfaceImplementation(typeof(IBESSyProxy<IdType, EntityType>));
             typeBuilder.SetParent(instanceType);
 
-            FieldBuilder[] shallowSiteContainerFields;
-            var siteContainer = GetSiteContainer(typeName, typeBuilder, out shallowSiteContainerFields);
+            //var siteContainer = GetSiteContainer(typeName, typeBuilder, out shallowSiteContainerFields);
 
             MethodBuilder getFactory = null;
             MethodBuilder setFactory = null;
@@ -369,14 +338,11 @@ namespace BESSy.Relational
             foreach (var p in propOverrides.Where(p => p.PropertyType.GetInterface("IEnumerable") != null))
                 BuildEnumerableProperty(typeBuilder, factoryProp, p, gets, sets);
 
-
             var defaultCtor = BuildDefaultConstructor(typeBuilder, entityType, setIds);
             var initCtor = BuildInitializeConstructor(typeBuilder, defaultCtor, setFactory, setRepo);
 
-            var shallowCopyMethod = BuildShallowCopy(typeBuilder, shallowSiteContainerFields, propOverrides, sets, originalType, getFactory, setOldId, setSimpleTypeName);
+            var shallowCopyMethod = BuildShallowCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId, setSimpleTypeName);
             var deepCopyMethod = BuildDeepCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId, setSimpleTypeName);
-
-            //BuildDeepCopyConstructor(typeBuilder, initCtor, originalType, propOverrides, sets, entityType, getFactory, setOldId, setSimpleTypeName);
 
             var type = typeBuilder.CreateType();
 
@@ -394,7 +360,16 @@ namespace BESSy.Relational
                     return _assemblyBuilderCache[assemblyName];
             }
 
-            var bessyAss = Assembly.Load("BESSy");
+#if NET40
+                var bessyAss = Assembly.Load("BESSy");
+#endif
+#if NET45
+            var bessyAss = Assembly.Load("BESSy_45");
+#endif
+#if NET451
+                var bessyAss = Assembly.Load("BESSy_451");
+#endif
+
             if (bessyAss == null)
                 throw new ProxyCreationException("You're missing something bro.");
 
@@ -421,7 +396,7 @@ namespace BESSy.Relational
 
         protected PropertyBuilder BuildProperty(TypeBuilder tBuilder, string name, Type propertyType)
         {
-            PropertyBuilder pBuilder = tBuilder.DefineProperty(name, PropertyAttributes.None, propertyType, new Type[0]);
+            PropertyBuilder pBuilder = tBuilder.DefineProperty(name, PropertyAttributes.None, CallingConventions.HasThis, propertyType, new Type[0]);
             var backing = tBuilder.DefineField("<" + name + ">k_BackingField", propertyType, FieldAttributes.Private);
 
             var getter = BuildGetter(tBuilder, name, propertyType, backing);
@@ -435,7 +410,7 @@ namespace BESSy.Relational
 
         protected PropertyBuilder BuildProperty(TypeBuilder tBuilder, string name, Type propertyType, out MethodBuilder getter, out MethodBuilder setter)
         {
-            PropertyBuilder pBuilder = tBuilder.DefineProperty(name, PropertyAttributes.None, propertyType, new Type[0]);
+            PropertyBuilder pBuilder = tBuilder.DefineProperty(name, PropertyAttributes.None, CallingConventions.HasThis, propertyType, new Type[0]);
             var backing = tBuilder.DefineField("<" + name + ">k_BackingField", propertyType, FieldAttributes.Private);
 
             getter = BuildGetter(tBuilder, name, propertyType, backing);
@@ -504,19 +479,67 @@ namespace BESSy.Relational
                     throw new ProxyCreationException(string.Format("Unable to create proxy of another proxy: {0}", propInfo.PropertyType));
             }
 
-            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, pType, new Type[0]);
+            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.ReservedMask, CallingConventions.HasThis, pType, new Type[0]);
+
             pb.SetCustomAttribute(cabJsonIgnore);
 
-            var get = BuildGetter(tBuilder, factoryMethod, propInfo, pType);
-            var set = BuildSetter(tBuilder, factoryMethod, propInfo, pType);
+            MethodBuilder get = null;
+            MethodBuilder set = null;
 
-            gets.Add(get);
-            sets.Add(set);
+            if (propInfo.CanRead && propInfo.CanWrite)
+            {
+                get = BuildGetter(tBuilder, factoryMethod, propInfo, pType);
+                set = BuildSetter(tBuilder, factoryMethod, propInfo, pType);
 
-            pb.SetGetMethod(get);
-            pb.SetSetMethod(set);
+                gets.Add(get);
+                sets.Add(set);
+
+                pb.SetGetMethod(get);
+                pb.SetSetMethod(set);
+            }
+            else if (propInfo.CanRead)
+            {
+                get = BuildReadonlyGetter(tBuilder, factoryMethod, propInfo, pType);
+
+                gets.Add(get);
+
+                pb.SetGetMethod(get);
+            }
+
 
             return pb;
+        }
+
+        private MethodBuilder BuildReadonlyGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, PropertyInfo propInfo, Type pType)
+        {
+            System.Reflection.MethodAttributes methodAttributes =
+                  System.Reflection.MethodAttributes.Public
+                | System.Reflection.MethodAttributes.Virtual
+                | System.Reflection.MethodAttributes.Final
+                | System.Reflection.MethodAttributes.HideBySig
+                | System.Reflection.MethodAttributes.NewSlot;
+
+            MethodInfo baseGet = propInfo.GetGetMethod();
+
+            MethodInfo factoryGet = factoryMethod.GetGetMethod();
+
+            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, pType, new Type[0]);
+            ILGenerator gen = method.GetILGenerator();
+
+            LocalBuilder CS10000 = gen.DeclareLocal(pType);
+
+            Label label10 = gen.DefineLabel();
+            // Writing body
+            gen.Emit(OpCodes.Nop);
+            gen.Emit(OpCodes.Ldarg_0);
+            gen.Emit(OpCodes.Call, baseGet);
+            gen.Emit(OpCodes.Stloc_0);
+            gen.Emit(OpCodes.Br_S, label10);
+            gen.MarkLabel(label10);
+            gen.Emit(OpCodes.Ldloc_0);
+            gen.Emit(OpCodes.Ret);
+            // finished
+            return method;
         }
 
         protected MethodBuilder BuildGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, PropertyInfo propInfo, Type pType)
@@ -613,7 +636,7 @@ namespace BESSy.Relational
                     throw new ProxyCreationException(string.Format("Unable to create proxy of another proxy: {0}", propInfo.PropertyType));
             }
 
-            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, propInfo.PropertyType, new Type[0]);
+            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, CallingConventions.HasThis, propInfo.PropertyType, new Type[0]);
             pb.SetCustomAttribute(cabJsonIgnore);
 
             Type innerType = null;
@@ -623,16 +646,75 @@ namespace BESSy.Relational
             else
                 innerType = propInfo.PropertyType.GetGenericArguments().First();
 
-            var get = BuildEnumerableGetter(tBuilder, factoryMethod, innerType, propInfo);
-            var set = BuildEnumerableSetter(tBuilder, factoryMethod, innerType, propInfo);
+            if (propInfo.CanRead && propInfo.CanWrite)
+            {
+                var get = BuildEnumerableGetter(tBuilder, factoryMethod, innerType, propInfo);
+                var set = BuildEnumerableSetter(tBuilder, factoryMethod, innerType, propInfo);
 
-            gets.Add(get);
-            sets.Add(set);
+                gets.Add(get);
+                sets.Add(set);
 
-            pb.SetGetMethod(get);
-            pb.SetSetMethod(set);
+                pb.SetGetMethod(get);
+                pb.SetSetMethod(set);
+            }
+            else if (propInfo.CanRead)
+            {
+                var get = BuildEnumerableReadonlyGetter(tBuilder, factoryMethod, innerType, propInfo);
+
+                gets.Add(get);
+
+                pb.SetGetMethod(get);
+            }
 
             return pb;
+        }
+
+        private MethodBuilder BuildEnumerableReadonlyGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, Type innerType, PropertyInfo propInfo)
+        {
+            // Declaring method builder
+            // Method attributes
+            System.Reflection.MethodAttributes methodAttributes =
+                  System.Reflection.MethodAttributes.Public
+                | System.Reflection.MethodAttributes.Virtual
+                | System.Reflection.MethodAttributes.Final
+                | System.Reflection.MethodAttributes.HideBySig
+                | System.Reflection.MethodAttributes.NewSlot;
+
+            MethodInfo baseGet = propInfo.GetGetMethod();
+            MethodInfo baseSet = propInfo.GetSetMethod();
+
+            MethodInfo factoryGet = factoryMethod.GetGetMethod();
+
+            MethodInfo cast = typeof(Enumerable).GetMethod("Cast").MakeGenericMethod(innerType);
+            //,
+            //BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+            //null, new Type[] { typeof(IEnumerable<>).MakeGenericType(innerType) }, null);
+
+            MethodInfo toEnumerable = null;
+
+            if (propInfo.PropertyType.IsArray)
+                toEnumerable = typeof(Enumerable).GetMethod("ToArray").MakeGenericMethod(innerType);
+            else
+                toEnumerable = typeof(Enumerable).GetMethod("ToList").MakeGenericMethod(innerType);
+
+            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, propInfo.PropertyType, new Type[0]);
+
+            ILGenerator gen = method.GetILGenerator();
+
+            LocalBuilder CS10000 = gen.DeclareLocal(propInfo.PropertyType);
+
+            Label label10 = gen.DefineLabel();
+            // Writing body
+            gen.Emit(OpCodes.Nop);
+            gen.Emit(OpCodes.Ldarg_0);
+            gen.Emit(OpCodes.Call, baseGet);
+            gen.Emit(OpCodes.Stloc_0);
+            gen.Emit(OpCodes.Br_S, label10);
+            gen.MarkLabel(label10);
+            gen.Emit(OpCodes.Ldloc_0);
+            gen.Emit(OpCodes.Ret);
+            // finished
+            return method;
         }
 
         protected MethodBuilder BuildEnumerableGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, Type innerType, PropertyInfo propInfo)
@@ -651,10 +733,10 @@ namespace BESSy.Relational
 
             MethodInfo factoryGet = factoryMethod.GetGetMethod();
 
-            MethodInfo cast = typeof(Enumerable).GetMethod(
-                "Cast",
-                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-                null, new Type[] { typeof(IEnumerable<>).MakeGenericType(innerType) }, null);
+            MethodInfo cast = typeof(Enumerable).GetMethod("Cast").MakeGenericMethod(innerType);
+                //,
+                //BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                //null, new Type[] { typeof(IEnumerable<>).MakeGenericType(innerType) }, null);
 
             MethodInfo toEnumerable = null;
 
@@ -673,7 +755,7 @@ namespace BESSy.Relational
             gen.Emit(OpCodes.Ldarg_0);
             gen.Emit(OpCodes.Ldarg_0);
             gen.Emit(OpCodes.Ldstr, propInfo.Name);
-            gen.Emit(OpCodes.Call, getRelatedEntity);
+            gen.Emit(OpCodes.Call, getRelatedEntities);
             gen.Emit(OpCodes.Call, cast);
             gen.Emit(OpCodes.Call, toEnumerable);
             gen.Emit(OpCodes.Call, baseSet);
@@ -807,7 +889,7 @@ namespace BESSy.Relational
             return method;
         }
 
-        private MethodBuilder BuildShallowCopy(TypeBuilder tBuilder, FieldBuilder[] shallowSiteContainerFields, List<PropertyInfo> propOverrides, List<MethodBuilder> sets, Type instanceType, MethodBuilder getFactory, MethodBuilder setOldId, MethodBuilder setSimpleTypeName)
+        private MethodBuilder BuildShallowCopy(TypeBuilder tBuilder, List<PropertyInfo> propOverrides, List<MethodBuilder> sets, Type instanceType, MethodBuilder getFactory, MethodBuilder setOldId, MethodBuilder setSimpleTypeName)
         {
             var shallow = tBuilder.DefineMethod("Bessy_Proxy_Shallow_Copy_From",
                 System.Reflection.MethodAttributes.Public |
@@ -828,16 +910,42 @@ namespace BESSy.Relational
                 .Where(f => f.Name != IdToken && !f.IsInitOnly)
                 .ToList();
 
+            var pFields = fields.Where(f => !f.IsPublic && (f.FieldType.IsValueType || f.FieldType == typeof(string) || f.FieldType.IsArray || f.FieldType.IsClass));
+            //var siteContainers = new Dictionary<string, FieldBuilder[]>();
+
+            //var shallowSiteContainer = tBuilder.DefineNestedType(
+            //    tBuilder.Name + "+<Bessy_Proxy_Shallow_Copy_From>o__SiteContainer0",
+            //    TypeAttributes.NestedPrivate | TypeAttributes.BeforeFieldInit | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.AnsiClass | TypeAttributes.AutoClass,
+            //    tBuilder);
+
+            //shallowSiteContainer.SetParent(typeof(System.Object));
+
+            //foreach (var p in pFields)
+            //{
+            //    var site1 = shallowSiteContainer.DefineField(
+            //       "<>p__" + p.Name,
+            //       typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>),
+            //         FieldAttributes.Public | FieldAttributes.Static);
+
+            //    var site2 = shallowSiteContainer.DefineField(
+            //        "<>p__" + p.Name,
+            //        typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object>>),
+            //          FieldAttributes.Public | FieldAttributes.Static);
+
+            //    siteContainers.Add(p.Name, new FieldBuilder[] { site1, site2 });
+            //}
+
+            //shallowSiteContainer.CreateType();
+
             //.Where(f => !f.FieldType.GetCustomAttributes(true).ToList().Any(a => a is JsonIgnoreAttribute));
 
             ILGenerator generator = shallow.GetILGenerator();
 
             // Preparing locals
             LocalBuilder instance = generator.DeclareLocal(instanceType);
-            LocalBuilder exposed = generator.DeclareLocal(typeof(Object));
-            LocalBuilder local = generator.DeclareLocal(typeof(Object));
-            LocalBuilder local1 = generator.DeclareLocal(typeof(Boolean));
-            LocalBuilder LOCAL2 = generator.DeclareLocal(typeof(CSharpArgumentInfo[]));
+            LocalBuilder strArray = generator.DeclareLocal(typeof(String[]));
+            LocalBuilder flag = generator.DeclareLocal(typeof(Boolean));
+            LocalBuilder infoArray = generator.DeclareLocal(typeof(CSharpArgumentInfo[]));
 
             //LocalBuilder cSharp = generator.DeclareLocal(typeof(CSharpArgumentInfo[]));
 
@@ -859,18 +967,50 @@ namespace BESSy.Relational
             generator.Emit(OpCodes.Br, gtfo);
             generator.MarkLabel(ok);
 
-            generator.Emit(OpCodes.Ldloc_0);
-            generator.Emit(OpCodes.Call, exposedObjectFrom);
-            generator.Emit(OpCodes.Stloc_1);
-            generator.Emit(OpCodes.Ldarg_0);
-            generator.Emit(OpCodes.Call, exposedObjectFrom);
-            generator.Emit(OpCodes.Stloc_2);
+            if (pFields != null && pFields.Count() > 0)
+            {
+                generator.Emit(OpCodes.Ldc_I4, pFields.Count());
+                generator.Emit(OpCodes.Newarr, typeof(String));
+                generator.Emit(OpCodes.Stloc_3);
+                generator.Emit(OpCodes.Ldloc_3);
 
-            //foreach (var field in fields.Where(f => f.FieldType.IsValueType || f.FieldType == typeof(string) || f.FieldType.IsArray || IsEntityType(f.FieldType)))
-            //    CopyField(tBuilder, siteContainer, shallowSiteContainerFields, instanceType, generator, field);
 
-            foreach (var field in fields.Where(f => !f.IsPublic))
-                CopyPrivateField(tBuilder, shallowSiteContainerFields, instanceType, generator, field);
+                int count = 0;
+                foreach (var field in pFields)
+                {
+                    generator.Emit(OpCodes.Ldc_I4,  count);
+                    generator.Emit(OpCodes.Ldstr, field.Name);
+                    generator.Emit(OpCodes.Stelem_Ref);
+                    generator.Emit(OpCodes.Ldloc_3);
+
+                    count++;
+                }
+
+                generator.Emit(OpCodes.Stloc_1);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Ldloc_0);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Call, getType);
+                generator.Emit(OpCodes.Ldloc_0);
+                generator.Emit(OpCodes.Callvirt, getType);
+                generator.Emit(OpCodes.Ldloc_1);
+                generator.Emit(OpCodes.Call, copyFields);
+
+                //generator.Emit(OpCodes.Nop);
+                //generator.Emit(OpCodes.Nop);
+                //generator.Emit(OpCodes.Ldloc_0);
+                //generator.Emit(OpCodes.Call, exposedObjectFrom);
+                //generator.Emit(OpCodes.Stloc_1);
+                //generator.Emit(OpCodes.Ldarg_0);
+                //generator.Emit(OpCodes.Call, exposedObjectFrom);
+                //generator.Emit(OpCodes.Stloc_2);
+
+                //foreach (var field in pFields)
+                //    CopyPrivateField(tBuilder, siteContainers[field.Name], instanceType, generator, field);
+
+                //generator.Emit(OpCodes.Nop);
+                generator.Emit(OpCodes.Nop);
+            }
 
             foreach (var field in fields.Where(f => f.IsPublic))
                 CopyField(tBuilder, instanceType, generator, field);
@@ -1050,74 +1190,70 @@ namespace BESSy.Relational
             gen.Emit(OpCodes.Stfld, field);
         }
 
-        private void CopyPrivateField(Type proxyType, FieldBuilder[] shallowSiteContainerFields, Type instanceType, ILGenerator gen, FieldInfo field)
+        private void CopyPrivateField(TypeBuilder proxyType, Type instanceType, ILGenerator gen, FieldInfo field)
         {
-            Label label110 = gen.DefineLabel();
-            Label label187 = gen.DefineLabel();
-            Label label286 = gen.DefineLabel();
-            Label label363 = gen.DefineLabel();
-            Label label421 = gen.DefineLabel();
+            //Label label286 = gen.DefineLabel();
+            //Label label363 = gen.DefineLabel();
 
-
-            gen.Emit(OpCodes.Ldsfld, shallowSiteContainerFields[0]);
-            gen.Emit(OpCodes.Brtrue_S, label110);
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ldstr, field.Name);
-            gen.Emit(OpCodes.Ldtoken, proxyType);
-            gen.Emit(OpCodes.Call, getTypeFromHandle);
-            gen.Emit(OpCodes.Ldc_I4_2);
-            gen.Emit(OpCodes.Newarr, typeof(CSharpArgumentInfo));
-            gen.Emit(OpCodes.Stloc_S, 4);
-            gen.Emit(OpCodes.Ldloc_S, 4);
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ldnull);
-            gen.Emit(OpCodes.Call, create);
-            gen.Emit(OpCodes.Stelem_Ref);
-            gen.Emit(OpCodes.Ldloc_S, 4);
-            gen.Emit(OpCodes.Ldc_I4_1);
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ldnull);
-            gen.Emit(OpCodes.Call, create);
-            gen.Emit(OpCodes.Stelem_Ref);
-            gen.Emit(OpCodes.Ldloc_S, 4);
-            gen.Emit(OpCodes.Call, binderSetMember);
-            gen.Emit(OpCodes.Call, callSiteCreate4);
-            gen.Emit(OpCodes.Stsfld, shallowSiteContainerFields[0]);
-            gen.Emit(OpCodes.Br_S, label110);
-            gen.MarkLabel(label110);
-            gen.Emit(OpCodes.Ldsfld, shallowSiteContainerFields[0]);
-            gen.Emit(OpCodes.Ldfld, callSiteTarget4);
-            gen.Emit(OpCodes.Ldsfld, shallowSiteContainerFields[0]);
-            gen.Emit(OpCodes.Ldloc_2);
-            gen.Emit(OpCodes.Ldsfld, shallowSiteContainerFields[1]);
-            gen.Emit(OpCodes.Brtrue_S, label187);
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ldstr, field.Name);
-            gen.Emit(OpCodes.Ldtoken, proxyType);
-            gen.Emit(OpCodes.Call, getTypeFromHandle);
-            gen.Emit(OpCodes.Ldc_I4_1);
-            gen.Emit(OpCodes.Newarr, typeof(CSharpArgumentInfo));
-            gen.Emit(OpCodes.Stloc_S, 4);
-            gen.Emit(OpCodes.Ldloc_S, 4);
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ldnull);
-            gen.Emit(OpCodes.Call, create);
-            gen.Emit(OpCodes.Stelem_Ref);
-            gen.Emit(OpCodes.Ldloc_S, 4);
-            gen.Emit(OpCodes.Call, binderGetMember);
-            gen.Emit(OpCodes.Call, callSiteCreate3);
-            gen.Emit(OpCodes.Stsfld, shallowSiteContainerFields[1]);
-            gen.Emit(OpCodes.Br_S, label187);
-            gen.MarkLabel(label187);
-            gen.Emit(OpCodes.Ldsfld, shallowSiteContainerFields[1]);
-            gen.Emit(OpCodes.Ldfld, callSiteTarget3);
-            gen.Emit(OpCodes.Ldsfld, shallowSiteContainerFields[1]);
-            gen.Emit(OpCodes.Ldloc_1);
-            gen.Emit(OpCodes.Callvirt, callsiteInvoke3);
-            gen.Emit(OpCodes.Callvirt, callsiteInvoke4);
-            gen.Emit(OpCodes.Pop);
+            //gen.Emit(OpCodes.Ldsfld, siteContainers[0]);
+            //gen.Emit(OpCodes.Brtrue_S, label286);
+            //gen.Emit(OpCodes.Ldc_I4_0);
+            //gen.Emit(OpCodes.Ldstr, field.Name);
+            //gen.Emit(OpCodes.Ldtoken, proxyType);
+            //gen.Emit(OpCodes.Call, getTypeFromHandle);
+            //gen.Emit(OpCodes.Ldc_I4_2);
+            //gen.Emit(OpCodes.Newarr, typeof(CSharpArgumentInfo));
+            //gen.Emit(OpCodes.Stloc_S, 4);
+            //gen.Emit(OpCodes.Ldloc_S, 4);
+            //gen.Emit(OpCodes.Ldc_I4_0);
+            //gen.Emit(OpCodes.Ldc_I4_0);
+            //gen.Emit(OpCodes.Ldnull);
+            //gen.Emit(OpCodes.Call, create);
+            //gen.Emit(OpCodes.Stelem_Ref);
+            //gen.Emit(OpCodes.Ldloc_S, 4);
+            //gen.Emit(OpCodes.Ldc_I4_1);
+            //gen.Emit(OpCodes.Ldc_I4_0);
+            //gen.Emit(OpCodes.Ldnull);
+            //gen.Emit(OpCodes.Call, create);
+            //gen.Emit(OpCodes.Stelem_Ref);
+            //gen.Emit(OpCodes.Ldloc_S, 4);
+            //gen.Emit(OpCodes.Call, binderSetMember);
+            //gen.Emit(OpCodes.Call, callSiteCreate4);
+            //gen.Emit(OpCodes.Stsfld, siteContainers[0]);
+            //gen.Emit(OpCodes.Br_S, label286);
+            //gen.MarkLabel(label286);
+            //gen.Emit(OpCodes.Ldsfld, siteContainers[0]);
+            //gen.Emit(OpCodes.Ldfld, callSiteTarget4);
+            //gen.Emit(OpCodes.Ldsfld, siteContainers[0]);
+            //gen.Emit(OpCodes.Ldloc_2);
+            //gen.Emit(OpCodes.Ldsfld, siteContainers[1]);
+            //gen.Emit(OpCodes.Brtrue_S, label363);
+            //gen.Emit(OpCodes.Ldc_I4_0);
+            //gen.Emit(OpCodes.Ldstr, field.Name);
+            //gen.Emit(OpCodes.Ldtoken, proxyType);
+            //gen.Emit(OpCodes.Call, getTypeFromHandle);
+            //gen.Emit(OpCodes.Ldc_I4_1);
+            //gen.Emit(OpCodes.Newarr, typeof(CSharpArgumentInfo));
+            //gen.Emit(OpCodes.Stloc_S, 4);
+            //gen.Emit(OpCodes.Ldloc_S, 4);
+            //gen.Emit(OpCodes.Ldc_I4_0);
+            //gen.Emit(OpCodes.Ldc_I4_0);
+            //gen.Emit(OpCodes.Ldnull);
+            //gen.Emit(OpCodes.Call, create);
+            //gen.Emit(OpCodes.Stelem_Ref);
+            //gen.Emit(OpCodes.Ldloc_S, 4);
+            //gen.Emit(OpCodes.Call, binderGetMember);
+            //gen.Emit(OpCodes.Call, callSiteCreate3);
+            //gen.Emit(OpCodes.Stsfld, siteContainers[1]);
+            //gen.Emit(OpCodes.Br_S, label363);
+            //gen.MarkLabel(label363);
+            //gen.Emit(OpCodes.Ldsfld, siteContainers[1]);
+            //gen.Emit(OpCodes.Ldfld, callSiteTarget3);
+            //gen.Emit(OpCodes.Ldsfld, siteContainers[1]);
+            //gen.Emit(OpCodes.Ldloc_1);
+            //gen.Emit(OpCodes.Callvirt, callsiteInvoke3);
+            //gen.Emit(OpCodes.Callvirt, callsiteInvoke4);
+            //gen.Emit(OpCodes.Pop);
         }
 
         #endregion

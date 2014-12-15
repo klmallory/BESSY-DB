@@ -38,6 +38,19 @@ namespace BESSy.Serialization
 
         public JsonSerializer Serializer { get { return _serializer.Serializer; } }
 
+        public JsonSerializerSettings Settings
+        {
+            get
+            {
+                return _serializer != null ? _serializer.Settings : null;
+            }
+            set
+            {
+                if (_serializer != null && _serializer.Settings != null)
+                    _serializer.Settings = value;
+            }
+        }
+
         public JObject AsQueryableObj<T>(T obj)
         {
             if (obj != null)
