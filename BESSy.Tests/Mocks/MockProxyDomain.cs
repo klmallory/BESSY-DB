@@ -9,6 +9,7 @@ using System.Reflection;
 
 namespace BESSy.Tests.Mocks
 {
+    [BESSyIgnore]
     public class MockProxyDomain : MockDomain, IBESSyProxy<int, MockClassA>
     {
         public MockProxyDomain()

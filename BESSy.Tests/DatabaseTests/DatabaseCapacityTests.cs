@@ -168,7 +168,8 @@ namespace BESSy.Tests.DatabaseTests
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
 
-            using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name"))
+            using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name", 
+                new FileCore<string, long>(new SeedString(50)) { InitialDbSize = 8}))
             {
                 db.Load();
 

@@ -17,12 +17,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
+using BESSy.Json;
 using BESSy.Json.Linq;
 
 namespace BESSy.Extensions
 {
     public static class JObjectExtensions
     {
+        static string IndexRegEx = @"[\d+]";
+
         public static JObject Add<ValueType>(this JObject jobject, string name, ValueType value)
         {
             jobject.Add(new JProperty(name, value));
@@ -58,6 +62,77 @@ namespace BESSy.Extensions
                 return new T[0];
 
             return values.Children().Select(s => s.ToObject<T>()).ToArray();
+        }
+
+        internal static void SetValue<T>(this JObject obj, string token, T value, JsonSerializer serializer)
+        {
+
+            if (String.IsNullOrWhiteSpace(token))
+                return;
+
+            JToken sVal = null;
+
+            sVal = JToken.FromObject(value, serializer);
+
+            var eVal = obj.SelectToken(token) as JValue;
+
+            if (eVal == null && sVal == null)
+                return;
+
+            if (eVal == null && sVal != null)
+            {
+                string current = string.Empty;
+                var cTok = obj.Root;
+
+                var count = 0;
+                var layers = token.Split('.');
+
+                foreach (var s in layers)
+                {
+                    var eProp = obj.SelectToken(current + s) as JObject;
+
+                    if (eProp == null)
+                    {
+                        var missing = string.IsNullOrWhiteSpace(current) ? token : token.Replace(current, "");
+
+                        if (!missing.Contains(".") && !Regex.Match(missing, IndexRegEx).Success)
+                            ((JObject)obj.SelectToken(current.TrimEnd('.'))).Add(s, sVal);
+                        else if (!missing.Contains(".") && Regex.Match(missing, IndexRegEx).Success)
+                        {
+                            ((JObject)obj.SelectToken(current.TrimEnd('.'))).Add(s, new JArray(sVal));
+                        }
+                        else
+                        {
+                            var all = missing.Split('.');
+                            var first = all.First();
+                            var tok = JToken.FromObject(value, serializer);
+
+                            foreach (var prop in all.Reverse().Except(new string[] { first }))
+                            {
+                                if (!Regex.Match(missing, IndexRegEx).Success)
+                                    tok = JProperty.Parse(@"{""" + prop + @""": " + tok.ToString() + @"}");
+                                else
+                                    tok = JArray.Parse("[" + tok.ToString() + "]");
+                            }
+
+                            obj.Add(first, tok);
+                        }
+
+                        break;
+                    }
+                    else
+                        current += s + ".";
+
+                    count++;
+                }
+
+                eVal = obj.SelectToken(token) as JValue;
+            }
+
+            if (eVal != null && sVal == null)
+                eVal.Replace(JToken.Parse(@"{}"));
+            else
+                eVal.Replace(sVal);
         }
     }
 }

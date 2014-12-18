@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security;
 using System.Security.Permissions;
 using System.Text;
 using BESSy.Json;
@@ -10,7 +11,7 @@ namespace BESSy.Tests.Mocks
 {
     //[SecurityPermission(SecurityAction.Assert, Flags= SecurityPermissionFlag.ControlEvidence)]
     //[ReflectionPermission(SecurityAction.Assert, Flags = ReflectionPermissionFlag.MemberAccess, Unrestricted = true, MemberAccess = true, TypeInformation = true)]
-
+    [SecuritySafeCritical]
     public class MockDomain : MockClassC
     {
         //[SecurityPermission(SecurityAction.Assert, Flags = SecurityPermissionFlag.ControlEvidence)]

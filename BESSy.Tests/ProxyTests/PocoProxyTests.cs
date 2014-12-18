@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Security;
 using System.Text;
 using BESSy.Relational;
 using BESSy.Seeding;
@@ -16,7 +17,6 @@ namespace BESSy.Tests.ProxyTests
     public class PocoProxyTests : FileTest
     {
         [Test]
-        [Category("Performance")]
         public void ProxySavesData()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();

@@ -475,8 +475,7 @@ namespace BESSy
                     _databaseCache = _cacheFactory.Create<IdType, EntityType>(true, Parallelization.TaskGrouping.ArrayLimit, _idConverter);
                     _stagingCache = _cacheFactory.Create<Guid, IDictionary<IdType, JObject>>(true, Parallelization.TaskGrouping.ArrayLimit, new BinConverterGuid());
 
-                    _idGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
-                    _idSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
+                    InitIdMethods();
 
                     //is this segmentSeed a passthrough? jObj.e. string?
                     // _passthrough = IdConverter.Compare(_core.Peek(), default(IdType)) == 0;
@@ -495,6 +494,12 @@ namespace BESSy
                     return _fileManager.Length;
                 }
             }
+        }
+
+        protected virtual void InitIdMethods()
+        {
+            _idGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
+            _idSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
         }
 
         public  virtual void Reorganize()

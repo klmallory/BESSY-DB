@@ -7,9 +7,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Security.Permissions;
+using System.Security;
 
 namespace BESSy.Tests.Mocks
 {
+    [SecuritySafeCritical]
     public class MockClassB : MockClassA
     {
         public DateTime MyDate { get; set; }

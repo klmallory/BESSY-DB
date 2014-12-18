@@ -238,17 +238,18 @@ namespace BESSy.Tests.SerializationTests
 
             var test = TestResourceFactory.CreateRandom() as MockClassC;
 
-            var bson = new JSONFormatter(arraySettings);
+            var json = new JSONFormatter(arraySettings);
 
-            var stream = bson.FormatObjStream(test);
+            var stream = json.FormatObjStream(test);
+            var len = stream.Length;
 
             var copy = new MemoryStream();
             stream.Position = 0;
             stream.CopyTo(copy);
 
-            var unformatted = bson.Parse(stream);
+            var unformatted = json.Parse(stream);
 
-            var formatted = bson.Unparse(unformatted);
+            var formatted = json.Unparse(unformatted);
 
             copy.Position = formatted.Position = 0;
 
@@ -259,13 +260,18 @@ namespace BESSy.Tests.SerializationTests
             //Console.WriteLine();
             //Console.Write(unparsed);
 
-            var reformatted = bson.Parse(formatted);
+            var reformatted = json.Parse(formatted);
 
             Assert.AreEqual(copy.Length, formatted.Length);
 
             Assert.AreEqual(unformatted, reformatted);
 
             MockClassC.Validate(unformatted.ToObject<MockClassC>(), reformatted.ToObject<MockClassC>());
+
+            Stream os;
+            json.TryUnparse(reformatted, out os);
+
+            Assert.AreEqual(len, os.Length);
         }
     }
 }

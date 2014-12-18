@@ -8,6 +8,7 @@ using BESSy.Reflection;
 
 namespace BESSy.Tests.Mocks
 {
+    [BESSyIgnore]
     public class MockProxyC : MockClassC, IBESSyProxy<int, MockClassA>
     {
         public MockProxyC()

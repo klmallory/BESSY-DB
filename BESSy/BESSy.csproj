@@ -195,6 +195,7 @@
     <Compile Include="Indexes\FileIndexRange.cs" />
     <Compile Include="Indexes\Index.cs" />
     <Compile Include="IServerRepository.cs" />
+    <Compile Include="JObjectDatabase.cs" />
     <Compile Include="Queries\AlgorithmEnum.cs" />
     <Compile Include="Queries\CompareToken.cs" />
     <Compile Include="Queries\DeleteExpression.cs" />
@@ -206,7 +207,9 @@
     <Compile Include="Queries\WhereExpression.cs" />
     <Compile Include="Queries\UpdateExpression.cs" />
     <Compile Include="Queries\ValueTypeEvaluator.cs" />
+    <Compile Include="Reflection\BESSyIgnoreAttribute.cs" />
     <Compile Include="Reflection\DynamicMemberManager.cs" />
+    <Compile Include="Reflection\PocoSerializationBinder.cs" />
     <Compile Include="Relational\PocoProxyFactory.cs" />
     <Compile Include="Relational\PocoProxyHandler.cs" />
     <Compile Include="Relational\PocoProxySerializer.cs" />

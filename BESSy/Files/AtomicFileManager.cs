@@ -352,7 +352,7 @@ namespace BESSy.Files
         protected virtual void InitializeCore<IdType>()
         {
             if (Core == null)
-                throw new InvalidOperationException("Entity core must be used when creating a new database.");
+                throw new InvalidOperationException("File core must be used when creating a new database.");
 
             var core = (IFileCore<IdType, long>)Core;
 
@@ -401,7 +401,7 @@ namespace BESSy.Files
 
                         InitializeCore<IdType>();
 
-                        InitializeFileStream(_fileStream, 0);
+                        InitializeFileStream(_fileStream, Core.InitialDbSize);
                         InitializeFileMap();
 
                         SaveCore<IdType>();
@@ -569,7 +569,7 @@ namespace BESSy.Files
 
                 using (var locks = new RowLockContainer<long>())
                 {
-                    var groupSize = (TaskGrouping.MemoryLimit / stride).Clamp(1, trans.EnlistCount);
+                    var groupSize = (TaskGrouping.TransactionLimit / stride).Clamp(1, trans.EnlistCount);
 
                     var tGroups = GetGroups(trans.EnlistCount, groupSize);
 

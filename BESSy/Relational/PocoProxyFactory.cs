@@ -27,6 +27,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Remoting.Proxies;
 using System.Security;
+using System.Security.Policy;
 using System.Threading;
 using System.Threading.Tasks;
 using BESSy.Cache;
@@ -71,6 +72,7 @@ namespace BESSy.Relational
         T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType;
     }
 
+    [SecuritySafeCritical]
     public class PocoProxyFactory<IdType, EntityType> : IProxyFactory<IdType, EntityType>, IDisposable
     {
         CustomAttributeBuilder cabPartialTrust = new CustomAttributeBuilder(typeof(AllowPartiallyTrustedCallersAttribute).GetConstructor(new Type[0]), new object[0]);
@@ -78,6 +80,7 @@ namespace BESSy.Relational
         CustomAttributeBuilder cabJsonPropertyIds = new CustomAttributeBuilder(typeof(JsonPropertyAttribute).GetConstructor(new Type[] { typeof(string) }), new object[] { "$relationshipIds" });
         CustomAttributeBuilder cabJsonPropertyOldId = new CustomAttributeBuilder(typeof(JsonPropertyAttribute).GetConstructor(new Type[] { typeof(string) }), new object[] { "$oldId" });
         CustomAttributeBuilder cabJsonPropertySimpleTypeName = new CustomAttributeBuilder(typeof(JsonPropertyAttribute).GetConstructor(new Type[] { typeof(string) }), new object[] { "$simpleTypeName" });
+        CustomAttributeBuilder cabSecSafeCrit = new CustomAttributeBuilder(typeof(SecuritySafeCriticalAttribute).GetConstructor(new Type[0]), new object[0]);
 
         ConstructorInfo ciIdsBuilder = typeof(System.Collections.Generic.Dictionary<string, IdType[]>)
                 .GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { }, null);
@@ -238,7 +241,7 @@ namespace BESSy.Relational
 
         protected AssemblyBuilder BuildDomainProxies(string name)
         {
-            var assBuilder = GetAssemblyBuilder(name);
+            var assBuilder = GetAssemblyBuilder(name, entityType.Assembly);
 
             lock (_syncRoot)
                 _assemblyBuilderCache.Add(name, assBuilder);
@@ -254,7 +257,7 @@ namespace BESSy.Relational
 
             foreach (var type in entityType.Assembly.GetTypes())
             {
-                if (!IsEntityType(type) || type.IsAbstract)
+                if (!IsEntityType(type) || type.IsAbstract || type.GetCustomAttributes(true).Any(a => a is BESSyIgnoreAttribute))
                     continue;
 
                 proxyType = BuildProxyForType(type, moduleBuilder);
@@ -349,8 +352,8 @@ namespace BESSy.Relational
             return type;
         }
 
-
-        private AssemblyBuilder GetAssemblyBuilder(string assemblyName)
+        [SecuritySafeCritical]
+        private AssemblyBuilder GetAssemblyBuilder(string assemblyName, Assembly evidenceAssembly)
         {
             AssemblyBuilder assBuilder = null;
 
@@ -361,13 +364,13 @@ namespace BESSy.Relational
             }
 
 #if NET40
-                var bessyAss = Assembly.Load("BESSy");
+            var bessyAss = Assembly.Load("BESSy");
 #endif
 #if NET45
             var bessyAss = Assembly.Load("BESSy_45");
 #endif
 #if NET451
-                var bessyAss = Assembly.Load("BESSy_451");
+            var bessyAss = Assembly.Load("BESSy_451");
 #endif
 
             if (bessyAss == null)
@@ -382,10 +385,12 @@ namespace BESSy.Relational
             name.ProcessorArchitecture = bessyName.ProcessorArchitecture;
             name.CultureInfo = bessyName.CultureInfo;
 
+            AppDomain domain = AppDomain.CurrentDomain;
+
             if (useTransientAssembly)
-                assBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.Run);
+                assBuilder = domain.DefineDynamicAssembly(name, AssemblyBuilderAccess.Run, null, SecurityContextSource.CurrentAppDomain);
             else
-                assBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave);
+                assBuilder = domain.DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave, null, SecurityContextSource.CurrentAppDomain);
 
             assBuilder.DefineVersionInfoResource(bessyName.FullName, bessyName.Version.ToString(), "", "", "");
 
@@ -479,7 +484,7 @@ namespace BESSy.Relational
                     throw new ProxyCreationException(string.Format("Unable to create proxy of another proxy: {0}", propInfo.PropertyType));
             }
 
-            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.ReservedMask, CallingConventions.HasThis, pType, new Type[0]);
+            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, CallingConventions.HasThis, pType, new Type[0]);
 
             pb.SetCustomAttribute(cabJsonIgnore);
 
@@ -521,9 +526,14 @@ namespace BESSy.Relational
 
             MethodInfo baseGet = propInfo.GetGetMethod();
 
+            if (!baseGet.IsVirtual)
+                throw new ProxyCreationException("Proxied properties must be marked virtual.");
+
             MethodInfo factoryGet = factoryMethod.GetGetMethod();
 
-            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, pType, new Type[0]);
+            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, baseGet.Attributes | System.Reflection.MethodAttributes.Virtual, CallingConventions.HasThis, pType, new Type[0]);
+            tBuilder.DefineMethodOverride(method, baseGet);
+
             ILGenerator gen = method.GetILGenerator();
 
             LocalBuilder CS10000 = gen.DeclareLocal(pType);
@@ -554,9 +564,14 @@ namespace BESSy.Relational
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
+            if (!baseGet.IsVirtual || !baseSet.IsVirtual)
+                throw new ProxyCreationException("Proxied properties must be marked virtual.");
+
             MethodInfo factoryGet = factoryMethod.GetGetMethod();
 
-            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, pType, new Type[0]);
+            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, baseGet.Attributes, CallingConventions.HasThis, pType, new Type[0]);
+           tBuilder.DefineMethodOverride(method, baseGet);
+
             ILGenerator gen = method.GetILGenerator();
 
             LocalBuilder CS10000 = gen.DeclareLocal(pType);
@@ -596,9 +611,13 @@ namespace BESSy.Relational
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
+            if (!baseGet.IsVirtual || !baseSet.IsVirtual)
+                throw new ProxyCreationException("Proxied properties must be marked virtual.");
+
             MethodInfo factoryGet = factoryMethod.GetGetMethod();
 
-            MethodBuilder method = tBuilder.DefineMethod("set_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, pType, new Type[] { pType });
+            MethodBuilder method = tBuilder.DefineMethod("set_" + propInfo.Name, baseSet.Attributes, CallingConventions.HasThis, typeof(void), new Type[] { pType });
+            tBuilder.DefineMethodOverride(method, baseSet);
 
             // Setting return type
             method.SetReturnType(typeof(void));
@@ -636,7 +655,7 @@ namespace BESSy.Relational
                     throw new ProxyCreationException(string.Format("Unable to create proxy of another proxy: {0}", propInfo.PropertyType));
             }
 
-            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, CallingConventions.HasThis, propInfo.PropertyType, new Type[0]);
+            var pb = tBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, CallingConventions.HasThis, pType, new Type[0]);
             pb.SetCustomAttribute(cabJsonIgnore);
 
             Type innerType = null;
@@ -681,7 +700,9 @@ namespace BESSy.Relational
                 | System.Reflection.MethodAttributes.NewSlot;
 
             MethodInfo baseGet = propInfo.GetGetMethod();
-            MethodInfo baseSet = propInfo.GetSetMethod();
+
+            if (!baseGet.IsVirtual)
+                throw new ProxyCreationException("Proxied properties must be marked virtual.");
 
             MethodInfo factoryGet = factoryMethod.GetGetMethod();
 
@@ -697,7 +718,8 @@ namespace BESSy.Relational
             else
                 toEnumerable = typeof(Enumerable).GetMethod("ToList").MakeGenericMethod(innerType);
 
-            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, propInfo.PropertyType, new Type[0]);
+            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, baseGet.Attributes, CallingConventions.HasThis, propInfo.PropertyType, new Type[0]);
+            tBuilder.DefineMethodOverride(method, baseGet);
 
             ILGenerator gen = method.GetILGenerator();
 
@@ -731,6 +753,9 @@ namespace BESSy.Relational
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
+            if (!baseGet.IsVirtual || !baseSet.IsVirtual)
+                throw new ProxyCreationException("Proxied properties must be marked virtual.");
+
             MethodInfo factoryGet = factoryMethod.GetGetMethod();
 
             MethodInfo cast = typeof(Enumerable).GetMethod("Cast").MakeGenericMethod(innerType);
@@ -745,7 +770,9 @@ namespace BESSy.Relational
             else
                 toEnumerable = typeof(Enumerable).GetMethod("ToList").MakeGenericMethod(innerType);
 
-            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, propInfo.PropertyType, new Type[0]);
+            MethodBuilder method = tBuilder.DefineMethod("get_" + propInfo.Name, baseGet.Attributes, CallingConventions.HasThis, propInfo.PropertyType, new Type[0]);
+            tBuilder.DefineMethodOverride(method, baseGet);
+
             ILGenerator gen = method.GetILGenerator();
 
             LocalBuilder lb100000 = gen.DeclareLocal(propInfo.PropertyType);
@@ -785,9 +812,13 @@ namespace BESSy.Relational
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
+            if (!baseGet.IsVirtual || !baseSet.IsVirtual)
+                throw new ProxyCreationException("Proxied properties must be marked virtual.");
+
             MethodInfo factoryGet = factoryMethod.GetGetMethod();
 
-            MethodBuilder method = tBuilder.DefineMethod("set_" + propInfo.Name, methodAttributes, CallingConventions.HasThis, propInfo.PropertyType, new Type[] { propInfo.PropertyType });
+            MethodBuilder method = tBuilder.DefineMethod("set_" + propInfo.Name, baseSet.Attributes, CallingConventions.HasThis, typeof(void), new Type[] { propInfo.PropertyType });
+            tBuilder.DefineMethodOverride(method, baseSet);
 
             MethodInfo cast = typeof(Enumerable).GetMethod(
                 "Cast",

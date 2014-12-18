@@ -108,7 +108,7 @@ namespace BESSy.Tests.DatabaseTests
 
             var objects = TestResourceFactory.GetMockClassAObjects(10000);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>() { InitialDbSize = 9000 }))
             {
                 db.Load();
 

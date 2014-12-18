@@ -310,7 +310,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
             Cleanup();
 
             var formatter = new BSONFormatter();
-            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
+            var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512, InitialDbSize = 10240 };
 
             var addEntities = TestResourceFactory.GetMockClassAObjects(10000).ToList();
 

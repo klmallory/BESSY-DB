@@ -18,7 +18,7 @@ using System;
 [assembly: AssemblyCulture("")]
 
 #if !NCRUNCH
-[assembly: AllowPartiallyTrustedCallers]
+    //[assembly: AllowPartiallyTrustedCallers]
 #endif
 
 // Setting ComVisible to false makes the types in this assembly not visible 
