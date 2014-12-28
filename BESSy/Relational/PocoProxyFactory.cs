@@ -37,6 +37,7 @@ using BESSy.Files;
 using BESSy.Indexes;
 using BESSy.Json;
 using BESSy.Json.Linq;
+using BESSy.Json.Utilities;
 using BESSy.Parallelization;
 using BESSy.Queries;
 using BESSy.Reflection;
@@ -61,6 +62,7 @@ namespace BESSy.Relational
 
         void Bessy_Proxy_Shallow_Copy_From(EntityType entity);
         void Bessy_Proxy_Deep_Copy_From(EntityType entity);
+        void Bessy_Proxy_JCopy_From(JObject instance);
     }
 
     public interface IProxyFactory<IdType, EntityType>
@@ -70,6 +72,7 @@ namespace BESSy.Relational
         Action<EntityType, IdType> IdSet { get; set; }
         Type GetProxyTypeFor(Type type);
         T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType;
+        EntityType GetInstanceFor(IPocoRelationalDatabase<IdType, EntityType> repository, JObject instance);
     }
 
     [SecuritySafeCritical]
@@ -106,14 +109,33 @@ namespace BESSy.Relational
             new Type[] { typeof(BESSy.Relational.IBESSyProxy<IdType, EntityType>), typeof(String), typeof(IEnumerable<EntityType>) },
             null);
 
-        MethodInfo getType = typeof(Object).GetMethod("GetType", 
+        readonly MethodInfo getType = typeof(Object).GetMethod("GetType", 
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
             null, new Type[] { }, null);
 
-        MethodInfo copyFields = typeof(BESSy.Relational.PocoProxyHandler<IdType, EntityType>).GetMethod("CopyFields", 
+        readonly MethodInfo copyFields = typeof(BESSy.Relational.PocoProxyHandler<IdType, EntityType>).GetMethod("CopyFields", 
             BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, 
             null, new Type[]{ typeof(Object), typeof(Object), typeof(Type), typeof(Type), typeof(String[]) },  null);
 
+        readonly MethodInfo copyJFields = typeof(BESSy.Relational.PocoProxyHandler<IdType, EntityType>).GetMethod("CopyJFields",
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { typeof(Object), typeof(JObject), typeof(Type), typeof(String[]), typeof(String[]) }, null);
+
+        readonly MethodInfo getFormatter = typeof(BESSy.ITransactionalDatabase<IdType, JObject>).GetMethod("get_Formatter",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { }, null);
+
+        readonly MethodInfo getSerializer = typeof(IQueryableFormatter).GetMethod("get_Serializer",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { }, null);
+
+        readonly MethodInfo jTokenValue = typeof(JToken).GetMethod("Value",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { typeof(Object) }, null);
+
+        readonly MethodInfo jTokenTryGetValue = typeof(JObject).GetMethod("TryGetValue",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { typeof(String), typeof(JToken).MakeByRefType() }, null);
 
         readonly MethodInfo getIdFromFactory = null;
 
@@ -143,9 +165,86 @@ namespace BESSy.Relational
         public Action<EntityType, IdType> IdSet { get; set; }
         public string IdToken { get; set; }
 
+        private Assembly LoadAssembly(string an)
+        {
+            Assembly assembly = null;
+
+            lock (_syncRoot)
+                if (_assemblyCache.ContainsKey(an))
+                    return _assemblyCache[an];
+
+            lock (_syncRoot)
+                if (_assemblyBuilderCache.ContainsKey(an))
+                    return _assemblyBuilderCache[an];
+
+            if (!_assemblyCache.ContainsKey(an))
+            {
+                try
+                {
+                    assembly = Assembly.LoadWithPartialName(an);
+
+                    if (assembly == null)
+                    {
+                        Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+
+                        //load partial name first for dynamic assemblies
+                        for (var i = 0; i < loadedAssemblies.Length; i++)
+                            if (loadedAssemblies[i].FullName.StartsWith(assemblyName + ","))
+                            { assembly = loadedAssemblies[i]; break; }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError("Unable to load assembly {0}", ex);
+                }
+            }
+
+            return assembly;
+        }
+
         public T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType
         {
             return GetProxyFor<T>(repository, instance);
+        }
+
+        public EntityType GetInstanceFor(IPocoRelationalDatabase<IdType, EntityType> repository, JObject instance)
+        {
+           return  GetProxyFor(repository, instance);
+        }
+
+        protected EntityType GetProxyFor(IPocoRelationalDatabase<IdType, EntityType> repository, JObject instance)
+        {
+            var typeName = instance.Value<string>("$type");
+            string tn;
+            string an;
+
+            ReflectionUtils.SplitFullyQualifiedTypeName(typeName, out tn, out an);
+            var assembly = LoadAssembly(an);
+
+            if (assembly == null)
+            {
+                var baseAssemblyName = an.Replace("BESSy.Proxy.", "");
+                assembly = BuildDomainProxies(baseAssemblyName);
+
+                if (assembly == null)
+                    throw new ProxyCreationException(string.Format("Could not create proxy for serialized type {0}", typeName));
+            }
+
+            var key = _typeCache.Keys.FirstOrDefault(k => k.StartsWith(typeName));
+
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                var proxy = (EntityType)Activator.CreateInstance(_typeCache[key], repository, this);
+
+                var iProxy = proxy as IBESSyProxy<IdType, EntityType>;
+
+                if (iProxy != null)
+                    iProxy.Bessy_Proxy_JCopy_From(instance);
+
+                return proxy;
+            }
+            else
+                throw new ProxyCreationException(string.Format("Type not found. Could not create proxy for serialized type {0}", typeName));
         }
 
         public Type GetProxyTypeFor(Type type)
@@ -210,8 +309,6 @@ namespace BESSy.Relational
                 if (!_assemblyBuilderCache.ContainsKey(name))
                     BuildDomainProxies(name);
 
-            var fs = inType.GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic);
-
             lock (_syncRoot)
                 if (_typeCache.ContainsKey(typeName))
                     return (T)Activator.CreateInstance(_typeCache[typeName], repository, this);
@@ -263,7 +360,10 @@ namespace BESSy.Relational
                 proxyType = BuildProxyForType(type, moduleBuilder);
 
                 lock (_syncRoot)
+                {
                     _typeCache.Add(type.AssemblyQualifiedName, proxyType);
+                    _typeCache.Add(proxyType.AssemblyQualifiedName, proxyType);
+                }
             }
 
             try
@@ -341,11 +441,13 @@ namespace BESSy.Relational
             foreach (var p in propOverrides.Where(p => p.PropertyType.GetInterface("IEnumerable") != null))
                 BuildEnumerableProperty(typeBuilder, factoryProp, p, gets, sets);
 
+            //var jCopyMethod = BuildJObjectConstructor()
             var defaultCtor = BuildDefaultConstructor(typeBuilder, entityType, setIds);
             var initCtor = BuildInitializeConstructor(typeBuilder, defaultCtor, setFactory, setRepo);
 
             var shallowCopyMethod = BuildShallowCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId, setSimpleTypeName);
             var deepCopyMethod = BuildDeepCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId, setSimpleTypeName);
+            var jCopyMethod = BuildJCopyFrom(typeBuilder, propOverrides, originalType, setIds, getRepo);
 
             var type = typeBuilder.CreateType();
 
@@ -517,12 +619,12 @@ namespace BESSy.Relational
 
         private MethodBuilder BuildReadonlyGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, PropertyInfo propInfo, Type pType)
         {
-            System.Reflection.MethodAttributes methodAttributes =
-                  System.Reflection.MethodAttributes.Public
-                | System.Reflection.MethodAttributes.Virtual
-                | System.Reflection.MethodAttributes.Final
-                | System.Reflection.MethodAttributes.HideBySig
-                | System.Reflection.MethodAttributes.NewSlot;
+            //System.Reflection.MethodAttributes methodAttributes =
+            //      System.Reflection.MethodAttributes.Public
+            //    | System.Reflection.MethodAttributes.Virtual
+            //    | System.Reflection.MethodAttributes.Final
+            //    | System.Reflection.MethodAttributes.HideBySig
+            //    | System.Reflection.MethodAttributes.NewSlot;
 
             MethodInfo baseGet = propInfo.GetGetMethod();
 
@@ -554,12 +656,12 @@ namespace BESSy.Relational
 
         protected MethodBuilder BuildGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, PropertyInfo propInfo, Type pType)
         {
-            System.Reflection.MethodAttributes methodAttributes =
-                  System.Reflection.MethodAttributes.Public
-                | System.Reflection.MethodAttributes.Virtual
-                | System.Reflection.MethodAttributes.Final
-                | System.Reflection.MethodAttributes.HideBySig
-                | System.Reflection.MethodAttributes.NewSlot;
+            //System.Reflection.MethodAttributes methodAttributes =
+            //      System.Reflection.MethodAttributes.Public
+            //    | System.Reflection.MethodAttributes.Virtual
+            //    | System.Reflection.MethodAttributes.Final
+            //    | System.Reflection.MethodAttributes.HideBySig
+            //    | System.Reflection.MethodAttributes.NewSlot;
 
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
@@ -601,12 +703,12 @@ namespace BESSy.Relational
         {
             // Declaring method builder
             // Method attributes
-            System.Reflection.MethodAttributes methodAttributes =
-                  System.Reflection.MethodAttributes.Public
-                | System.Reflection.MethodAttributes.Virtual
-                | System.Reflection.MethodAttributes.Final
-                | System.Reflection.MethodAttributes.HideBySig
-                | System.Reflection.MethodAttributes.NewSlot;
+            //System.Reflection.MethodAttributes methodAttributes =
+            //      System.Reflection.MethodAttributes.Public
+            //    | System.Reflection.MethodAttributes.Virtual
+            //    | System.Reflection.MethodAttributes.Final
+            //    | System.Reflection.MethodAttributes.HideBySig
+            //    | System.Reflection.MethodAttributes.NewSlot;
 
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
@@ -692,12 +794,12 @@ namespace BESSy.Relational
         {
             // Declaring method builder
             // Method attributes
-            System.Reflection.MethodAttributes methodAttributes =
-                  System.Reflection.MethodAttributes.Public
-                | System.Reflection.MethodAttributes.Virtual
-                | System.Reflection.MethodAttributes.Final
-                | System.Reflection.MethodAttributes.HideBySig
-                | System.Reflection.MethodAttributes.NewSlot;
+            //System.Reflection.MethodAttributes methodAttributes =
+            //      System.Reflection.MethodAttributes.Public
+            //    | System.Reflection.MethodAttributes.Virtual
+            //    | System.Reflection.MethodAttributes.Final
+            //    | System.Reflection.MethodAttributes.HideBySig
+            //    | System.Reflection.MethodAttributes.NewSlot;
 
             MethodInfo baseGet = propInfo.GetGetMethod();
 
@@ -743,12 +845,12 @@ namespace BESSy.Relational
         {
             // Declaring method builder
             // Method attributes
-            System.Reflection.MethodAttributes methodAttributes =
-                  System.Reflection.MethodAttributes.Public
-                | System.Reflection.MethodAttributes.Virtual
-                | System.Reflection.MethodAttributes.Final
-                | System.Reflection.MethodAttributes.HideBySig
-                | System.Reflection.MethodAttributes.NewSlot;
+            //System.Reflection.MethodAttributes methodAttributes =
+            //      System.Reflection.MethodAttributes.Public
+            //    | System.Reflection.MethodAttributes.Virtual
+            //    | System.Reflection.MethodAttributes.Final
+            //    | System.Reflection.MethodAttributes.HideBySig
+            //    | System.Reflection.MethodAttributes.NewSlot;
 
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
@@ -802,12 +904,12 @@ namespace BESSy.Relational
         {
             // Declaring method builder
             // Method attributes
-            System.Reflection.MethodAttributes methodAttributes =
-                  System.Reflection.MethodAttributes.Public
-                | System.Reflection.MethodAttributes.Virtual
-                | System.Reflection.MethodAttributes.Final
-                | System.Reflection.MethodAttributes.HideBySig
-                | System.Reflection.MethodAttributes.NewSlot;
+            //System.Reflection.MethodAttributes methodAttributes =
+            //      System.Reflection.MethodAttributes.Public
+            //    | System.Reflection.MethodAttributes.Virtual
+            //    | System.Reflection.MethodAttributes.Final
+            //    | System.Reflection.MethodAttributes.HideBySig
+            //    | System.Reflection.MethodAttributes.NewSlot;
 
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
@@ -942,33 +1044,6 @@ namespace BESSy.Relational
                 .ToList();
 
             var pFields = fields.Where(f => !f.IsPublic && (f.FieldType.IsValueType || f.FieldType == typeof(string) || f.FieldType.IsArray || f.FieldType.IsClass));
-            //var siteContainers = new Dictionary<string, FieldBuilder[]>();
-
-            //var shallowSiteContainer = tBuilder.DefineNestedType(
-            //    tBuilder.Name + "+<Bessy_Proxy_Shallow_Copy_From>o__SiteContainer0",
-            //    TypeAttributes.NestedPrivate | TypeAttributes.BeforeFieldInit | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.AnsiClass | TypeAttributes.AutoClass,
-            //    tBuilder);
-
-            //shallowSiteContainer.SetParent(typeof(System.Object));
-
-            //foreach (var p in pFields)
-            //{
-            //    var site1 = shallowSiteContainer.DefineField(
-            //       "<>p__" + p.Name,
-            //       typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object, Object>>),
-            //         FieldAttributes.Public | FieldAttributes.Static);
-
-            //    var site2 = shallowSiteContainer.DefineField(
-            //        "<>p__" + p.Name,
-            //        typeof(System.Runtime.CompilerServices.CallSite<Func<CallSite, Object, Object>>),
-            //          FieldAttributes.Public | FieldAttributes.Static);
-
-            //    siteContainers.Add(p.Name, new FieldBuilder[] { site1, site2 });
-            //}
-
-            //shallowSiteContainer.CreateType();
-
-            //.Where(f => !f.FieldType.GetCustomAttributes(true).ToList().Any(a => a is JsonIgnoreAttribute));
 
             ILGenerator generator = shallow.GetILGenerator();
 
@@ -1027,19 +1102,6 @@ namespace BESSy.Relational
                 generator.Emit(OpCodes.Ldloc_1);
                 generator.Emit(OpCodes.Call, copyFields);
 
-                //generator.Emit(OpCodes.Nop);
-                //generator.Emit(OpCodes.Nop);
-                //generator.Emit(OpCodes.Ldloc_0);
-                //generator.Emit(OpCodes.Call, exposedObjectFrom);
-                //generator.Emit(OpCodes.Stloc_1);
-                //generator.Emit(OpCodes.Ldarg_0);
-                //generator.Emit(OpCodes.Call, exposedObjectFrom);
-                //generator.Emit(OpCodes.Stloc_2);
-
-                //foreach (var field in pFields)
-                //    CopyPrivateField(tBuilder, siteContainers[field.Name], instanceType, generator, field);
-
-                //generator.Emit(OpCodes.Nop);
                 generator.Emit(OpCodes.Nop);
             }
 
@@ -1110,7 +1172,6 @@ namespace BESSy.Relational
             generator.Emit(OpCodes.Br, gtfo);
             generator.MarkLabel(ok);
 
-
             foreach (var prop in propOverrides)
             {
                 var setter = sets.FirstOrDefault(s => s.Name.Substring(4, s.Name.Length - 4) == prop.Name);
@@ -1144,6 +1205,119 @@ namespace BESSy.Relational
             generator.Emit(OpCodes.Ret);
 
             return deep;
+        }
+
+        protected MethodBuilder BuildJCopyFrom(TypeBuilder tBuilder, IEnumerable<PropertyInfo> propOverrides, Type instanceType, MethodBuilder setIds, MethodBuilder getRepo)
+        {
+            var jCopy = tBuilder.DefineMethod("Bessy_Proxy_JCopy_From",
+                System.Reflection.MethodAttributes.Public |
+                System.Reflection.MethodAttributes.Virtual |
+                System.Reflection.MethodAttributes.Final |
+                System.Reflection.MethodAttributes.HideBySig |
+                System.Reflection.MethodAttributes.NewSlot,
+                typeof(void), new Type[] { typeof(JObject) });
+
+            // Parameter entity
+            ParameterBuilder entity = jCopy.DefineParameter(1, ParameterAttributes.None, "obj");
+
+            ILGenerator generator = jCopy.GetILGenerator();
+
+            var fields = instanceType.GetFields
+                (System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Static |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic)
+                .Where(f => f.Name != IdToken && !f.IsInitOnly)
+                .ToList();
+
+            var pFields = fields.Where(f => !f.IsPublic && (f.FieldType.IsValueType || f.FieldType == typeof(string) || f.FieldType.IsArray || f.FieldType.IsClass));
+
+            LocalBuilder fieldNames = generator.DeclareLocal(typeof(String[]));
+            LocalBuilder token = generator.DeclareLocal(typeof(JToken));
+            LocalBuilder flag = generator.DeclareLocal(typeof(Boolean));
+            LocalBuilder tokenNames = generator.DeclareLocal(typeof(String[]));
+
+            // Preparing labels
+            Label nullCheckOk = generator.DefineLabel();
+            Label gtfo = generator.DefineLabel();
+
+            generator.Emit(OpCodes.Nop);
+            generator.Emit(OpCodes.Ldarg_1);
+            generator.Emit(OpCodes.Ldnull);
+            generator.Emit(OpCodes.Ceq);
+            generator.Emit(OpCodes.Ldc_I4_0);
+            generator.Emit(OpCodes.Ceq);
+            generator.Emit(OpCodes.Stloc_2);
+            generator.Emit(OpCodes.Ldloc_2);
+            generator.Emit(OpCodes.Brtrue_S, nullCheckOk);
+            generator.Emit(OpCodes.Br, gtfo);
+            generator.MarkLabel(nullCheckOk);
+
+            if (pFields != null && pFields.Count() > 0)
+            {
+                generator.Emit(OpCodes.Ldc_I4, pFields.Count());
+                generator.Emit(OpCodes.Newarr, typeof(String));
+                generator.Emit(OpCodes.Stloc_0);
+                generator.Emit(OpCodes.Ldloc_0);
+
+                int count = 0;
+                foreach (var field in pFields)
+                {
+                    generator.Emit(OpCodes.Ldc_I4, count);
+                    generator.Emit(OpCodes.Ldstr, field.Name);
+                    generator.Emit(OpCodes.Stelem_Ref);
+                    generator.Emit(OpCodes.Ldloc_0);
+
+                    count++;
+                }
+
+                generator.Emit(OpCodes.Ldc_I4, pFields.Count());
+                generator.Emit(OpCodes.Newarr, typeof(String));
+                generator.Emit(OpCodes.Stloc_3);
+                generator.Emit(OpCodes.Ldloc_3);
+
+                count = 0;
+                foreach (var field in pFields)
+                {
+                    var fieldName = field.Name;
+                    var jprop = field.GetCustomAttributes(true)
+                        .FirstOrDefault(a => a is JsonPropertyAttribute) as JsonPropertyAttribute;
+
+                    if (jprop != null && !string.IsNullOrWhiteSpace(jprop.PropertyName))
+                        fieldName = jprop.PropertyName;
+
+                    generator.Emit(OpCodes.Ldc_I4, count);
+                    generator.Emit(OpCodes.Ldstr, fieldName);
+                    generator.Emit(OpCodes.Stelem_Ref);
+                    generator.Emit(OpCodes.Ldloc, 3);
+
+                    count++;
+                }
+
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Ldarg_1);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Call, getType);
+                generator.Emit(OpCodes.Ldloc_0);
+                generator.Emit(OpCodes.Ldloc_3);
+                generator.Emit(OpCodes.Call, copyJFields);
+
+                generator.Emit(OpCodes.Nop);
+            }
+
+            foreach (var field in fields.Where(f => f.IsPublic))
+                CopyJToken(tBuilder, generator, field, getRepo);
+
+            var properties = instanceType.GetProperties(BindingFlags.Instance | BindingFlags.Public).ToList();
+
+            foreach (var prop in properties.Where(p => !propOverrides.Any(o => o.Name == p.Name)))
+                CopyJToken(generator, prop, prop.GetSetMethod(), getRepo);
+
+            generator.MarkLabel(gtfo);
+            generator.Emit(OpCodes.Nop);
+            generator.Emit(OpCodes.Ret);
+
+            return jCopy;
         }
 
         private void CopyProperty(ILGenerator generator, PropertyInfo prop, MethodInfo setter)
@@ -1221,77 +1395,159 @@ namespace BESSy.Relational
             gen.Emit(OpCodes.Stfld, field);
         }
 
-        private void CopyPrivateField(TypeBuilder proxyType, Type instanceType, ILGenerator gen, FieldInfo field)
+        private void CopyJToken(Type proxyType, ILGenerator generator, FieldInfo field, MethodInfo getRepo)
         {
-            //Label label286 = gen.DefineLabel();
-            //Label label363 = gen.DefineLabel();
+            var fieldName = field.Name;
 
-            //gen.Emit(OpCodes.Ldsfld, siteContainers[0]);
-            //gen.Emit(OpCodes.Brtrue_S, label286);
-            //gen.Emit(OpCodes.Ldc_I4_0);
-            //gen.Emit(OpCodes.Ldstr, field.Name);
-            //gen.Emit(OpCodes.Ldtoken, proxyType);
-            //gen.Emit(OpCodes.Call, getTypeFromHandle);
-            //gen.Emit(OpCodes.Ldc_I4_2);
-            //gen.Emit(OpCodes.Newarr, typeof(CSharpArgumentInfo));
-            //gen.Emit(OpCodes.Stloc_S, 4);
-            //gen.Emit(OpCodes.Ldloc_S, 4);
-            //gen.Emit(OpCodes.Ldc_I4_0);
-            //gen.Emit(OpCodes.Ldc_I4_0);
-            //gen.Emit(OpCodes.Ldnull);
-            //gen.Emit(OpCodes.Call, create);
-            //gen.Emit(OpCodes.Stelem_Ref);
-            //gen.Emit(OpCodes.Ldloc_S, 4);
-            //gen.Emit(OpCodes.Ldc_I4_1);
-            //gen.Emit(OpCodes.Ldc_I4_0);
-            //gen.Emit(OpCodes.Ldnull);
-            //gen.Emit(OpCodes.Call, create);
-            //gen.Emit(OpCodes.Stelem_Ref);
-            //gen.Emit(OpCodes.Ldloc_S, 4);
-            //gen.Emit(OpCodes.Call, binderSetMember);
-            //gen.Emit(OpCodes.Call, callSiteCreate4);
-            //gen.Emit(OpCodes.Stsfld, siteContainers[0]);
-            //gen.Emit(OpCodes.Br_S, label286);
-            //gen.MarkLabel(label286);
-            //gen.Emit(OpCodes.Ldsfld, siteContainers[0]);
-            //gen.Emit(OpCodes.Ldfld, callSiteTarget4);
-            //gen.Emit(OpCodes.Ldsfld, siteContainers[0]);
-            //gen.Emit(OpCodes.Ldloc_2);
-            //gen.Emit(OpCodes.Ldsfld, siteContainers[1]);
-            //gen.Emit(OpCodes.Brtrue_S, label363);
-            //gen.Emit(OpCodes.Ldc_I4_0);
-            //gen.Emit(OpCodes.Ldstr, field.Name);
-            //gen.Emit(OpCodes.Ldtoken, proxyType);
-            //gen.Emit(OpCodes.Call, getTypeFromHandle);
-            //gen.Emit(OpCodes.Ldc_I4_1);
-            //gen.Emit(OpCodes.Newarr, typeof(CSharpArgumentInfo));
-            //gen.Emit(OpCodes.Stloc_S, 4);
-            //gen.Emit(OpCodes.Ldloc_S, 4);
-            //gen.Emit(OpCodes.Ldc_I4_0);
-            //gen.Emit(OpCodes.Ldc_I4_0);
-            //gen.Emit(OpCodes.Ldnull);
-            //gen.Emit(OpCodes.Call, create);
-            //gen.Emit(OpCodes.Stelem_Ref);
-            //gen.Emit(OpCodes.Ldloc_S, 4);
-            //gen.Emit(OpCodes.Call, binderGetMember);
-            //gen.Emit(OpCodes.Call, callSiteCreate3);
-            //gen.Emit(OpCodes.Stsfld, siteContainers[1]);
-            //gen.Emit(OpCodes.Br_S, label363);
-            //gen.MarkLabel(label363);
-            //gen.Emit(OpCodes.Ldsfld, siteContainers[1]);
-            //gen.Emit(OpCodes.Ldfld, callSiteTarget3);
-            //gen.Emit(OpCodes.Ldsfld, siteContainers[1]);
-            //gen.Emit(OpCodes.Ldloc_1);
-            //gen.Emit(OpCodes.Callvirt, callsiteInvoke3);
-            //gen.Emit(OpCodes.Callvirt, callsiteInvoke4);
-            //gen.Emit(OpCodes.Pop);
+            var att = field.GetCustomAttributes(true);
+
+            var jprop = att.FirstOrDefault(a => a is JsonPropertyAttribute) as JsonPropertyAttribute;
+
+            if (jprop != null && !string.IsNullOrWhiteSpace(jprop.PropertyName))
+                fieldName = jprop.PropertyName;
+
+            var exitLabel = generator.DefineLabel();
+
+            if (field.FieldType.IsArray ||
+                (field.FieldType.GetInterface("IEnumerable") != null
+               && field.FieldType.GetGenericArguments().Length == 1) ||
+                (field.FieldType.GetInterface("IDictionary") != null
+                && field.FieldType.GetGenericArguments().Length == 2)
+                )
+            {
+                var toJObject = typeof(JToken).GetMethod("ToObject",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new Type[] { typeof(JsonSerializer) }, null).MakeGenericMethod(field.FieldType);
+
+                generator.Emit(OpCodes.Ldarg_1);
+                generator.Emit(OpCodes.Ldstr, fieldName);
+                generator.Emit(OpCodes.Ldloca_S, 1);
+                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
+                generator.Emit(OpCodes.Ldc_I4_0);
+                generator.Emit(OpCodes.Ceq);
+                generator.Emit(OpCodes.Stloc_2);
+                generator.Emit(OpCodes.Ldloc_2);
+                generator.Emit(OpCodes.Brtrue_S, exitLabel);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Ldloc_1);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Call, getRepo);
+                generator.Emit(OpCodes.Callvirt, getFormatter);
+                generator.Emit(OpCodes.Callvirt, getSerializer);
+                generator.Emit(OpCodes.Callvirt, toJObject);
+                generator.Emit(OpCodes.Stfld, field);
+            }
+            else if (field.FieldType.IsValueType)
+            {
+                var toJObject = typeof(JToken).GetMethod("ToObject",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new Type[] { }, null).MakeGenericMethod(field.FieldType);
+
+                generator.Emit(OpCodes.Ldarg_1);
+                generator.Emit(OpCodes.Ldstr, fieldName);
+                generator.Emit(OpCodes.Ldloca_S, 1);
+                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
+                generator.Emit(OpCodes.Ldc_I4_0);
+                generator.Emit(OpCodes.Ceq);
+                generator.Emit(OpCodes.Stloc_2);
+                generator.Emit(OpCodes.Ldloc_2);
+                generator.Emit(OpCodes.Brtrue_S, exitLabel);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Ldloc_1);
+                generator.Emit(OpCodes.Callvirt, toJObject);
+                generator.Emit(OpCodes.Stfld, field);
+            }
+            else
+            {
+                Trace.TraceError("Unknown Field Type {0} on type {1} could not be copied", field.FieldType, proxyType);
+                return;
+            }
+
+            generator.Emit(OpCodes.Nop);
+            generator.MarkLabel(exitLabel);
+        }
+
+        private void CopyJToken(ILGenerator generator, PropertyInfo prop, MethodInfo setter, MethodInfo getRepo)
+        {
+            var getter = prop.GetGetMethod();
+
+            if (getter == null || setter == null)
+                return;
+
+            var fieldName = prop.Name;
+
+            var att = prop.GetCustomAttributes(true);
+
+            var jprop = att.FirstOrDefault(a => a is JsonPropertyAttribute) as JsonPropertyAttribute;
+
+            if (jprop != null && !string.IsNullOrWhiteSpace(jprop.PropertyName))
+                fieldName = jprop.PropertyName;
+
+            var exitLabel = generator.DefineLabel();
+
+            if (prop.PropertyType.IsArray ||
+                (prop.PropertyType.GetInterface("IEnumerable") != null
+               && prop.PropertyType.GetGenericArguments().Length == 1) ||
+                (prop.PropertyType.GetInterface("IDictionary") != null
+                && prop.PropertyType.GetGenericArguments().Length == 2))
+            {
+                var toJObject = typeof(JToken).GetMethod("ToObject",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new Type[] { typeof(JsonSerializer) }, null).MakeGenericMethod(prop.PropertyType);
+
+                generator.Emit(OpCodes.Ldarg_1);
+                generator.Emit(OpCodes.Ldstr, fieldName);
+                generator.Emit(OpCodes.Ldloca_S, 1);
+                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
+                generator.Emit(OpCodes.Ldc_I4_0);
+                generator.Emit(OpCodes.Ceq);
+                generator.Emit(OpCodes.Stloc_2);
+                generator.Emit(OpCodes.Ldloc_2);
+                generator.Emit(OpCodes.Brtrue_S, exitLabel);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Ldloc_1);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Call, getRepo);
+                generator.Emit(OpCodes.Callvirt, getFormatter);
+                generator.Emit(OpCodes.Callvirt, getSerializer);
+                generator.Emit(OpCodes.Callvirt, toJObject);
+                generator.Emit(OpCodes.Call, setter);
+            }
+            else if (prop.PropertyType.IsValueType)
+            {
+                var toJObject = typeof(JToken).GetMethod("ToObject",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new Type[] { }, null).MakeGenericMethod(prop.PropertyType);
+
+                generator.Emit(OpCodes.Ldarg_1);
+                generator.Emit(OpCodes.Ldstr, fieldName);
+                generator.Emit(OpCodes.Ldloca_S, 1);
+                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
+                generator.Emit(OpCodes.Ldc_I4_0);
+                generator.Emit(OpCodes.Ceq);
+                generator.Emit(OpCodes.Stloc_2);
+                generator.Emit(OpCodes.Ldloc_2);
+                generator.Emit(OpCodes.Brtrue_S, exitLabel);
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Ldloc_1);
+                generator.Emit(OpCodes.Callvirt, toJObject);
+                generator.Emit(OpCodes.Call, setter);
+            }
+            else
+            {
+                Trace.TraceError("Unknown Property Type {0} on type {1} could not be copied", prop.PropertyType, generator);
+                return;
+            }
+
+            generator.Emit(OpCodes.Nop);
+            generator.MarkLabel(exitLabel);
         }
 
         #endregion
 
         public void Dispose()
         {
-            throw new NotImplementedException();
+
         }
     }
 }

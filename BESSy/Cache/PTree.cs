@@ -42,7 +42,13 @@ namespace BESSy.Cache
 
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public PTree(string indexToken, string fileName, bool enforceUnique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer)
-            : base(indexToken, enforceUnique, indexConverter, segmentConverter, pageSynchronizer)
+            : this(indexToken, fileName, enforceUnique, startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer, GetIndexer(indexToken))
+        {
+
+        }
+
+        public PTree(string indexToken, string fileName, bool enforceUnique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer, Func<EntityType, IndexType> indexGet)
+            : base(indexToken, enforceUnique, indexConverter, segmentConverter, pageSynchronizer, indexGet)
         {
             _fileName = fileName;
 

@@ -9,13 +9,9 @@ using NUnit.Framework;
 
 namespace BESSy.Tests.Mocks
 {
-    //[SecurityPermission(SecurityAction.Assert, Flags= SecurityPermissionFlag.ControlEvidence)]
-    //[ReflectionPermission(SecurityAction.Assert, Flags = ReflectionPermissionFlag.MemberAccess, Unrestricted = true, MemberAccess = true, TypeInformation = true)]
     [SecuritySafeCritical]
     public class MockDomain : MockClassC
     {
-        //[SecurityPermission(SecurityAction.Assert, Flags = SecurityPermissionFlag.ControlEvidence)]
-        //[ReflectionPermission(SecurityAction.Assert, Flags = ReflectionPermissionFlag.MemberAccess, Unrestricted = true, MemberAccess = true, TypeInformation = true)]
         public MockDomain()
         {
             this.BDomains = new MockClassB[0];

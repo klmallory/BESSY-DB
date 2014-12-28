@@ -46,6 +46,11 @@ namespace BESSy
         private object syncRoot = new object();
         protected IDictionary<string, Type> typeLookups = new Dictionary<string, Type>();
 
+        protected virtual object GetEntityFrom(Type type, JObject obj)
+        {
+            return obj.ToObject(type, Formatter.Serializer);
+        }
+
         protected virtual Type GetTypeFor(JToken name)
         {
             Type type = null;
@@ -151,7 +156,7 @@ namespace BESSy
         {
             var newId = obj.SelectToken(_idToken).Value<IdType>();
             var deleteFirst = (_idConverter.Compare(newId, id) != 0);
-            var item = obj.ToObject(type, Formatter.Serializer);
+            var item = GetEntityFrom(type, obj);
 
             lock (_syncOperations)
                 _operations.Push(3);

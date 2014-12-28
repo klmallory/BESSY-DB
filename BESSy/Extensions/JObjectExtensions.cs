@@ -51,7 +51,7 @@ namespace BESSy.Extensions
             return GetTypeArrayFrom<T>(selected);
         }
 
-        private static T[] GetTypeArrayFrom<T>(JToken token)
+        public static T[] GetTypeArrayFrom<T>(JToken token)
         {
             var values = token["$values"];
 
@@ -64,7 +64,7 @@ namespace BESSy.Extensions
             return values.Children().Select(s => s.ToObject<T>()).ToArray();
         }
 
-        internal static void SetValue<T>(this JObject obj, string token, T value, JsonSerializer serializer)
+        public static void SetValue<T>(this JObject obj, string token, T value, JsonSerializer serializer)
         {
 
             if (String.IsNullOrWhiteSpace(token))

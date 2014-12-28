@@ -3,24 +3,25 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using BESSy.Factories;
+using BESSy.Json.Linq;
 using BESSy.Serialization.Converters;
 
 namespace BESSy.Transactions
 {
-    public interface IPocoTransactionManager<IdType, EntityType> : ITransactionManager<IdType, EntityType>
+    public interface IPocoTransactionManager<IdType, EntityType> : ITransactionManager<IdType, JObject>
     {
         IBinConverter<IdType> IdConverter { get; set; }
     }
 
-    public class PocoTransactionManager<IdType, EntityType> : TransactionManager<IdType, EntityType>, IPocoTransactionManager<IdType, EntityType>
+    public class PocoTransactionManager<IdType, EntityType> : TransactionManager<IdType, JObject>, IPocoTransactionManager<IdType, EntityType>
     {
         public PocoTransactionManager()
-            : base(new PocoTransactionFactory<IdType, EntityType>(), new TransactionSynchronizer<IdType, EntityType>()) { }
+            : base(new PocoTransactionFactory<IdType, JObject>(), new TransactionSynchronizer<IdType, JObject>()) { }
 
         public PocoTransactionManager(IBinConverter<IdType> idConverter)
-            : base(new PocoTransactionFactory<IdType, EntityType>(idConverter), new TransactionSynchronizer<IdType, EntityType>()) { }
+            : base(new PocoTransactionFactory<IdType, JObject>(idConverter), new TransactionSynchronizer<IdType, JObject>()) { }
 
-        public PocoTransactionManager(ITransactionFactory<IdType, EntityType> transactionFactory, ITransactionSynchronizer<IdType, EntityType> transactionSynchronizer)
+        public PocoTransactionManager(ITransactionFactory<IdType, JObject> transactionFactory, ITransactionSynchronizer<IdType, JObject> transactionSynchronizer)
             : base(transactionFactory, transactionSynchronizer)
         { }
 

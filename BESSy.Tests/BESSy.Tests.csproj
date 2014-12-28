@@ -199,6 +199,10 @@
     <Compile Include="FileTest.cs" />
     <Compile Include="Indexes\IndexTests.cs" />
     <Compile Include="Indexes\SecondaryIndexTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JExpressionResolverScalerSelectTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JExpressionResolverSelectTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JDatabaseQueryTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JDatabaseCRUDTests.cs" />
     <Compile Include="Mocks\MockAudioContainer.cs" />
     <Compile Include="Mocks\MockBatchFileManager.cs" />
     <Compile Include="Mocks\MockClassA.cs" />

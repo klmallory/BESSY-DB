@@ -35,6 +35,8 @@ namespace BESSy.Factories
         , bool unique);
 
         Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, bool unique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer);
+
+        Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, bool unique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer, Func<EntityType, IndexType> indexer);
     }
 
     public class IndexFactory : IIndexFactory
@@ -47,6 +49,11 @@ namespace BESSy.Factories
         public Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, bool unique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer)
         {
             return new Index<IndexType, EntityType, SegmentType>(fileNamePath, indexToken, unique, startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer);
+        }
+
+        public Index<IndexType, EntityType, SegmentType> Create<IndexType, EntityType, SegmentType>(string fileNamePath, string indexToken, bool unique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer, Func<EntityType, IndexType> indexer)
+        {
+            return new Index<IndexType, EntityType, SegmentType>(fileNamePath, indexToken, unique, startingSize, indexer, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer);
         }
     }
 }

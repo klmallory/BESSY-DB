@@ -460,12 +460,9 @@ namespace BESSy
                     _idToken = _core.IdProperty;
                     _idConverter = (IBinConverter<IdType>)_core.IdConverter;
 
-                    _primaryIndex = _indexFactory.Create<IdType, EntityType, long>
-                        (GetIndexName(_fileName), _idToken, true, 1024, _idConverter, new BinConverter64(), _rowSynchronizer, new RowSynchronizer<int>(new BinConverter32()));
+                    InitIdMethods();
 
-                    _primaryIndex.Load();
-
-                    _primaryIndex.Register(_fileManager);
+                    InitializePrimaryIndex();
 
                     //_fileManager.SaveFailed += new SaveFailed<EntityType>(OnSaveFailed);
                     _fileManager.TransactionCommitted += new Committed<EntityType>(AfterTransactionCommitted);
@@ -474,8 +471,6 @@ namespace BESSy
 
                     _databaseCache = _cacheFactory.Create<IdType, EntityType>(true, Parallelization.TaskGrouping.ArrayLimit, _idConverter);
                     _stagingCache = _cacheFactory.Create<Guid, IDictionary<IdType, JObject>>(true, Parallelization.TaskGrouping.ArrayLimit, new BinConverterGuid());
-
-                    InitIdMethods();
 
                     //is this segmentSeed a passthrough? jObj.e. string?
                     // _passthrough = IdConverter.Compare(_core.Peek(), default(IdType)) == 0;
@@ -494,6 +489,16 @@ namespace BESSy
                     return _fileManager.Length;
                 }
             }
+        }
+
+        protected virtual void InitializePrimaryIndex()
+        {
+            _primaryIndex = _indexFactory.Create<IdType, EntityType, long>
+                (GetIndexName(_fileName), _idToken, true, 1024, _idConverter, new BinConverter64(), _rowSynchronizer, new RowSynchronizer<int>(new BinConverter32()));
+
+            _primaryIndex.Load();
+
+            _primaryIndex.Register(_fileManager);
         }
 
         protected virtual void InitIdMethods()
@@ -652,12 +657,17 @@ namespace BESSy
 
             if (seg > 0)
             {
-                var entity = _fileManager.LoadSegmentFrom(seg);
+                var entity = LoadFromFile(seg);
 
                 return entity;
             }
 
             return default(EntityType);
+        }
+
+        protected virtual EntityType LoadFromFile(long seg)
+        {
+            return  _fileManager.LoadSegmentFrom(seg);
         }
 
         public virtual IList<EntityType> FetchFromIndex<IndexType>(string name, IndexType indexProperty)

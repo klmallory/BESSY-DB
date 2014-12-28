@@ -72,6 +72,36 @@ namespace BESSy.Relational
             }
         }
 
+        public static void CopyJFields(object local, JObject instance, Type proxyType, string[] fields, string[] tokens)
+        {
+            if (local == null || instance == null || proxyType == null)
+                throw new ArgumentNullException("Proxy and Instance types can not be null");
+
+            if (fields == null || fields.Length == 0)
+                return;
+
+            var localManager = DynamicMemberManager.GetManager(local);
+
+            for (var i = 0; i < fields.Length; i++)
+            {
+                var set = Microsoft.CSharp.RuntimeBinder.Binder.SetMember
+                    (Microsoft.CSharp.RuntimeBinder.CSharpBinderFlags.None,
+                    fields[i], proxyType, new CSharpArgumentInfo[] 
+                        { CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, null), 
+                            CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, null) }) as SetMemberBinder;
+
+                var get = Microsoft.CSharp.RuntimeBinder.Binder.GetMember
+                    (Microsoft.CSharp.RuntimeBinder.CSharpBinderFlags.None,
+                    fields[i], proxyType, new CSharpArgumentInfo[] { CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, null) })
+                    as GetMemberBinder;
+
+                JToken token;
+                if (instance.TryGetValue(tokens[i], out token))
+                    if (token != null)
+                        localManager.TrySetMember(set, token.ToObject(get.ReturnType));
+            }
+        }
+    
         public static void HandleOnCollectionChanged(object proxy, string name, IEnumerable<EntityType> collection)
         {
             var p = proxy as IBESSyProxy<IdType, EntityType>;

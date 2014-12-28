@@ -52,6 +52,7 @@ namespace BESSy.Cache
 
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public NTree(string indexToken, bool enforceUnique, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<int> pageSynchronizer)
+            : this(indexToken, enforceUnique, indexConverter, segmentConverter, pageSynchronizer, GetIndexer(indexToken))
         {
             _indexHints = new Dictionary<IndexType, long>();
             _segmentHints = new Dictionary<SegmentType, long>();
@@ -63,10 +64,7 @@ namespace BESSy.Cache
 
             _hintSkip = 1;
 
-            if (indexToken != null)
-                _indexGet = (Func<EntityType, IndexType>)Delegate.CreateDelegate(typeof(Func<EntityType, IndexType>), typeof(EntityType).GetProperty(indexToken).GetGetMethod());
-            else
-                _indexGet = new Func<EntityType, IndexType>(e => default(IndexType));
+            _indexGet = GetIndexer(indexToken);
 
             _locationSeed = new Seed64();
             _locationConverter = new BinConverter64();
@@ -74,6 +72,37 @@ namespace BESSy.Cache
             _pageSize = TaskGrouping.ReadLimit / (indexConverter.Length + _segmentConverter.Length);
 
             _pageSync = pageSynchronizer;
+        }
+
+        [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
+        public NTree(string indexToken, bool enforceUnique, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<int> pageSynchronizer, Func<EntityType, IndexType> indexGet)
+        {
+            _indexHints = new Dictionary<IndexType, long>();
+            _segmentHints = new Dictionary<SegmentType, long>();
+
+            _indexToken = indexToken;
+            _enforceUnique = enforceUnique;
+            _indexConverter = indexConverter;
+            _segmentConverter = segmentConverter;
+
+            _hintSkip = 1;
+
+            _indexGet = indexGet;
+
+            _locationSeed = new Seed64();
+            _locationConverter = new BinConverter64();
+
+            _pageSize = TaskGrouping.ReadLimit / (indexConverter.Length + _segmentConverter.Length);
+
+            _pageSync = pageSynchronizer;
+        }
+
+        protected static Func<EntityType, IndexType> GetIndexer(string indexToken)
+        {
+            if (indexToken != null)
+                return (Func<EntityType, IndexType>)Delegate.CreateDelegate(typeof(Func<EntityType, IndexType>), typeof(EntityType).GetProperty(indexToken).GetGetMethod());
+            else
+                return new Func<EntityType, IndexType>(e => default(IndexType));
         }
 
         protected object _syncHints = new object();

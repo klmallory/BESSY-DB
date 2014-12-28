@@ -40,14 +40,23 @@ using BESSy.Json.Linq;
 
 namespace BESSy.Relational
 {
-    public interface IPocoRelationalDatabase<IdType, EntityType> : ITransactionalDatabase<IdType, EntityType>
+    public interface IPocoRelationalDatabase<IdType, EntityType> : ITransactionalDatabase<IdType, JObject>
     {
         string IdToken { get; }
         IBinConverter<IdType> IdConverter { get; }
         void UpdateCascade(Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>> cascade);
+
+        void Update(EntityType item, IdType id);
+        IdType Add(EntityType item);
+        IdType AddOrUpdate(EntityType item, IdType id);
+        new EntityType Fetch(IdType id);
+        IList<EntityType> FetchPocoFromIndex<IndexType>(string name, IndexType indexProperty);
+        IList<EntityType> SelectPoco(Func<JObject, bool> selector);
+        IList<EntityType> SelectPocoFirst(Func<JObject, bool> selector, int max);
+        IList<EntityType> SelectPocoLast(Func<JObject, bool> selector, int max);
     }
 
-    public class PocoRelationalDatabase<IdType, EntityType> : AbstractTransactionalDatabase<IdType, EntityType>, IPocoRelationalDatabase<IdType, EntityType>
+    public class PocoRelationalDatabase<IdType, EntityType> : JObjectDatabase<IdType>, IPocoRelationalDatabase<IdType, EntityType>
     {
         public PocoRelationalDatabase(string fileName)
             : this(fileName, new BSONFormatter()
@@ -117,8 +126,7 @@ namespace BESSy.Relational
             , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory)
-            : base(fileName, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
-            , new RowSynchronizer<long>(new BinConverter64()))
+            : base(fileName, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory)
         {
             _proxyFactory = proxyFactory;
 
@@ -234,13 +242,12 @@ namespace BESSy.Relational
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , ITransactionManager<IdType, EntityType> transactionManager
+            , IPocoTransactionManager<IdType, EntityType> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
             , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
             , IIndexFactory indexFactory)
-            : base(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory
-            , new RowSynchronizer<long>(new BinConverter64()))
+            : base(fileName, idToken, core, formatter, converter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory)
         {
             _proxyFactory = proxyFactory;
 
@@ -256,6 +263,8 @@ namespace BESSy.Relational
         protected IProxyFactory<IdType, EntityType> _proxyFactory;
 
         protected IIndex<string, EntityType, IdType> _cascadeIndex = null;
+        protected Func<EntityType, IdType> _pocoIdGet;
+        protected Action<EntityType, IdType> _pocoIdSet;
 
         protected IPocoTransactionManager<IdType, EntityType> _pocoTransactionMananger { get { return _transactionManager as IPocoTransactionManager<IdType, EntityType>; } }
 
@@ -269,8 +278,8 @@ namespace BESSy.Relational
         {
             var length = base.Load();
 
-            _proxyFactory.IdGet = this._idGet;
-            _proxyFactory.IdSet = this._idSet;
+            _proxyFactory.IdGet = this._pocoIdGet;
+            _proxyFactory.IdSet = this._pocoIdSet;
             _proxyFactory.IdToken = this._idToken;
 
             _cascadeIndex = new Index<string, EntityType, IdType>(_fileName + ".cascade" + ".index", null, false);
@@ -281,7 +290,15 @@ namespace BESSy.Relational
             return length;
         }
 
-        protected override void OnTransactionCommitted(ITransaction<IdType, EntityType> transaction)
+        protected override void InitIdMethods()
+        {
+            _pocoIdGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
+            _pocoIdSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
+
+            base.InitIdMethods();
+        }
+
+        protected override void OnTransactionCommitted(ITransaction<IdType, JObject> transaction)
         {
             Trace.TraceInformation("Updating cascades for transaction {0} commit", transaction.Id);
 
@@ -297,7 +314,7 @@ namespace BESSy.Relational
                     long tmp;
                     foreach (var id in c.Item3)
                         if (_cascadeIndex.FetchIndex(id, out tmp) == null && tmp == 0)
-                            transaction.Enlist(Action.Delete, id, default(EntityType));
+                            transaction.Enlist(Action.Delete, id, null);
                 }
                 catch (Exception ex) { Trace.TraceError("Error cascading index for {0}: {1}", c.Item1, ex); }
             }
@@ -317,15 +334,15 @@ namespace BESSy.Relational
             }
         }
 
-        protected override IdType GetSeededId(EntityType item)
+        protected IdType GetSeededId(EntityType item)
         {
             var id = Seed.Increment();
 
             if (!Seed.Passive)
-                _idSet(item, id);
+                _pocoIdSet(item, id);
 
             else
-                id = _idGet(item);
+                id = _pocoIdGet(item);
 
             return id;
         }
@@ -340,7 +357,7 @@ namespace BESSy.Relational
             return tLock;
         }
 
-        public override IdType Add(EntityType item)
+        public IdType Add(EntityType item)
         {
             lock (_syncOperations)
                 _operations.Push(2);
@@ -373,16 +390,16 @@ namespace BESSy.Relational
 
                     var id = GetSeededId(proxy);
 
-                    tLock.Transaction.Enlist(Action.Create, id, proxy);
+                    tLock.Transaction.Enlist(Action.Create, id, Formatter.AsQueryableObj(proxy));
 
                     lock (_hashRoot)
                         _transactionHashMash[tLock.TransactionId].Add(item.GetHashCode(), id);
 
                     proxyItem.Bessy_Proxy_Deep_Copy_From(item);
 
-                    tLock.Transaction.Enlist(Action.Update, id, proxy);
+                    tLock.Transaction.Enlist(Action.Update, id, Formatter.AsQueryableObj(proxy));
 
-                    _idSet(item, id);
+                    _pocoIdSet(item, id);
 
                     return id;
                 }
@@ -390,9 +407,9 @@ namespace BESSy.Relational
             finally { lock (_syncOperations) _operations.Pop(); }
         }
 
-        public override void Update(EntityType item, IdType id)
+        public void Update(EntityType item, IdType id)
         {
-            var newId = _idGet(item);
+            var newId = _pocoIdGet(item);
             var deleteFirst = (_idConverter.Compare(newId, id) != 0);
 
             lock (_syncOperations)
@@ -429,11 +446,11 @@ namespace BESSy.Relational
 
                         if (deleteFirst)
                         {
-                            tLock.Transaction.Enlist(Action.Delete, id, proxy);
-                            tLock.Transaction.Enlist(Action.Create, newId, proxy);
+                            tLock.Transaction.Enlist(Action.Delete, id, null);
+                            tLock.Transaction.Enlist(Action.Create, newId, Formatter.AsQueryableObj(proxy));
                         }
                         else
-                            tLock.Transaction.Enlist(Action.Update, newId, proxy);
+                            tLock.Transaction.Enlist(Action.Update, newId, Formatter.AsQueryableObj(proxy));
 
                         proxyItem.Bessy_Proxy_Deep_Copy_From(item);
                     }
@@ -441,111 +458,109 @@ namespace BESSy.Relational
                     {
                         if (deleteFirst)
                         {
-                            tLock.Transaction.Enlist(Action.Delete, id, item);
-                            tLock.Transaction.Enlist(Action.Create, newId, item);
+                            tLock.Transaction.Enlist(Action.Delete, id, null);
+                            tLock.Transaction.Enlist(Action.Create, newId, Formatter.AsQueryableObj(item));
                         }
                         else
-                            tLock.Transaction.Enlist(Action.Update, newId, item);
+                            tLock.Transaction.Enlist(Action.Update, newId, Formatter.AsQueryableObj(item));
                     }
                 }
             }
             finally { lock (_syncOperations) _operations.Pop(); }
         }
 
-        public override void Update(Type type, JObject obj, IdType id)
-        {
-            base.Update(type, obj, id);
-        }
-
-        public override int UpdateScalar(Type updateType, Func<JObject, bool> selector, Action<JObject> update)
-        {
-            return base.UpdateScalar(updateType, selector, update);
-        }
-
-        public override EntityType Fetch(IdType id)
+        public new EntityType Fetch(IdType id)
         {
             var item = base.Fetch(id);
 
             if (item != null)
             {
-                var p = (item as IBESSyProxy<IdType, EntityType>);
-                p.Bessy_Proxy_Repository = this;
-                p.Bessy_Proxy_Factory = _proxyFactory;
+                var entity = _proxyFactory.GetInstanceFor(this, item);
+
+                //if (entity != null)
+                //{
+                //    var p = entity as IBESSyProxy<IdType, EntityType>;
+                //    p.Bessy_Proxy_Repository = this;
+                //    p.Bessy_Proxy_Factory = _proxyFactory;
+
+                //}
+
+                return entity;
             }
 
-            return item;
+            return default(EntityType);
         }
 
-        public override IList<EntityType> Select(Func<JObject, bool> selector)
+        public IList<EntityType> SelectPoco(Func<JObject, bool> selector)
         {
-            var selects = base.Select(selector);
+            var selects = base.Select(selector)
+                .Select(s => _proxyFactory.GetInstanceFor(this, s)).ToList();
 
-            foreach (var s in selects)
-            {
-                var p = (s as IBESSyProxy<IdType, EntityType>);
+            //foreach (var s in selects)
+            //{
+            //    var p = (s as IBESSyProxy<IdType, EntityType>);
 
-                if (s == null)
-                    continue;
+            //    if (s == null)
+            //        continue;
 
-                p.Bessy_Proxy_Repository = this;
-                p.Bessy_Proxy_Factory = _proxyFactory;
-            }
+            //    p.Bessy_Proxy_Repository = this;
+            //    p.Bessy_Proxy_Factory = _proxyFactory;
+            //}
 
             return selects;
         }
 
-        public override IList<EntityType> SelectFirst(Func<JObject, bool> selector, int max)
+        public IList<EntityType> SelectPocoFirst(Func<JObject, bool> selector, int max)
         {
-            var first = base.SelectFirst(selector, max);
+            var first = base.SelectFirst(selector, max)
+                                .Select(s => _proxyFactory.GetInstanceFor(this, s)).ToList();
 
-            foreach (var s in first)
-            {
-                var p = (s as IBESSyProxy<IdType, EntityType>);
+            //foreach (var s in first)
+            //{
+            //    var p = (s as IBESSyProxy<IdType, EntityType>);
 
-                if (s == null)
-                    continue;
+            //    if (s == null)
+            //        continue;
 
-                p.Bessy_Proxy_Repository = this;
-                p.Bessy_Proxy_Factory = _proxyFactory;
-            }
+            //    p.Bessy_Proxy_Repository = this;
+            //    p.Bessy_Proxy_Factory = _proxyFactory;
+            //}
 
             return first;
         }
 
-        public override IList<EntityType> SelectLast(Func<JObject, bool> selector, int max)
+        public IList<EntityType> SelectPocoLast(Func<JObject, bool> selector, int max)
         {
-            var last = base.SelectLast(selector, max);
+            var last = base.SelectLast(selector, max)
+                .Select(s => _proxyFactory.GetInstanceFor(this, s)).ToList(); 
 
-            foreach (var s in last)
-            {
-                var p = (s as IBESSyProxy<IdType, EntityType>);
+            //foreach (var s in last)
+            //{
+            //    var p = (s as IBESSyProxy<IdType, EntityType>);
 
-                if (s == null)
-                    continue;
+            //    if (s == null)
+            //        continue;
 
-                p.Bessy_Proxy_Repository = this;
-                p.Bessy_Proxy_Factory = _proxyFactory;
-            }
+            //    p.Bessy_Proxy_Repository = this;
+            //    p.Bessy_Proxy_Factory = _proxyFactory;
+            //}
 
             return last;
         }
 
-        public override IList<EntityType> FetchFromIndex<IndexType>(string name, IndexType indexProperty)
+        public IList<EntityType> FetchPocoFromIndex<IndexType>(string name, IndexType indexProperty)
         {
-            var list = base.FetchFromIndex<IndexType>(name, indexProperty);
-
-            foreach (var s in list)
-            {
-                var p = (s as IBESSyProxy<IdType, EntityType>);
-
-                if (s == null)
-                    continue;
-
-                p.Bessy_Proxy_Repository = this;
-                p.Bessy_Proxy_Factory = _proxyFactory;
-            }
+            var list = base.FetchFromIndex<IndexType>(name, indexProperty)
+                .Select(s => _proxyFactory.GetInstanceFor(this, s)).ToList();
 
             return list;
+        }
+
+        public IdType AddOrUpdate(EntityType item, IdType id)
+        {
+            //return base.AddOrUpdate(item, id);
+
+            throw new NotImplementedException();
         }
 
         public override void Dispose()

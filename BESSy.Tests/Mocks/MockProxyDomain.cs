@@ -6,6 +6,7 @@ using BESSy.Relational;
 using BESSy.Json;
 using BESSy.Reflection;
 using System.Reflection;
+using BESSy.Json.Linq;
 
 namespace BESSy.Tests.Mocks
 {
@@ -22,6 +23,86 @@ namespace BESSy.Tests.Mocks
         {
             Bessy_Proxy_Repository = repository;
             Bessy_Proxy_Factory = factory;
+        }
+
+        public void Bessy_Proxy_JCopy_From(JObject instance)
+        {
+            if (instance == null)
+                return;
+
+            var fields = new string[2] { "_fieldTest", "_fieldTest2" };
+
+            var tokens = new string[2] { "_fieldTest", "_fieldTest2" };
+
+            PocoProxyHandler<int, MockClassA>.CopyJFields(this, instance, this.GetType(), fields, tokens);
+
+            JToken token;
+
+            if (instance.TryGetValue("GetSomeCheckSum", out token))
+                GetSomeCheckSum = token.ToObject<double[]>(Bessy_Proxy_Repository.Formatter.Serializer);
+
+            if (instance.TryGetValue("$relationshipIds", out token))
+                Bessy_Proxy_RelationshipIds = token.ToObject<Dictionary<string, int[]>>(Bessy_Proxy_Repository.Formatter.Serializer);
+
+            if (instance.TryGetValue("MyHashMash", out token))
+                MyHashMash = token.ToObject<Dictionary<int, string>>(Bessy_Proxy_Repository.Formatter.Serializer);
+
+            if (instance.TryGetValue("ADomain", out token))
+                ADomain = token.ToObject<MockClassA>();
+
+            if (instance.TryGetValue("Location", out token))
+                Location = token.ToObject<MockStruct>(Bessy_Proxy_Repository.Formatter.Serializer);
+
+            if (instance.TryGetValue("LittleId", out token))
+                LittleId = token.ToObject<short>();
+
+            if (instance.TryGetValue("Id", out token))
+                Id = token.ToObject<int>();
+
+            if (instance.TryGetValue("BigId", out token))
+                BigId = token.ToObject<Int64>();
+
+            if (instance.TryGetValue("DecAnimal", out token))
+                DecAnimal = token.ToObject<decimal>();
+
+            if (instance.TryGetValue("MyDate", out token))
+                MyDate = token.ToObject<DateTime>();
+
+            if (instance.TryGetValue("Name", out token))
+                Name = token.ToObject<string>();
+
+            if (instance.TryGetValue("ReferenceCode", out token))
+                ReferenceCode = token.ToObject<string>();
+
+            if (instance.TryGetValue("ReplicationID", out token))
+                ReplicationID = token.ToObject<Guid>();
+
+            if (instance.TryGetValue("Unsigned16", out token))
+                Unsigned16 = token.ToObject<UInt16>();
+
+            if (instance.TryGetValue("Unsigned32", out token))
+                Unsigned32 = token.ToObject<UInt32>();
+
+            if (instance.TryGetValue("Unsigned64", out token))
+                Unsigned64 = token.ToObject<UInt64>();
+
+            if (instance.TryGetValue("$oldId", out token))
+                Bessy_Proxy_OldId = token.ToObject<int>();
+
+            if (instance.TryGetValue("Bessy_Proxy_Simple_Type_Name", out token))
+                Bessy_Proxy_Simple_Type_Name = token.Value<string>();
+        }
+
+        void CopyProperty(KeyValuePair<string, JToken> property)
+        {
+            var key = property.Key;
+
+            switch (key)
+            {
+                case "BigId":
+                    BigId = property.Value.Value<Int64>();
+                    break;
+            }
         }
 
         public void Bessy_Proxy_Shallow_Copy_From(MockClassA entity)
@@ -50,6 +131,7 @@ namespace BESSy.Tests.Mocks
             Unsigned16 = instance.Unsigned16;
             Unsigned32 = instance.Unsigned32;
             Unsigned64 = instance.Unsigned64;
+            MyHashMash = instance.MyHashMash;
 
             Bessy_Proxy_OldId = Bessy_Proxy_Factory.IdGet(instance);
             Bessy_Proxy_Simple_Type_Name = "BESSy.Tests.Mocks.MockDomain";
@@ -86,6 +168,9 @@ namespace BESSy.Tests.Mocks
 
         [JsonProperty("$relationshipIds")]
         public IDictionary<string, int[]> Bessy_Proxy_RelationshipIds { get; set; }
+
+        [JsonProperty("$id")]
+        public string Bessy_Proxy_OldIdHash { get; set; }
 
         [JsonProperty("$oldId")]
         public int Bessy_Proxy_OldId { get; set; }

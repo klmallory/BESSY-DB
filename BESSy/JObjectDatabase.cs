@@ -193,20 +193,55 @@ namespace BESSy
 
         }
 
+        protected override void InitializePrimaryIndex()
+        {
+            _primaryIndex = _indexFactory.Create<IdType, JObject, long>
+                (GetIndexName(_fileName), _idToken, true, 1024, _idConverter, new BinConverter64(), _rowSynchronizer, new RowSynchronizer<int>(new BinConverter32()), _idGet);
+
+            _primaryIndex.Load();
+
+            _primaryIndex.Register(_fileManager);
+        }
+
         protected override void InitIdMethods()
         {
             _idGet = new Func<JObject, IdType>(j => j.Value<IdType>(_idToken));
             _idSet = new Action<JObject, IdType>((j, v) => j.SetValue<IdType>(_idToken, v, Formatter.Serializer)); 
         }
 
+        protected override JObject LoadFromFile(long seg)
+        {
+            return _fileManager.LoadJObjectFrom(seg);
+        }
+
+        public override IList<JObject> Select(Func<JObject, bool> selector)
+        {
+            return base.SelectJObj(selector);
+        }
+
+        public override IList<JObject> SelectFirst(Func<JObject, bool> selector, int max)
+        {
+            return base.SelectJObjFirst(selector, max);
+        }
+
+        public override IList<JObject> SelectLast(Func<JObject, bool> selector, int max)
+        {
+            return base.SelectJObjLast(selector, max);
+        }
+
+        protected override object GetEntityFrom(Type type, JObject obj)
+        {
+            return obj;
+        }
+
         public override IdType AddJObj(Type type, JObject obj)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public override IdType AddOrUpdateJObj(Type type, JObject obj, IdType id)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public override int DeleteLast(Func<JObject, bool> selector, int max)
