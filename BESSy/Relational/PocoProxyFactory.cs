@@ -53,13 +53,10 @@ namespace BESSy.Relational
 {
     public interface IBESSyProxy<IdType, EntityType>
     {
-        bool Bessy_OnCascade_Delete { get; set; }
         IPocoRelationalDatabase<IdType, EntityType> Bessy_Proxy_Repository { get; set; }
-        IDictionary<string, IdType[]> Bessy_Proxy_RelationshipIds { get; set; }
         IProxyFactory<IdType, EntityType> Bessy_Proxy_Factory { get; set; }
-        IdType Bessy_Proxy_OldId { get; set; }
-        string Bessy_Proxy_Simple_Type_Name { get; set; }
-
+        string Bessy_Proxy_OldIdHash { get; set; }
+        IDictionary<string, IdType[]> Bessy_Proxy_RelationshipIds { get; set; }
         void Bessy_Proxy_Shallow_Copy_From(EntityType entity);
         void Bessy_Proxy_Deep_Copy_From(EntityType entity);
         void Bessy_Proxy_JCopy_From(JObject instance);
@@ -136,6 +133,15 @@ namespace BESSy.Relational
         readonly MethodInfo jTokenTryGetValue = typeof(JObject).GetMethod("TryGetValue",
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
             null, new Type[] { typeof(String), typeof(JToken).MakeByRefType() }, null);
+
+        MethodInfo stringConcat = typeof(String).GetMethod("Concat",
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { typeof(Object), typeof(Object) }, null);
+
+        MethodInfo idToString = typeof(IdType).GetMethod("ToString",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new Type[] { }, null);
+
 
         readonly MethodInfo getIdFromFactory = null;
 
@@ -410,9 +416,6 @@ namespace BESSy.Relational
             MethodBuilder getOldId = null;
             MethodBuilder setOldId = null;
 
-            MethodBuilder getSimpleTypeName = null;
-            MethodBuilder setSimpleTypeName = null;
-
             MethodBuilder getIds = null;
             MethodBuilder setIds = null;
 
@@ -423,14 +426,12 @@ namespace BESSy.Relational
             var repoProp = BuildProperty(typeBuilder, "Bessy_Proxy_Repository", typeof(IPocoRelationalDatabase<IdType, EntityType>), out getRepo, out setRepo);
             var factoryProp = BuildProperty(typeBuilder, "Bessy_Proxy_Factory", typeof(IProxyFactory<IdType, EntityType>), out getFactory, out setFactory);
             var idProp = BuildProperty(typeBuilder, "Bessy_Proxy_RelationshipIds", typeof(IDictionary<string, IdType[]>), out getIds, out setIds);
-            var oldIdProp = BuildProperty(typeBuilder, "Bessy_Proxy_OldId", idType, out getOldId, out setOldId);
-            var simpleNameProp = BuildProperty(typeBuilder, "Bessy_Proxy_Simple_Type_Name", typeof(string), out getSimpleTypeName, out setSimpleTypeName);
+            var oldIdProp = BuildProperty(typeBuilder, "Bessy_Proxy_OldIdHash", typeof(string), out getOldId, out setOldId);
 
             repoProp.SetCustomAttribute(cabJsonIgnore);
             factoryProp.SetCustomAttribute(cabJsonIgnore);
             idProp.SetCustomAttribute(cabJsonPropertyIds);
             oldIdProp.SetCustomAttribute(cabJsonPropertyOldId);
-            simpleNameProp.SetCustomAttribute(cabJsonPropertySimpleTypeName);
 
             var gets = new List<MethodBuilder>();
             var sets = new List<MethodBuilder>();
@@ -445,8 +446,8 @@ namespace BESSy.Relational
             var defaultCtor = BuildDefaultConstructor(typeBuilder, entityType, setIds);
             var initCtor = BuildInitializeConstructor(typeBuilder, defaultCtor, setFactory, setRepo);
 
-            var shallowCopyMethod = BuildShallowCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId, setSimpleTypeName);
-            var deepCopyMethod = BuildDeepCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId, setSimpleTypeName);
+            var shallowCopyMethod = BuildShallowCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId);
+            var deepCopyMethod = BuildDeepCopy(typeBuilder, propOverrides, sets, originalType, getFactory, setOldId);
             var jCopyMethod = BuildJCopyFrom(typeBuilder, propOverrides, originalType, setIds, getRepo);
 
             var type = typeBuilder.CreateType();
@@ -1022,7 +1023,7 @@ namespace BESSy.Relational
             return method;
         }
 
-        private MethodBuilder BuildShallowCopy(TypeBuilder tBuilder, List<PropertyInfo> propOverrides, List<MethodBuilder> sets, Type instanceType, MethodBuilder getFactory, MethodBuilder setOldId, MethodBuilder setSimpleTypeName)
+        private MethodBuilder BuildShallowCopy(TypeBuilder tBuilder, List<PropertyInfo> propOverrides, List<MethodBuilder> sets, Type instanceType, MethodBuilder getFactory, MethodBuilder setOldId)
         {
             var shallow = tBuilder.DefineMethod("Bessy_Proxy_Shallow_Copy_From",
                 System.Reflection.MethodAttributes.Public |
@@ -1052,8 +1053,7 @@ namespace BESSy.Relational
             LocalBuilder strArray = generator.DeclareLocal(typeof(String[]));
             LocalBuilder flag = generator.DeclareLocal(typeof(Boolean));
             LocalBuilder infoArray = generator.DeclareLocal(typeof(CSharpArgumentInfo[]));
-
-            //LocalBuilder cSharp = generator.DeclareLocal(typeof(CSharpArgumentInfo[]));
+            LocalBuilder str = generator.DeclareLocal(typeof(IdType));
 
             Label gtfo = generator.DefineLabel();
             Label ok = generator.DefineLabel();
@@ -1114,19 +1114,19 @@ namespace BESSy.Relational
                 CopyProperty(generator, prop, prop.GetSetMethod());
 
             generator.Emit(OpCodes.Nop);
-            generator.Emit(OpCodes.Ldarg_0);
-            generator.Emit(OpCodes.Ldarg_0);
-            generator.Emit(OpCodes.Call, getFactory);
-            generator.Emit(OpCodes.Call, getIdFromFactory);
-            generator.Emit(OpCodes.Ldarg_1);
-            generator.Emit(OpCodes.Call, getIdInvoke);
-            generator.Emit(OpCodes.Call, setOldId);
-
-            generator.Emit(OpCodes.Nop);
             generator.Emit(OpCodes.Nop);
             generator.Emit(OpCodes.Ldarg_0);
             generator.Emit(OpCodes.Ldstr, tBuilder.BaseType.FullName);
-            generator.Emit(OpCodes.Call, setSimpleTypeName);
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Call, getFactory);
+            generator.Emit(OpCodes.Callvirt, getIdFromFactory);
+            generator.Emit(OpCodes.Ldarg_1);
+            generator.Emit(OpCodes.Callvirt, getIdInvoke);
+            generator.Emit(OpCodes.Stloc_S, 4);
+            generator.Emit(OpCodes.Ldloca_S, 4);
+            generator.Emit(OpCodes.Call, idToString);
+            generator.Emit(OpCodes.Call, stringConcat);
+            generator.Emit(OpCodes.Call, setOldId);
 
             generator.Emit(OpCodes.Nop);
             generator.MarkLabel(gtfo);
@@ -1135,7 +1135,7 @@ namespace BESSy.Relational
             return shallow;
         }
 
-        protected MethodBuilder BuildDeepCopy(TypeBuilder tBuilder, IEnumerable<PropertyInfo> propOverrides, List<MethodBuilder> sets, Type instanceType, MethodBuilder getFactory, MethodBuilder setOldId, MethodBuilder setSimpleTypeName)
+        protected MethodBuilder BuildDeepCopy(TypeBuilder tBuilder, IEnumerable<PropertyInfo> propOverrides, List<MethodBuilder> sets, Type instanceType, MethodBuilder getFactory, MethodBuilder setOldId)
         {
             var deep = tBuilder.DefineMethod("Bessy_Proxy_Deep_Copy_From",
                 System.Reflection.MethodAttributes.Public |
@@ -1185,20 +1185,7 @@ namespace BESSy.Relational
                 CopyProperty(generator, prop, setter);
             }
 
-            generator.Emit(OpCodes.Nop);
-            generator.Emit(OpCodes.Ldarg_0);
-            generator.Emit(OpCodes.Ldarg_0);
-            generator.Emit(OpCodes.Call, getFactory);
-            generator.Emit(OpCodes.Call, getIdFromFactory);
-            generator.Emit(OpCodes.Ldarg_1);
-            generator.Emit(OpCodes.Call, getIdInvoke);
-            generator.Emit(OpCodes.Call, setOldId);
 
-            generator.Emit(OpCodes.Nop);
-            generator.Emit(OpCodes.Nop);
-            generator.Emit(OpCodes.Ldarg_0);
-            generator.Emit(OpCodes.Ldstr, tBuilder.BaseType.FullName);
-            generator.Emit(OpCodes.Call, setSimpleTypeName);
 
             generator.Emit(OpCodes.Nop);
             generator.MarkLabel(gtfo);
@@ -1230,12 +1217,13 @@ namespace BESSy.Relational
                 .Where(f => f.Name != IdToken && !f.IsInitOnly)
                 .ToList();
 
-            var pFields = fields.Where(f => !f.IsPublic && (f.FieldType.IsValueType || f.FieldType == typeof(string) || f.FieldType.IsArray || f.FieldType.IsClass));
+            var pFields = fields.Where(f => !f.IsPublic && (f.FieldType.IsValueType || f.FieldType == typeof(string) || f.FieldType.IsArray || f.FieldType.IsClass)).ToList();
 
             LocalBuilder fieldNames = generator.DeclareLocal(typeof(String[]));
             LocalBuilder token = generator.DeclareLocal(typeof(JToken));
             LocalBuilder flag = generator.DeclareLocal(typeof(Boolean));
             LocalBuilder tokenNames = generator.DeclareLocal(typeof(String[]));
+            LocalBuilder tmpArray = generator.DeclareLocal(typeof(String[]));
 
             // Preparing labels
             Label nullCheckOk = generator.DefineLabel();
@@ -1249,51 +1237,54 @@ namespace BESSy.Relational
             generator.Emit(OpCodes.Ceq);
             generator.Emit(OpCodes.Stloc_2);
             generator.Emit(OpCodes.Ldloc_2);
-            generator.Emit(OpCodes.Brtrue_S, nullCheckOk);
+            generator.Emit(OpCodes.Brtrue, nullCheckOk);
             generator.Emit(OpCodes.Br, gtfo);
             generator.MarkLabel(nullCheckOk);
 
-            if (pFields != null && pFields.Count() > 0)
+            if (pFields != null && pFields.Count > 0)
             {
-                generator.Emit(OpCodes.Ldc_I4, pFields.Count());
-                generator.Emit(OpCodes.Newarr, typeof(String));
-                generator.Emit(OpCodes.Stloc_0);
-                generator.Emit(OpCodes.Ldloc_0);
+                generator.Emit(OpCodes.Nop);
 
-                int count = 0;
-                foreach (var field in pFields)
+                generator.Emit(OpCodes.Ldc_I4, pFields.Count);
+                generator.Emit(OpCodes.Newarr, typeof(System.String));
+                generator.Emit(OpCodes.Stloc, tmpArray);
+                generator.Emit(OpCodes.Ldloc, tmpArray);
+
+                for (var i = 0; i < pFields.Count; i++)
                 {
-                    generator.Emit(OpCodes.Ldc_I4, count);
-                    generator.Emit(OpCodes.Ldstr, field.Name);
+                    generator.Emit(OpCodes.Ldc_I4, i);
+                    generator.Emit(OpCodes.Ldstr, pFields[i].Name);
                     generator.Emit(OpCodes.Stelem_Ref);
-                    generator.Emit(OpCodes.Ldloc_0);
-
-                    count++;
+                    generator.Emit(OpCodes.Ldloc, tmpArray);
                 }
 
-                generator.Emit(OpCodes.Ldc_I4, pFields.Count());
-                generator.Emit(OpCodes.Newarr, typeof(String));
-                generator.Emit(OpCodes.Stloc_3);
-                generator.Emit(OpCodes.Ldloc_3);
+                generator.Emit(OpCodes.Stloc_0);
 
-                count = 0;
-                foreach (var field in pFields)
+                generator.Emit(OpCodes.Nop);
+
+                generator.Emit(OpCodes.Ldc_I4, pFields.Count);
+                generator.Emit(OpCodes.Newarr, typeof(string));
+                generator.Emit(OpCodes.Stloc, tmpArray);
+                generator.Emit(OpCodes.Ldloc, tmpArray);
+
+                for (var i = 0; i < pFields.Count; i++)
                 {
-                    var fieldName = field.Name;
-                    var jprop = field.GetCustomAttributes(true)
+                    var fieldName = pFields[i].Name;
+                    var jprop = pFields[i].GetCustomAttributes(true)
                         .FirstOrDefault(a => a is JsonPropertyAttribute) as JsonPropertyAttribute;
 
                     if (jprop != null && !string.IsNullOrWhiteSpace(jprop.PropertyName))
                         fieldName = jprop.PropertyName;
 
-                    generator.Emit(OpCodes.Ldc_I4, count);
+                    generator.Emit(OpCodes.Ldc_I4, i);
                     generator.Emit(OpCodes.Ldstr, fieldName);
                     generator.Emit(OpCodes.Stelem_Ref);
-                    generator.Emit(OpCodes.Ldloc, 3);
-
-                    count++;
+                    generator.Emit(OpCodes.Ldloc, tmpArray);
                 }
 
+                generator.Emit(OpCodes.Stloc_3);
+
+                generator.Emit(OpCodes.Nop);
                 generator.Emit(OpCodes.Ldarg_0);
                 generator.Emit(OpCodes.Ldarg_1);
                 generator.Emit(OpCodes.Ldarg_0);
@@ -1312,6 +1303,8 @@ namespace BESSy.Relational
 
             foreach (var prop in properties.Where(p => !propOverrides.Any(o => o.Name == p.Name)))
                 CopyJToken(generator, prop, prop.GetSetMethod(), getRepo);
+
+            CopyJToken(generator, "$relationshipIds", typeof(Dictionary<string, IdType[]>), setIds, getRepo);
 
             generator.MarkLabel(gtfo);
             generator.Emit(OpCodes.Nop);
@@ -1408,60 +1401,28 @@ namespace BESSy.Relational
 
             var exitLabel = generator.DefineLabel();
 
-            if (field.FieldType.IsArray ||
-                (field.FieldType.GetInterface("IEnumerable") != null
-               && field.FieldType.GetGenericArguments().Length == 1) ||
-                (field.FieldType.GetInterface("IDictionary") != null
-                && field.FieldType.GetGenericArguments().Length == 2)
-                )
-            {
-                var toJObject = typeof(JToken).GetMethod("ToObject",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null, new Type[] { typeof(JsonSerializer) }, null).MakeGenericMethod(field.FieldType);
+            var toJObject = typeof(JToken).GetMethod("ToObject",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, new Type[] { typeof(JsonSerializer) }, null).MakeGenericMethod(field.FieldType);
 
-                generator.Emit(OpCodes.Ldarg_1);
-                generator.Emit(OpCodes.Ldstr, fieldName);
-                generator.Emit(OpCodes.Ldloca_S, 1);
-                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
-                generator.Emit(OpCodes.Ldc_I4_0);
-                generator.Emit(OpCodes.Ceq);
-                generator.Emit(OpCodes.Stloc_2);
-                generator.Emit(OpCodes.Ldloc_2);
-                generator.Emit(OpCodes.Brtrue_S, exitLabel);
-                generator.Emit(OpCodes.Ldarg_0);
-                generator.Emit(OpCodes.Ldloc_1);
-                generator.Emit(OpCodes.Ldarg_0);
-                generator.Emit(OpCodes.Call, getRepo);
-                generator.Emit(OpCodes.Callvirt, getFormatter);
-                generator.Emit(OpCodes.Callvirt, getSerializer);
-                generator.Emit(OpCodes.Callvirt, toJObject);
-                generator.Emit(OpCodes.Stfld, field);
-            }
-            else if (field.FieldType.IsValueType)
-            {
-                var toJObject = typeof(JToken).GetMethod("ToObject",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null, new Type[] { }, null).MakeGenericMethod(field.FieldType);
+            generator.Emit(OpCodes.Ldarg_1);
+            generator.Emit(OpCodes.Ldstr, fieldName);
+            generator.Emit(OpCodes.Ldloca_S, 1);
+            generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
+            generator.Emit(OpCodes.Ldc_I4_0);
+            generator.Emit(OpCodes.Ceq);
+            generator.Emit(OpCodes.Stloc_2);
+            generator.Emit(OpCodes.Ldloc_2);
+            generator.Emit(OpCodes.Brtrue_S, exitLabel);
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Ldloc_1);
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Call, getRepo);
+            generator.Emit(OpCodes.Callvirt, getFormatter);
+            generator.Emit(OpCodes.Callvirt, getSerializer);
+            generator.Emit(OpCodes.Callvirt, toJObject);
+            generator.Emit(OpCodes.Stfld, field);
 
-                generator.Emit(OpCodes.Ldarg_1);
-                generator.Emit(OpCodes.Ldstr, fieldName);
-                generator.Emit(OpCodes.Ldloca_S, 1);
-                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
-                generator.Emit(OpCodes.Ldc_I4_0);
-                generator.Emit(OpCodes.Ceq);
-                generator.Emit(OpCodes.Stloc_2);
-                generator.Emit(OpCodes.Ldloc_2);
-                generator.Emit(OpCodes.Brtrue_S, exitLabel);
-                generator.Emit(OpCodes.Ldarg_0);
-                generator.Emit(OpCodes.Ldloc_1);
-                generator.Emit(OpCodes.Callvirt, toJObject);
-                generator.Emit(OpCodes.Stfld, field);
-            }
-            else
-            {
-                Trace.TraceError("Unknown Field Type {0} on type {1} could not be copied", field.FieldType, proxyType);
-                return;
-            }
 
             generator.Emit(OpCodes.Nop);
             generator.MarkLabel(exitLabel);
@@ -1485,59 +1446,60 @@ namespace BESSy.Relational
 
             var exitLabel = generator.DefineLabel();
 
-            if (prop.PropertyType.IsArray ||
-                (prop.PropertyType.GetInterface("IEnumerable") != null
-               && prop.PropertyType.GetGenericArguments().Length == 1) ||
-                (prop.PropertyType.GetInterface("IDictionary") != null
-                && prop.PropertyType.GetGenericArguments().Length == 2))
-            {
-                var toJObject = typeof(JToken).GetMethod("ToObject",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null, new Type[] { typeof(JsonSerializer) }, null).MakeGenericMethod(prop.PropertyType);
+            var toJObject = typeof(JToken).GetMethod("ToObject",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, new Type[] { typeof(JsonSerializer) }, null).MakeGenericMethod(prop.PropertyType);
 
-                generator.Emit(OpCodes.Ldarg_1);
-                generator.Emit(OpCodes.Ldstr, fieldName);
-                generator.Emit(OpCodes.Ldloca_S, 1);
-                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
-                generator.Emit(OpCodes.Ldc_I4_0);
-                generator.Emit(OpCodes.Ceq);
-                generator.Emit(OpCodes.Stloc_2);
-                generator.Emit(OpCodes.Ldloc_2);
-                generator.Emit(OpCodes.Brtrue_S, exitLabel);
-                generator.Emit(OpCodes.Ldarg_0);
-                generator.Emit(OpCodes.Ldloc_1);
-                generator.Emit(OpCodes.Ldarg_0);
-                generator.Emit(OpCodes.Call, getRepo);
-                generator.Emit(OpCodes.Callvirt, getFormatter);
-                generator.Emit(OpCodes.Callvirt, getSerializer);
-                generator.Emit(OpCodes.Callvirt, toJObject);
-                generator.Emit(OpCodes.Call, setter);
-            }
-            else if (prop.PropertyType.IsValueType)
-            {
-                var toJObject = typeof(JToken).GetMethod("ToObject",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null, new Type[] { }, null).MakeGenericMethod(prop.PropertyType);
+            generator.Emit(OpCodes.Ldarg_1);
+            generator.Emit(OpCodes.Ldstr, fieldName);
+            generator.Emit(OpCodes.Ldloca_S, 1);
+            generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
+            generator.Emit(OpCodes.Ldc_I4_0);
+            generator.Emit(OpCodes.Ceq);
+            generator.Emit(OpCodes.Stloc_2);
+            generator.Emit(OpCodes.Ldloc_2);
+            generator.Emit(OpCodes.Brtrue_S, exitLabel);
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Ldloc_1);
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Call, getRepo);
+            generator.Emit(OpCodes.Callvirt, getFormatter);
+            generator.Emit(OpCodes.Callvirt, getSerializer);
+            generator.Emit(OpCodes.Callvirt, toJObject);
+            generator.Emit(OpCodes.Call, setter);
 
-                generator.Emit(OpCodes.Ldarg_1);
-                generator.Emit(OpCodes.Ldstr, fieldName);
-                generator.Emit(OpCodes.Ldloca_S, 1);
-                generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
-                generator.Emit(OpCodes.Ldc_I4_0);
-                generator.Emit(OpCodes.Ceq);
-                generator.Emit(OpCodes.Stloc_2);
-                generator.Emit(OpCodes.Ldloc_2);
-                generator.Emit(OpCodes.Brtrue_S, exitLabel);
-                generator.Emit(OpCodes.Ldarg_0);
-                generator.Emit(OpCodes.Ldloc_1);
-                generator.Emit(OpCodes.Callvirt, toJObject);
-                generator.Emit(OpCodes.Call, setter);
-            }
-            else
-            {
-                Trace.TraceError("Unknown Property Type {0} on type {1} could not be copied", prop.PropertyType, generator);
+            generator.Emit(OpCodes.Nop);
+            generator.MarkLabel(exitLabel);
+        }
+
+        private void CopyJToken(ILGenerator generator, string tokenName, Type type, MethodInfo setter, MethodInfo getRepo)
+        {
+            if (setter == null)
                 return;
-            }
+
+            var exitLabel = generator.DefineLabel();
+
+            var toJObject = typeof(JToken).GetMethod("ToObject",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, new Type[] { typeof(JsonSerializer) }, null).MakeGenericMethod(type);
+
+            generator.Emit(OpCodes.Ldarg_1);
+            generator.Emit(OpCodes.Ldstr, tokenName);
+            generator.Emit(OpCodes.Ldloca_S, 1);
+            generator.Emit(OpCodes.Callvirt, jTokenTryGetValue);
+            generator.Emit(OpCodes.Ldc_I4_0);
+            generator.Emit(OpCodes.Ceq);
+            generator.Emit(OpCodes.Stloc_2);
+            generator.Emit(OpCodes.Ldloc_2);
+            generator.Emit(OpCodes.Brtrue_S, exitLabel);
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Ldloc_1);
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Call, getRepo);
+            generator.Emit(OpCodes.Callvirt, getFormatter);
+            generator.Emit(OpCodes.Callvirt, getSerializer);
+            generator.Emit(OpCodes.Callvirt, toJObject);
+            generator.Emit(OpCodes.Call, setter);
 
             generator.Emit(OpCodes.Nop);
             generator.MarkLabel(exitLabel);

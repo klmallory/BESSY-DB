@@ -59,7 +59,6 @@ namespace BESSy.Tests.ProxyTests
         }
 
         [Test]
-        [Category("Performance")]
         public void ProxyReusesTypes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -98,7 +97,6 @@ namespace BESSy.Tests.ProxyTests
         }
 
         [Test]
-        [Category("Performance")]
         public void ProxyOverridesIdAndStoresOldId()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -138,7 +136,6 @@ namespace BESSy.Tests.ProxyTests
         }
 
         [Test]
-        [Category("Performance")]
         public void PocoProxyConvertsExternalDomain()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -183,7 +180,6 @@ namespace BESSy.Tests.ProxyTests
         }
 
         [Test]
-        [Category("Performance")]
         public void PocoProxyUpdatesExternalDomain()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();

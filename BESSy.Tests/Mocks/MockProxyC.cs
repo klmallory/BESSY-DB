@@ -87,38 +87,8 @@ namespace BESSy.Tests.Mocks
             if (instance.TryGetValue("Unsigned64", out token))
                 Unsigned64 = token.ToObject<UInt64>();
 
-            if (instance.TryGetValue("$oldId", out token))
-                Bessy_Proxy_OldId = token.ToObject<int>();
-
-            if (instance.TryGetValue("Bessy_Proxy_Simple_Type_Name", out token))
-                Bessy_Proxy_Simple_Type_Name = token.Value<string>();
-        }
-
-        public void Bessy_Proxy_Shallow_Copy_From(JObject instance)
-        {
-            if (instance == null)
-                return;
-
-            LittleId = instance.Value<short>("LittleId");
-
-            JToken token;
-
-            if (instance.TryGetValue("GetSomeCheckSum", out token))
-                GetSomeCheckSum = token.Children().Select(s => s.Value<double>()).ToArray();
-
-            BigId = instance.Value<Int64>("BigId");
-            DecAnimal = instance.Value<decimal>("DecAnimal");
-            Location = instance.Value<MockStruct>("Location");
-            MyDate = instance.Value<DateTime>("MyDate");
-            Name = instance.Value<string>("Name");
-            ReferenceCode = instance.Value<string>("ReferenceCode");
-            ReplicationID = instance.Value<Guid>("ReplicationID");
-            Unsigned16 = instance.Value<UInt16>("Unsigned16");
-            Unsigned32 = instance.Value<UInt32>("Unsigned32");
-            Unsigned64 = instance.Value<UInt64>("Unsigned64");
-
-            Bessy_Proxy_OldId = instance.Value<int>(Bessy_Proxy_Factory.IdToken);
-            Bessy_Proxy_Simple_Type_Name = "BESSy.Tests.Mocks.MockDomain";
+            if (instance.TryGetValue("$id", out token))
+                Bessy_Proxy_OldIdHash = token.ToObject<string>();
         }
 
         public void Bessy_Proxy_Shallow_Copy_From(MockClassA entity)
@@ -143,8 +113,7 @@ namespace BESSy.Tests.Mocks
             Unsigned32 = instance.Unsigned32;
             Unsigned64 = instance.Unsigned64;
 
-            Bessy_Proxy_OldId = Bessy_Proxy_Factory.IdGet(instance);
-            Bessy_Proxy_Simple_Type_Name = "BESSy.Tests.Mocks.MockDomain";
+            Bessy_Proxy_OldIdHash = "BESSy.Tests.Mocks.MockDomain" + Bessy_Proxy_Factory.IdGet(instance).ToString();
         }
 
         public void Bessy_Proxy_Deep_Copy_From(MockClassA entity)
@@ -172,12 +141,8 @@ namespace BESSy.Tests.Mocks
         [JsonProperty("$relationshipIds")]
         public IDictionary<string, int[]> Bessy_Proxy_RelationshipIds { get; set; }
 
-        [JsonProperty("$oldId")]
-        public int Bessy_Proxy_OldId { get; set; }
-
-        [JsonProperty("$simpleTypeName")]
-
-        public string Bessy_Proxy_Simple_Type_Name { get; set; }
+        [JsonProperty("$id")]
+        public string Bessy_Proxy_OldIdHash { get; set; }
 
         [JsonIgnore]
         public override MockClassC Friend
@@ -192,7 +157,5 @@ namespace BESSy.Tests.Mocks
             get { base.Other = PocoProxyHandler<int, MockClassA>.GetRelatedEntity(this, "Other") as MockDomain; return base.Other; }
             set { base.Other = value; PocoProxyHandler<int, MockClassA>.SetRelatedEntity(this, "Other", value); }
         }
-
-
     }
 }

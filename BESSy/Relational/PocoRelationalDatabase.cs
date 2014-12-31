@@ -141,7 +141,14 @@ namespace BESSy.Relational
         }
 
         public PocoRelationalDatabase(string fileName, string idToken)
-            : this(fileName, idToken
+            : this(fileName, idToken, null
+            , TypeFactory.GetFileCoreFor<IdType, long>())
+        {
+
+        }
+
+        public PocoRelationalDatabase(string fileName, string idToken, string domainIdToken)
+            : this(fileName, idToken, domainIdToken
             , TypeFactory.GetFileCoreFor<IdType, long>())
         {
 
@@ -149,6 +156,7 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string domainIdToken
             , IFileCore<IdType, long> core)
             : this(fileName, idToken, core
             , new BSONFormatter())
@@ -386,6 +394,10 @@ namespace BESSy.Relational
 
                     var proxyItem = (proxy as IBESSyProxy<IdType, EntityType>);
 
+                    proxyItem.Bessy_Proxy_Repository = this;
+                    proxyItem.Bessy_Proxy_Factory = _proxyFactory;
+                    proxyItem.Bessy_Proxy_OldIdHash = item.GetType().FullName + _proxyFactory.IdGet(item).ToString();
+
                     proxyItem.Bessy_Proxy_Shallow_Copy_From(item);
 
                     var id = GetSeededId(proxy);
@@ -453,6 +465,8 @@ namespace BESSy.Relational
                             tLock.Transaction.Enlist(Action.Update, newId, Formatter.AsQueryableObj(proxy));
 
                         proxyItem.Bessy_Proxy_Deep_Copy_From(item);
+
+                        tLock.Transaction.Enlist(Action.Update, newId, Formatter.AsQueryableObj(proxy));
                     }
                     else
                     {
@@ -477,14 +491,6 @@ namespace BESSy.Relational
             {
                 var entity = _proxyFactory.GetInstanceFor(this, item);
 
-                //if (entity != null)
-                //{
-                //    var p = entity as IBESSyProxy<IdType, EntityType>;
-                //    p.Bessy_Proxy_Repository = this;
-                //    p.Bessy_Proxy_Factory = _proxyFactory;
-
-                //}
-
                 return entity;
             }
 
@@ -496,17 +502,6 @@ namespace BESSy.Relational
             var selects = base.Select(selector)
                 .Select(s => _proxyFactory.GetInstanceFor(this, s)).ToList();
 
-            //foreach (var s in selects)
-            //{
-            //    var p = (s as IBESSyProxy<IdType, EntityType>);
-
-            //    if (s == null)
-            //        continue;
-
-            //    p.Bessy_Proxy_Repository = this;
-            //    p.Bessy_Proxy_Factory = _proxyFactory;
-            //}
-
             return selects;
         }
 
@@ -515,17 +510,6 @@ namespace BESSy.Relational
             var first = base.SelectFirst(selector, max)
                                 .Select(s => _proxyFactory.GetInstanceFor(this, s)).ToList();
 
-            //foreach (var s in first)
-            //{
-            //    var p = (s as IBESSyProxy<IdType, EntityType>);
-
-            //    if (s == null)
-            //        continue;
-
-            //    p.Bessy_Proxy_Repository = this;
-            //    p.Bessy_Proxy_Factory = _proxyFactory;
-            //}
-
             return first;
         }
 
@@ -533,17 +517,6 @@ namespace BESSy.Relational
         {
             var last = base.SelectLast(selector, max)
                 .Select(s => _proxyFactory.GetInstanceFor(this, s)).ToList(); 
-
-            //foreach (var s in last)
-            //{
-            //    var p = (s as IBESSyProxy<IdType, EntityType>);
-
-            //    if (s == null)
-            //        continue;
-
-            //    p.Bessy_Proxy_Repository = this;
-            //    p.Bessy_Proxy_Factory = _proxyFactory;
-            //}
 
             return last;
         }

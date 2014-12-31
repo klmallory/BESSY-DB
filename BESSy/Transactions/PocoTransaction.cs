@@ -34,7 +34,7 @@ namespace BESSy.Transactions
 
         IBinConverter<IdType> _idConverter = null;
 
-        List<Tuple<IdType, string>> _enlistedOldIds = new List<Tuple<IdType, string>>();
+        List<string> _enlistedOldIds = new List<string>();
 
         public override void Enlist(Action action, IdType id, EntityType entity)
         {
@@ -42,7 +42,7 @@ namespace BESSy.Transactions
 
             if (proxy != null)
                 lock (_syncRoot)
-                    _enlistedOldIds.Add(new Tuple<IdType, string>(proxy.Bessy_Proxy_OldId, proxy.Bessy_Proxy_Simple_Type_Name));
+                    _enlistedOldIds.Add(proxy.Bessy_Proxy_OldIdHash);
 
             base.Enlist(action, id, entity);
         }
@@ -50,7 +50,7 @@ namespace BESSy.Transactions
         public bool Contains(IdType id, string typeName)
         {
             lock (_syncRoot)
-                return _enlistedOldIds.Any(o => _idConverter.Compare(o.Item1, id) == 0 && typeName == o.Item2);
+                return _enlistedOldIds.Contains(typeName + id);
         }
     }
 }
