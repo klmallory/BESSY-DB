@@ -67,6 +67,11 @@ namespace BESSy.Relational
         string IdToken { get; set; }
         Func<EntityType, IdType> IdGet { get; set; }
         Action<EntityType, IdType> IdSet { get; set; }
+
+        string ExternalIdToken { get; set; }
+        Func<EntityType, String> ExternalIdGet { get; set; }
+        Action<EntityType, String> ExternalIdSet { get; set; }
+
         Type GetProxyTypeFor(Type type);
         T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType;
         EntityType GetInstanceFor(IPocoRelationalDatabase<IdType, EntityType> repository, JObject instance);
@@ -147,12 +152,17 @@ namespace BESSy.Relational
 
         readonly MethodInfo getIdInvoke = typeof(System.Func<EntityType, IdType>).GetMethod("Invoke");
 
+        readonly MethodInfo getExternalIdFromFactory = null;
+
+        readonly MethodInfo getExternalIdInvoke = typeof(System.Func<EntityType, String>).GetMethod("Invoke");
+
         bool useTransientAssembly = true;
         string assemblyName = "Bessy.Proxy";
 
         public PocoProxyFactory()
         {
             getIdFromFactory = this.GetType().GetMethod("get_IdGet");
+            getExternalIdFromFactory = this.GetType().GetMethod("get_ExternalIdGet");
         }
 
         public PocoProxyFactory(string assemblyName, bool useTransientAssembly)
@@ -171,10 +181,12 @@ namespace BESSy.Relational
         public Action<EntityType, IdType> IdSet { get; set; }
         public string IdToken { get; set; }
 
+        public Func<EntityType, String> ExternalIdGet { get; set; }
+        public Action<EntityType, String> ExternalIdSet { get; set; }
+        public string ExternalIdToken { get; set; }
+
         private Assembly LoadAssembly(string an)
         {
-            Assembly assembly = null;
-
             lock (_syncRoot)
                 if (_assemblyCache.ContainsKey(an))
                     return _assemblyCache[an];
@@ -183,29 +195,28 @@ namespace BESSy.Relational
                 if (_assemblyBuilderCache.ContainsKey(an))
                     return _assemblyBuilderCache[an];
 
-            if (!_assemblyCache.ContainsKey(an))
+            try
             {
-                try
-                {
-                    assembly = Assembly.LoadWithPartialName(an);
+                var assembly = Assembly.LoadWithPartialName(an);
 
-                    if (assembly == null)
-                    {
-                        Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+                if (assembly != null)
+                    return assembly;
 
-                        //load partial name first for dynamic assemblies
-                        for (var i = 0; i < loadedAssemblies.Length; i++)
-                            if (loadedAssemblies[i].FullName.StartsWith(assemblyName + ","))
-                            { assembly = loadedAssemblies[i]; break; }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Trace.TraceError("Unable to load assembly {0}", ex);
-                }
+                Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+
+                //load partial name first for dynamic assemblies
+                for (var i = 0; i < loadedAssemblies.Length; i++)
+                    if (loadedAssemblies[i].FullName.StartsWith(assemblyName + ","))
+                    { assembly = loadedAssemblies[i]; break; }
+
+                return assembly;
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError("Unable to load assembly {0}", ex);
             }
 
-            return assembly;
+            return null;
         }
 
         public T GetInstanceFor<T>(IPocoRelationalDatabase<IdType, EntityType> repository, T instance) where T : EntityType
@@ -620,13 +631,6 @@ namespace BESSy.Relational
 
         private MethodBuilder BuildReadonlyGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, PropertyInfo propInfo, Type pType)
         {
-            //System.Reflection.MethodAttributes methodAttributes =
-            //      System.Reflection.MethodAttributes.Public
-            //    | System.Reflection.MethodAttributes.Virtual
-            //    | System.Reflection.MethodAttributes.Final
-            //    | System.Reflection.MethodAttributes.HideBySig
-            //    | System.Reflection.MethodAttributes.NewSlot;
-
             MethodInfo baseGet = propInfo.GetGetMethod();
 
             if (!baseGet.IsVirtual)
@@ -657,13 +661,6 @@ namespace BESSy.Relational
 
         protected MethodBuilder BuildGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, PropertyInfo propInfo, Type pType)
         {
-            //System.Reflection.MethodAttributes methodAttributes =
-            //      System.Reflection.MethodAttributes.Public
-            //    | System.Reflection.MethodAttributes.Virtual
-            //    | System.Reflection.MethodAttributes.Final
-            //    | System.Reflection.MethodAttributes.HideBySig
-            //    | System.Reflection.MethodAttributes.NewSlot;
-
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
@@ -702,15 +699,6 @@ namespace BESSy.Relational
 
         protected MethodBuilder BuildSetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, PropertyInfo propInfo, Type pType)
         {
-            // Declaring method builder
-            // Method attributes
-            //System.Reflection.MethodAttributes methodAttributes =
-            //      System.Reflection.MethodAttributes.Public
-            //    | System.Reflection.MethodAttributes.Virtual
-            //    | System.Reflection.MethodAttributes.Final
-            //    | System.Reflection.MethodAttributes.HideBySig
-            //    | System.Reflection.MethodAttributes.NewSlot;
-
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
@@ -793,15 +781,6 @@ namespace BESSy.Relational
 
         private MethodBuilder BuildEnumerableReadonlyGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, Type innerType, PropertyInfo propInfo)
         {
-            // Declaring method builder
-            // Method attributes
-            //System.Reflection.MethodAttributes methodAttributes =
-            //      System.Reflection.MethodAttributes.Public
-            //    | System.Reflection.MethodAttributes.Virtual
-            //    | System.Reflection.MethodAttributes.Final
-            //    | System.Reflection.MethodAttributes.HideBySig
-            //    | System.Reflection.MethodAttributes.NewSlot;
-
             MethodInfo baseGet = propInfo.GetGetMethod();
 
             if (!baseGet.IsVirtual)
@@ -844,15 +823,6 @@ namespace BESSy.Relational
 
         protected MethodBuilder BuildEnumerableGetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, Type innerType, PropertyInfo propInfo)
         {
-            // Declaring method builder
-            // Method attributes
-            //System.Reflection.MethodAttributes methodAttributes =
-            //      System.Reflection.MethodAttributes.Public
-            //    | System.Reflection.MethodAttributes.Virtual
-            //    | System.Reflection.MethodAttributes.Final
-            //    | System.Reflection.MethodAttributes.HideBySig
-            //    | System.Reflection.MethodAttributes.NewSlot;
-
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
@@ -903,15 +873,6 @@ namespace BESSy.Relational
 
         protected MethodBuilder BuildEnumerableSetter(TypeBuilder tBuilder, PropertyBuilder factoryMethod, Type innerType, PropertyInfo propInfo)
         {
-            // Declaring method builder
-            // Method attributes
-            //System.Reflection.MethodAttributes methodAttributes =
-            //      System.Reflection.MethodAttributes.Public
-            //    | System.Reflection.MethodAttributes.Virtual
-            //    | System.Reflection.MethodAttributes.Final
-            //    | System.Reflection.MethodAttributes.HideBySig
-            //    | System.Reflection.MethodAttributes.NewSlot;
-
             MethodInfo baseGet = propInfo.GetGetMethod();
             MethodInfo baseSet = propInfo.GetSetMethod();
 
@@ -1184,8 +1145,6 @@ namespace BESSy.Relational
 
                 CopyProperty(generator, prop, setter);
             }
-
-
 
             generator.Emit(OpCodes.Nop);
             generator.MarkLabel(gtfo);

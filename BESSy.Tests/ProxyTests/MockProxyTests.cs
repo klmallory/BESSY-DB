@@ -24,7 +24,7 @@ namespace BESSy.Tests.ProxyTests
             var domain = TestResourceFactory.CreateRandomDomain();
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
-                (_testName + ".database", "Id", new FileCore<int, long>(),
+                (_testName + ".database", "Id", null, new FileCore<int, long>(),
                 new BSONFormatter(), new BinConverter32(),
                 new MockProxyFactory<int, MockClassA>()))
             {

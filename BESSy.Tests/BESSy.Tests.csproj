@@ -179,11 +179,12 @@
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerHelper.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerQueryTests.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerRebuildTests.cs" />
+    <Compile Include="AtomicFileManagerTests\AtomicFileManagerStreamingTests.cs" />
     <Compile Include="CachingTests\DatabaseCacheTests.cs" />
     <Compile Include="CryptoTests\CryptoDatabaseTests.cs" />
     <Compile Include="CryptoTests\RC2Tests.cs" />
-    <Compile Include="DatabaseFactoryTests\DatabaseFactoryNegativeTests.cs" />
-    <Compile Include="DatabaseFactoryTests\DataBaseFactoryTests.cs" />
+    <Compile Include="FactoryTests\DatabaseFactoryNegativeTests.cs" />
+    <Compile Include="FactoryTests\DataBaseFactoryTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCapacityTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCompressionTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCRUDTests.cs" />
@@ -195,6 +196,7 @@
     <Compile Include="ExpressionResolverTests\ExpressionResolverScalerSelectTests.cs" />
     <Compile Include="ExpressionResolverTests\ExpressionResolverSelectTests.cs" />
     <Compile Include="ExpressionResolverTests\ExpressionResolverUpdateScalarTests.cs" />
+    <Compile Include="ExtensionsTest\JObjectExtensionTests.cs" />
     <Compile Include="FileRepositoryTests\XmlFileRepositoryTests.cs" />
     <Compile Include="FileTest.cs" />
     <Compile Include="Indexes\IndexTests.cs" />
@@ -276,9 +278,7 @@
       <Name>BESSy</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="ExtensionsTest\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <EmbeddedResource Include="ResourceRepositoryTests\Resources\testRes.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>

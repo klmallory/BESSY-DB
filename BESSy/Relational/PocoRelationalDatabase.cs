@@ -75,7 +75,7 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName, IQueryableFormatter formatter, IProxyFactory<IdType, EntityType> proxyFactory)
             : this(fileName, formatter, proxyFactory
-            , new PocoTransactionManager<IdType, EntityType>())
+            , new TransactionManager<IdType, JObject>())
         {
 
         }
@@ -84,7 +84,7 @@ namespace BESSy.Relational
         public PocoRelationalDatabase(string fileName
             , IQueryableFormatter formatter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager)
+            , ITransactionManager<IdType, JObject> transactionManager)
             : this(fileName, formatter, proxyFactory, transactionManager
             , new AtomicFileManagerFactory())
         {
@@ -95,7 +95,7 @@ namespace BESSy.Relational
         public PocoRelationalDatabase(string fileName
             , IQueryableFormatter formatter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager
+            , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory)
             : this(fileName, formatter, proxyFactory, transactionManager, fileManagerFactory
             , new DatabaseCacheFactory())
@@ -107,7 +107,7 @@ namespace BESSy.Relational
         public PocoRelationalDatabase(string fileName
             , IQueryableFormatter formatter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager
+            , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
             , IDatabaseCacheFactory cacheFactory)
             : this(fileName, formatter, proxyFactory, transactionManager, fileManagerFactory, cacheFactory
@@ -121,7 +121,7 @@ namespace BESSy.Relational
         public PocoRelationalDatabase(string fileName
             , IQueryableFormatter formatter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager
+            , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
             , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
@@ -130,25 +130,14 @@ namespace BESSy.Relational
         {
             _proxyFactory = proxyFactory;
 
-            var tm = _transactionManager as IPocoTransactionManager<IdType, EntityType>;
+            var tm = _transactionManager as ITransactionManager<IdType, JObject>;
 
-            if (tm != null)
-                tm.IdConverter = _idConverter;
-
-            //var settings = Formatter.Settings;
-            //settings.ContractResolver = new PocoProxySerializer() { GetTypeFor = t => _proxyFactory.GetProxyTypeFor(t) };
-            //Formatter.Settings = settings;
+            //if (tm != null)
+            //    tm.IdConverter = _idConverter;
         }
 
-        public PocoRelationalDatabase(string fileName, string idToken)
-            : this(fileName, idToken, null
-            , TypeFactory.GetFileCoreFor<IdType, long>())
-        {
-
-        }
-
-        public PocoRelationalDatabase(string fileName, string idToken, string domainIdToken)
-            : this(fileName, idToken, domainIdToken
+        public PocoRelationalDatabase(string fileName, string idToken, string externalIdToken)
+            : this(fileName, idToken, externalIdToken
             , TypeFactory.GetFileCoreFor<IdType, long>())
         {
 
@@ -156,9 +145,9 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
-            , string domainIdToken
+            , string externalIdToken
             , IFileCore<IdType, long> core)
-            : this(fileName, idToken, core
+            : this(fileName, idToken, externalIdToken, core
             , new BSONFormatter())
         {
 
@@ -167,9 +156,10 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string externalIdToken
             , IFileCore<IdType, long> core
             , IQueryableFormatter formatter)
-            : this(fileName, idToken, core, formatter
+            : this(fileName, idToken, externalIdToken, core, formatter
             , TypeFactory.GetBinConverterFor<IdType>())
         {
 
@@ -177,10 +167,11 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string externalIdToken
             , IFileCore<IdType, long> core
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter)
-            : this(fileName, idToken, core, formatter, converter,
+            : this(fileName, idToken, externalIdToken, core, formatter, converter,
             new PocoProxyFactory<IdType, EntityType>())
         {
 
@@ -188,12 +179,13 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string externalIdToken
             , IFileCore<IdType, long> core
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
             , IProxyFactory<IdType, EntityType> proxyFactory)
-            : this(fileName, idToken, core, formatter, converter, proxyFactory,
-            new PocoTransactionManager<IdType, EntityType>(converter))
+            : this(fileName, idToken, externalIdToken, core, formatter, converter, proxyFactory,
+            new TransactionManager<IdType, JObject>())
         {
 
         }
@@ -201,12 +193,13 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string externalIdToken
             , IFileCore<IdType, long> core
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager)
-            : this(fileName, idToken, core, formatter, converter, proxyFactory, transactionManager
+            , ITransactionManager<IdType, JObject> transactionManager)
+            : this(fileName, idToken, externalIdToken, core, formatter, converter, proxyFactory, transactionManager
             , new AtomicFileManagerFactory())
         {
 
@@ -215,13 +208,14 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string externalIdToken
             , IFileCore<IdType, long> core
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager
+            , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory)
-            : this(fileName, idToken, core, formatter, converter, proxyFactory, transactionManager, fileManagerFactory
+            : this(fileName, idToken, externalIdToken, core, formatter, converter, proxyFactory, transactionManager, fileManagerFactory
             , new DatabaseCacheFactory())
         {
 
@@ -230,14 +224,15 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string externalIdToken
             , IFileCore<IdType, long> core
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager
+            , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
             , IDatabaseCacheFactory cacheFactory)
-            : this(fileName, idToken, core, formatter, converter, proxyFactory, transactionManager, fileManagerFactory, cacheFactory
+            : this(fileName, idToken, externalIdToken, core, formatter, converter, proxyFactory, transactionManager, fileManagerFactory, cacheFactory
             , new IndexFileFactory()
             , new IndexFactory())
         {
@@ -246,11 +241,12 @@ namespace BESSy.Relational
 
         public PocoRelationalDatabase(string fileName
             , string idToken
+            , string externalIdToken
             , IFileCore<IdType, long> core
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
             , IProxyFactory<IdType, EntityType> proxyFactory
-            , IPocoTransactionManager<IdType, EntityType> transactionManager
+            , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
             , IDatabaseCacheFactory cacheFactory
             , IIndexFileFactory indexFileFactory
@@ -259,9 +255,8 @@ namespace BESSy.Relational
         {
             _proxyFactory = proxyFactory;
 
-            //var settings = Formatter.Settings;
-            //settings.ContractResolver = new PocoProxySerializer() { GetTypeFor = t => _proxyFactory.GetProxyTypeFor(t) };
-            //Formatter.Settings = settings;
+            _core.ExternalIdProperty = externalIdToken;
+            _externalIdConverter = new BinConverterString(1024);
         }
 
         protected object _hashRoot = new object();
@@ -269,14 +264,13 @@ namespace BESSy.Relational
         protected Dictionary<Guid, Dictionary<int, IdType>> _transactionHashMash = new Dictionary<Guid, Dictionary<int, IdType>>();
 
         protected IProxyFactory<IdType, EntityType> _proxyFactory;
-
         protected IIndex<string, EntityType, IdType> _cascadeIndex = null;
+        protected IIndex<string, EntityType, IdType> _externalIndex = null;
         protected Func<EntityType, IdType> _pocoIdGet;
         protected Action<EntityType, IdType> _pocoIdSet;
-
-        protected IPocoTransactionManager<IdType, EntityType> _pocoTransactionMananger { get { return _transactionManager as IPocoTransactionManager<IdType, EntityType>; } }
-
-        protected internal IPocoTransaction<IdType, EntityType> _pocoCurrentTransaction { get { return _transactionManager.CurrentTransaction as IPocoTransaction<IdType, EntityType>; } }
+        protected Func<EntityType, String> _externalIdGet;
+        protected Action<EntityType, String> _externalIdSet;
+        protected BinConverterString _externalIdConverter;
 
         public IBinConverter<IdType> IdConverter { get { return _idConverter; } }
 
@@ -290,6 +284,13 @@ namespace BESSy.Relational
             _proxyFactory.IdSet = this._pocoIdSet;
             _proxyFactory.IdToken = this._idToken;
 
+            if (!_core.ExternalIdProperty.IsNullOrEmpty())
+            {
+                _proxyFactory.ExternalIdGet = this._externalIdGet;
+                _proxyFactory.ExternalIdSet = this._externalIdSet;
+                _proxyFactory.ExternalIdToken = this._core.ExternalIdProperty;
+            }
+
             _cascadeIndex = new Index<string, EntityType, IdType>(_fileName + ".cascade" + ".index", null, false);
             _cascadeIndex.Load();
 
@@ -302,6 +303,18 @@ namespace BESSy.Relational
         {
             _pocoIdGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
             _pocoIdSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
+
+            if (!_core.ExternalIdProperty.IsNullOrEmpty())
+            {
+                var get = typeof(EntityType).GetProperty(_core.ExternalIdProperty).GetGetMethod();
+                if (get.ReturnType != typeof(String))
+                    throw new ProxyCreationException("ExternalIdToken must refer to a property of type 'System.String'");
+
+                var set = typeof(EntityType).GetProperty(_core.ExternalIdProperty).GetSetMethod();
+
+                _externalIdGet = (Func<EntityType, String>)Delegate.CreateDelegate(typeof(Func<EntityType, String>), get);
+                _externalIdSet = (Action<EntityType, String>)Delegate.CreateDelegate(typeof(Action<EntityType, String>), set);
+            }
 
             base.InitIdMethods();
         }
@@ -531,9 +544,10 @@ namespace BESSy.Relational
 
         public IdType AddOrUpdate(EntityType item, IdType id)
         {
-            //return base.AddOrUpdate(item, id);
-
-            throw new NotImplementedException();
+            if (_idConverter.Compare(id, default(IdType)) == 0)
+                return Add(item);
+            else
+            { Update(item, id); return id; }
         }
 
         public override void Dispose()

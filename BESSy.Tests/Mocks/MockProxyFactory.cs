@@ -12,6 +12,9 @@ namespace BESSy.Tests.Mocks
         public Func<EntityType, IdType> IdGet {  get; set; }
         public Action<EntityType, IdType> IdSet { get; set; }
         public string IdToken { get; set; }
+        public string ExternalIdToken { get; set; }
+        public Func<EntityType, string> ExternalIdGet { get; set; }
+        public Action<EntityType, string> ExternalIdSet { get; set; }
 
         public EntityType GetInstanceFor(IPocoRelationalDatabase<IdType, EntityType> repository, Json.Linq.JObject instance)
         {
@@ -81,6 +84,6 @@ namespace BESSy.Tests.Mocks
 
             return type;
         }
-
+        
     }
 }

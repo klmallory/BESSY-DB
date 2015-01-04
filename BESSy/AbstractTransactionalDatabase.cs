@@ -424,6 +424,39 @@ namespace BESSy
             //_primaryIndex.SaveCore<IdType>();
         }
 
+        protected bool IsPresent(IdType id)
+        {
+            if (_transactionManager.HasActiveTransactions)
+            {
+                using (var t = _transactionManager.GetActiveTransaction(false))
+                {
+                    if (t.Transaction != null && t.Transaction.EnlistCount > 0)
+                    {
+                        var i = t.Transaction.GetEnlistedActions().LastOrDefault(a => _idConverter.Compare(id, a.Key) == 0);
+
+                        if (_idConverter.Compare(default(IdType), i.Key) != 0)
+                            if (i.Value.Action != Action.Delete)
+                                return true;
+                            else
+                                return false;
+                    }
+                }
+            }
+            lock (_stagingCache)
+            {
+                if (_stagingCache.Count > 0 && _stagingCache.GetCache().Any(s => s.Value.ContainsKey(id)))
+                {
+                    var jo = _stagingCache.GetCache().Where(s => s.Value.ContainsKey(id)).Last().Value[id];
+
+                    if (jo != null)
+                        return true;
+
+                    return false;
+                }
+            }
+
+            return _primaryIndex.FetchSegment(id) > 0;
+        }
         
         public virtual long LastReplicatedTimeStamp { get { return _core.LastReplicatedTimeStamp; } }
         public virtual bool FileFlushQueueActive { get { return _fileManager.FileFlushQueueActive || _primaryIndex.FileFlushQueueActive || _indexes.Values.Cast<IFlush>().Any(i => i.FileFlushQueueActive); } }
@@ -551,12 +584,40 @@ namespace BESSy
             return id;
         }
 
+        public virtual IdType AddOrUpdate(EntityType item)
+        {
+            if (_idConverter.Compare(_idGet(item), default(IdType)) == 0)
+                return Add(item);
+            else
+            { Update(item); return _idGet(item); }
+        }
+
         public virtual IdType AddOrUpdate(EntityType item, IdType id)
         {
             if (_idConverter.Compare(id, default(IdType)) == 0)
                 return Add(item);
             else
             { Update(item, id); return id; }
+        }
+
+        public virtual void Update(EntityType item)
+        {
+            var id = _idGet(item);
+
+            lock (_syncOperations)
+                _operations.Push(3);
+
+            try
+            {
+                using (var tLock = _transactionManager.GetActiveTransaction(false))
+                {
+                    if (!IsPresent(id))
+                        throw new KeyNotFoundException(string.Format("Could not find entity with id {0}", id));
+
+                    tLock.Transaction.Enlist(Action.Update, id, item);
+                }
+            }
+            finally { lock (_syncOperations) _operations.Pop(); }
         }
 
         public virtual void Update(EntityType item, IdType id)
@@ -571,7 +632,8 @@ namespace BESSy
             {
                 using (var tLock = _transactionManager.GetActiveTransaction(false))
                 {
-                    var oldSeg = _primaryIndex.FetchSegment(id);
+                    if (!IsPresent(id))
+                        throw new KeyNotFoundException(string.Format("Could not find entity with id {0}", id));
 
                     if (deleteFirst)
                     {

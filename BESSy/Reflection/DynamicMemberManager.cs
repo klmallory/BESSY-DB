@@ -82,10 +82,7 @@ namespace BESSy.Reflection
                     return true;
                 }
             }
-            catch (Exception ex)
-            {
-                Trace.TraceError("Unable to set member: {0}, {1}", binder.Name, ex.Message);
-            }
+            catch (Exception ex) { Trace.TraceError("Unable to set member: {0}, {1}", binder.Name, ex.Message); }
 
             result = null;
             return false;
@@ -127,10 +124,7 @@ namespace BESSy.Reflection
                 }
 
             }
-            catch (Exception ex)
-            {
-                Trace.TraceError("Unable to set member: {0}, {1}", binder.Name, ex.Message);
-            }
+            catch (Exception ex) { Trace.TraceError("Unable to set member: {0}, {1}", binder.Name, ex.Message); }
 
             return false;
         }

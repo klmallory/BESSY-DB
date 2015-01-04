@@ -183,11 +183,11 @@
     <Compile Include="DataProvision\ReplicationCommand.cs" />
     <Compile Include="Enumerators\PagedReverseEnumerator.cs" />
     <Compile Include="Enumerators\PagedEnumerator.cs" />
+    <Compile Include="Extensions\StringExtensions.cs" />
     <Compile Include="Factories\BsonWriterFactory.cs" />
     <Compile Include="Factories\IndexFromStringFactory.cs" />
     <Compile Include="Factories\JsonWriterFactory.cs" />
     <Compile Include="Enumerators\PagedStreamingEnumerator.cs" />
-    <Compile Include="Factories\PocoTransactionFactory.cs" />
     <Compile Include="Factories\ReplicationFromStringFactory.cs" />
     <Compile Include="Files\DataFileManager.cs" />
     <Compile Include="Indexes\ConsolidatedIndex.cs" />
@@ -209,7 +209,6 @@
     <Compile Include="Queries\ValueTypeEvaluator.cs" />
     <Compile Include="Reflection\BESSyIgnoreAttribute.cs" />
     <Compile Include="Reflection\DynamicMemberManager.cs" />
-    <Compile Include="Reflection\PocoSerializationBinder.cs" />
     <Compile Include="Relational\PocoProxyFactory.cs" />
     <Compile Include="Relational\PocoProxyHandler.cs" />
     <Compile Include="Relational\PocoProxySerializer.cs" />
@@ -276,8 +275,6 @@
     <Compile Include="Serialization\LZ4ZipFormatter.cs" />
     <Compile Include="Serialization\QueryCryptoFormatter.cs" />
     <Compile Include="Serialization\JSONFormatter.cs" />
-    <Compile Include="Transactions\PocoTransaction.cs" />
-    <Compile Include="Transactions\PocoTransactionManager.cs" />
     <Compile Include="Transactions\Rewind.cs" />
     <Compile Include="Transactions\RowLockContainer.cs" />
     <Compile Include="Transactions\UnitOfWork.cs" />

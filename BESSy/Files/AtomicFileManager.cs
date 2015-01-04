@@ -992,8 +992,6 @@ namespace BESSy.Files
                                 {
                                     if (_formatter.Trim && trimIndex >= 0)
                                         outStream.SetLength(lastLength + trimIndex + 1);
-
-                                    outStream.Position = 0;
                                 }
                                 catch (Exception ex)
                                 {

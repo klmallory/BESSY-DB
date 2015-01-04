@@ -25,7 +25,7 @@ namespace BESSy.Tests.ProxyTests
             var domain = TestResourceFactory.CreateRandomDomain();
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
-                (_testName + ".database", "Id", 
+                (_testName + ".database", "Id", "Name",
                 new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(),
                 new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
             {
@@ -67,7 +67,7 @@ namespace BESSy.Tests.ProxyTests
             var domain = TestResourceFactory.CreateRandomDomain();
             var domain2 = TestResourceFactory.CreateRandomDomain();
 
-            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(), new PocoProxyFactory<int, MockClassA>()))
+            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", null, new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(), new PocoProxyFactory<int, MockClassA>()))
             {
                 db.Load();
 
@@ -104,7 +104,7 @@ namespace BESSy.Tests.ProxyTests
 
             var domain = TestResourceFactory.CreateRandomDomain();
 
-            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(), new PocoProxyFactory<int, MockClassA>()))
+            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database", "Id", null, new FileCore<int, long>(), new BSONFormatter(), new BinConverter32(), new PocoProxyFactory<int, MockClassA>()))
             {
                 db.Load();
 
@@ -146,7 +146,7 @@ namespace BESSy.Tests.ProxyTests
             domain = (domain as MockDomain).WithIds() as MockClassA;
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
-                (_testName + ".database", "Id",
+                (_testName + ".database", "Id", null,
                 new FileCore<int, long>(new Seed32(999)), new BSONFormatter(), new BinConverter32(),
                 new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
             {
@@ -191,7 +191,7 @@ namespace BESSy.Tests.ProxyTests
                     var c = (domain as MockClassC);
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
-                (_testName + ".database", "Id",
+                (_testName + ".database", "Id", null,
                 new FileCore<int, long>(new Seed32(999)), new BSONFormatter(), new BinConverter32(),
                 new PocoProxyFactory<int, MockClassA>("BESSy.Proxy", false)))
             {

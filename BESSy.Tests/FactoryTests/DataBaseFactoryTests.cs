@@ -15,7 +15,7 @@ using BESSy.Tests.Mocks;
 using BESSy.Transactions;
 using NUnit.Framework;
 
-namespace BESSy.Tests.DatabaseFactoryTests
+namespace BESSy.Tests.FactoryTests
 {
     [TestFixture]
     public class DataBaseFactoryTests : FileTest

@@ -129,7 +129,7 @@ namespace BESSy.Tests.DatabaseTests
 
                 last.Name = "last";
 
-                db.Update(last, last.Id);
+                db.Update(last);
 
                 db.FlushAll();
             }

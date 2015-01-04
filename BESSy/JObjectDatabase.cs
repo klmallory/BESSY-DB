@@ -132,7 +132,7 @@ namespace BESSy
             , IQueryableFormatter formatter
             , IBinConverter<IdType> converter)
             : this(fileName, idToken, core, formatter, converter,
-            new PocoTransactionManager<IdType, JObject>(converter))
+            new TransactionManager<IdType, JObject>())
         {
 
         }

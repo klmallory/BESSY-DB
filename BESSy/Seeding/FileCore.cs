@@ -12,6 +12,7 @@ namespace BESSy.Seeding
         string CategoryIdProperty { get; set; }
         object IdConverter { get; set; }
         string IdProperty { get; set; }
+        string ExternalIdProperty { get; set; }
         long LastReplicatedTimeStamp { get; set; }
         int MinimumCoreStride { get; set; }
         object PropertyConverter { get; set; }
@@ -64,16 +65,13 @@ namespace BESSy.Seeding
         public long LastReplicatedTimeStamp { get; set; }
         public object PropertyConverter { get; set; }
         public object IdConverter { get; set; }
-
         public string IdProperty { get; set; }
+        public string ExternalIdProperty { get; set; }
         public string CategoryIdProperty { get; set; }
-
         public int MinimumCoreStride { get; set; }
         public int Stride { get; set; }
-
         public ISeed<SegmentType> SegmentSeed { get; set; }
         public ISeed<IdType> IdSeed { get; set; }
-
         public List<string> Publishers { get; set; }
         public List<string> Subscribers { get; set; }
         public List<string> Indexes { get; set; }
