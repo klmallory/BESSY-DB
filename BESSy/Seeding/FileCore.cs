@@ -6,7 +6,7 @@ using BESSy.Json;
 
 namespace BESSy.Seeding
 {
-    public interface IFileCore<SegmentType>
+    public interface IFileCore
     {
         long InitialDbSize { get; set; }
         string CategoryIdProperty { get; set; }
@@ -16,12 +16,16 @@ namespace BESSy.Seeding
         long LastReplicatedTimeStamp { get; set; }
         int MinimumCoreStride { get; set; }
         object PropertyConverter { get; set; }
-        ISeed<SegmentType> SegmentSeed { get; set; }
         Guid Source { get; }
         int Stride { get; set; }
         List<string> Publishers { get; set; }
         List<string> Subscribers { get; set; }
         List<string> Indexes { get; set; }
+    }
+
+    public interface IFileCore<SegmentType> : IFileCore
+    {
+        ISeed<SegmentType> SegmentSeed { get; set; }
     }
 
     public interface IFileCore<IdType, SegmentType> : IFileCore<SegmentType>

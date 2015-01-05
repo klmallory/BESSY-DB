@@ -184,7 +184,7 @@
     <Compile Include="CryptoTests\CryptoDatabaseTests.cs" />
     <Compile Include="CryptoTests\RC2Tests.cs" />
     <Compile Include="FactoryTests\DatabaseFactoryNegativeTests.cs" />
-    <Compile Include="FactoryTests\DataBaseFactoryTests.cs" />
+    <Compile Include="FactoryTests\DatabaseFactoryTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCapacityTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCompressionTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCRUDTests.cs" />
@@ -197,6 +197,7 @@
     <Compile Include="ExpressionResolverTests\ExpressionResolverSelectTests.cs" />
     <Compile Include="ExpressionResolverTests\ExpressionResolverUpdateScalarTests.cs" />
     <Compile Include="ExtensionsTest\JObjectExtensionTests.cs" />
+    <Compile Include="FactoryTests\IndexFactoryTests.cs" />
     <Compile Include="FileRepositoryTests\XmlFileRepositoryTests.cs" />
     <Compile Include="FileTest.cs" />
     <Compile Include="Indexes\IndexTests.cs" />

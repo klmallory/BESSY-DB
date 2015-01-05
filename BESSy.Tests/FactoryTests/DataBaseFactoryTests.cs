@@ -8,6 +8,7 @@ using BESSy.Crypto;
 using BESSy.Factories;
 using BESSy.Json;
 using BESSy.Json.Linq;
+using BESSy.Relational;
 using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
@@ -18,7 +19,7 @@ using NUnit.Framework;
 namespace BESSy.Tests.FactoryTests
 {
     [TestFixture]
-    public class DataBaseFactoryTests : FileTest
+    public class DatabaseFactoryTests : FileTest
     {
         string testAssemblyPath = Path.Combine(Environment.CurrentDirectory, @"..\..\..\Tools\");
         string settings = JsonConvert.SerializeObject(BSONFormatter.GetDefaultSettings(), JSONFormatter.GetDefaultSettings());
@@ -397,6 +398,115 @@ namespace BESSy.Tests.FactoryTests
         }
 
         [Test]
+        public void CreateInt32PocoDBWithExtrnalId()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var s = string.Format(@"filename = {0}; idtoken = {1}; idtype = {2}; entitytype = {3}; seedtype = {4}; binconvertertype = {5}; 
+                formattertype = {6}; transactionmanagertype= {7}; filefactorytype ={8}; cachefactorytype={9}; indexfactorytype = {10}; 
+                indexfilefactorytype={11}; assembly = {12}; dbtype = {13}; externalidtoken = {14}"
+                , _testName + ".database"
+                , "Id"
+                , typeof(int).FullName
+                , typeof(MockClassA).AssemblyQualifiedName
+                , typeof(Seed32).AssemblyQualifiedName
+                , typeof(BinConverter32).AssemblyQualifiedName
+                , typeof(BSONFormatter).AssemblyQualifiedName
+                , typeof(TransactionManager<Int32, JObject>).AssemblyQualifiedName
+                , typeof(AtomicFileManagerFactory).AssemblyQualifiedName
+                , typeof(DatabaseCacheFactory).AssemblyQualifiedName
+                , typeof(IndexFactory).AssemblyQualifiedName
+                , typeof(IndexFileFactory).AssemblyQualifiedName
+                , Path.Combine(Environment.CurrentDirectory, "BESSy.Tests.dll")
+                , typeof(PocoRelationalDatabase<int, MockClassA>).AssemblyQualifiedName
+                , "Name");
+
+            var db = DatabaseFromStringFactory.Create(s) as PocoRelationalDatabase<int, MockClassA>;
+
+            Assert.IsNotNull(db);
+
+            db.Load();
+
+            db.Dispose();
+
+            s = string.Format(@"filename = {0}; idtype = {1}; entitytype = {2}; formattertype = {3}; transactionmanagertype= {4}; filefactorytype ={5}; 
+                    cachefactorytype={6}; indexfactorytype = {7}; indexfilefactorytype={8}; assembly = {9}; dbtype = {10}"
+                , _testName + ".database"
+                , typeof(int).FullName
+                , typeof(MockClassA).AssemblyQualifiedName
+                , typeof(BSONFormatter).AssemblyQualifiedName
+                , typeof(TransactionManager<Int32, JObject>).AssemblyQualifiedName
+                , typeof(AtomicFileManagerFactory).AssemblyQualifiedName
+                , typeof(DatabaseCacheFactory).AssemblyQualifiedName
+                , typeof(IndexFactory).AssemblyQualifiedName
+                , typeof(IndexFileFactory).AssemblyQualifiedName
+                , Path.Combine(Environment.CurrentDirectory, "BESSy.Tests.dll")
+                , typeof(PocoRelationalDatabase<int, MockClassA>).AssemblyQualifiedName);
+
+            db = DatabaseFromStringFactory.Create(s) as PocoRelationalDatabase<int, MockClassA>;
+
+            Assert.IsNotNull(db);
+
+            db.Load();
+        }
+
+        [Test]
+        public void CreateInt32PocoDBWithExtrnalIdAndCustomProxyFactory()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var s = string.Format(@"filename = {0}; idtoken = {1}; idtype = {2}; entitytype = {3}; seedtype = {4}; binconvertertype = {5}; 
+                formattertype = {6}; transactionmanagertype= {7}; filefactorytype ={8}; cachefactorytype={9}; indexfactorytype = {10}; 
+                indexfilefactorytype={11}; assembly = {12}; dbtype = {13}; externalidtoken = {14}; proxyfactorytype = {15}"
+                , _testName + ".database"
+                , "Id"
+                , typeof(int).FullName
+                , typeof(MockClassA).AssemblyQualifiedName
+                , typeof(Seed32).AssemblyQualifiedName
+                , typeof(BinConverter32).AssemblyQualifiedName
+                , typeof(BSONFormatter).AssemblyQualifiedName
+                , typeof(TransactionManager<Int32, JObject>).AssemblyQualifiedName
+                , typeof(AtomicFileManagerFactory).AssemblyQualifiedName
+                , typeof(DatabaseCacheFactory).AssemblyQualifiedName
+                , typeof(IndexFactory).AssemblyQualifiedName
+                , typeof(IndexFileFactory).AssemblyQualifiedName
+                , Path.Combine(Environment.CurrentDirectory, "BESSy.Tests.dll")
+                , typeof(PocoRelationalDatabase<int, MockClassA>).AssemblyQualifiedName
+                , "Name", typeof(MockProxyFactory<int, MockClassA>).AssemblyQualifiedName);
+
+            var db = DatabaseFromStringFactory.Create(s) as PocoRelationalDatabase<int, MockClassA>;
+
+            Assert.IsNotNull(db);
+
+            db.Load();
+
+            db.Dispose();
+
+            s = string.Format(@"filename = {0}; idtype = {1}; entitytype = {2}; formattertype = {3}; transactionmanagertype= {4}; filefactorytype ={5}; 
+                    cachefactorytype={6}; indexfactorytype = {7}; indexfilefactorytype={8}; assembly = {9}; dbtype = {10}; proxyfactorytype = {11}"
+                , _testName + ".database"
+                , typeof(int).FullName
+                , typeof(MockClassA).AssemblyQualifiedName
+                , typeof(BSONFormatter).AssemblyQualifiedName
+                , typeof(TransactionManager<Int32, JObject>).AssemblyQualifiedName
+                , typeof(AtomicFileManagerFactory).AssemblyQualifiedName
+                , typeof(DatabaseCacheFactory).AssemblyQualifiedName
+                , typeof(IndexFactory).AssemblyQualifiedName
+                , typeof(IndexFileFactory).AssemblyQualifiedName
+                , Path.Combine(Environment.CurrentDirectory, "BESSy.Tests.dll")
+                , typeof(PocoRelationalDatabase<int, MockClassA>).AssemblyQualifiedName
+                , typeof(MockProxyFactory<int, MockClassA>).AssemblyQualifiedName);
+
+            db = DatabaseFromStringFactory.Create(s) as PocoRelationalDatabase<int, MockClassA>;
+
+            Assert.IsNotNull(db);
+
+            db.Load();
+        }
+
+        [Test]
         public void CreateCryptoWithKey()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -479,7 +589,6 @@ namespace BESSy.Tests.FactoryTests
 
             db.Load();
         }
-
 
         [Test]
         public void GetsConnectionStringParts()

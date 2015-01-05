@@ -157,7 +157,7 @@ namespace BESSy.Relational
         readonly MethodInfo getExternalIdInvoke = typeof(System.Func<EntityType, String>).GetMethod("Invoke");
 
         bool useTransientAssembly = true;
-        string assemblyName = "Bessy.Proxy";
+        string assemblyName = "BESSy.Proxy";
 
         public PocoProxyFactory()
         {

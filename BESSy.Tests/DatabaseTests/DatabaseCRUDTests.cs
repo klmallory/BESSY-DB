@@ -163,6 +163,54 @@ namespace BESSy.Tests.DatabaseTests
         }
 
         [Test]
+        public void AddOrUpdateWithoutIdAddsWithIdZeroAndUpdatesWithNonZeroId()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            {
+                db.Load();
+
+                objs.ToList().ForEach(o => o.Id = db.AddOrUpdate(o));
+
+                db.FlushAll();
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database"))
+            {
+                db.Load();
+
+                var last = db.Fetch(objs.Last().Id);
+
+                Assert.IsNotNull(last);
+
+                last.Name = "last";
+
+                db.AddOrUpdate(last);
+
+                db.FlushAll();
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            {
+                db.Load();
+
+                var last = db.Fetch(objs.Last().Id);
+
+                Assert.IsNotNull(last);
+                Assert.AreEqual("last", last.Name);
+
+                Assert.IsNotNull(db.Fetch(objs.First().Id));
+
+                db.FlushAll();
+            }
+        }
+
+
+        [Test]
         public void DatabaseUpdatesIdFieldAndIndexes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();

@@ -161,7 +161,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var ids = new List<int>();
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(), new JSONFormatter(), new BinConverter32()))
+            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new JSONFormatter()))
             {
                 db.Load();
 
@@ -212,7 +212,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var ids = new List<int>();
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(), new JSONFormatter(), new BinConverter32()))
+            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(),  new BinConverter32(),new JSONFormatter()))
             {
                 db.Load();
 
@@ -255,7 +255,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var ids = new List<int>();
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(), new JSONFormatter(), new BinConverter32()))
+            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new JSONFormatter()))
             {
                 db.Load();
 
@@ -306,7 +306,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var ids = new List<int>();
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(), new JSONFormatter(), new BinConverter32()))
+            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new JSONFormatter()))
             {
                 db.Load();
 

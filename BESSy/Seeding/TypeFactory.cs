@@ -61,5 +61,33 @@ namespace BESSy.Seeding
 
             else throw new ArgumentException(string.Format("{0} is not a known type, use overloaded constructor.", typeof(PropertyType)));
         }
+
+        public static object GetBinConverterFor(Type type)
+        {
+            if (type.Equals(typeof(Int32)))
+                return new BinConverter32();
+            else if (type.Equals(typeof(Int16)))
+                return new BinConverter16();
+            else if (type.Equals(typeof(Int64)))
+                return new BinConverter64();
+            else if (type.Equals(typeof(UInt16)))
+                return new BinConverterU16();
+            else if (type.Equals(typeof(UInt32)))
+                return new BinConverterU32();
+            else if (type.Equals(typeof(UInt64)))
+                return new BinConverterU64();
+            else if (type.Equals(typeof(float)))
+                return new BinConverterFloat();
+            else if (type.Equals(typeof(double)))
+                return new BinConverterDouble();
+            else if (type.Equals(typeof(decimal)))
+                return new BinConverterDecimal();
+            else if (type.Equals(typeof(Guid)))
+                return new BinConverterGuid();
+            else if (type.Equals(typeof(String)))
+                return new BinConverterString();
+
+            else throw new ArgumentException(string.Format("{0} is not a known type, use overloaded constructor.", type));
+        }
     }
 }

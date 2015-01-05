@@ -111,16 +111,6 @@ namespace BESSy
             , string idToken
             , IFileCore<IdType, long> core)
             : this(fileName, idToken, core
-            , new BSONFormatter())
-        {
-
-        }
-
-        public JObjectDatabase(string fileName
-            , string idToken
-            , IFileCore<IdType, long> core
-            , IQueryableFormatter formatter)
-            : this(fileName, idToken, core, formatter
             , TypeFactory.GetBinConverterFor<IdType>())
         {
 
@@ -129,9 +119,19 @@ namespace BESSy
         public JObjectDatabase(string fileName
             , string idToken
             , IFileCore<IdType, long> core
-            , IQueryableFormatter formatter
             , IBinConverter<IdType> converter)
-            : this(fileName, idToken, core, formatter, converter,
+            : this(fileName, idToken, core, converter
+            , new BSONFormatter())
+        {
+
+        }
+
+        public JObjectDatabase(string fileName
+            , string idToken
+            , IFileCore<IdType, long> core
+                        , IBinConverter<IdType> converter
+            , IQueryableFormatter formatter)
+            : this(fileName, idToken, core, converter, formatter,
             new TransactionManager<IdType, JObject>())
         {
 
@@ -140,10 +140,11 @@ namespace BESSy
         public JObjectDatabase(string fileName
             , string idToken
             , IFileCore<IdType, long> core
-            , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
+            , IQueryableFormatter formatter
+
             , ITransactionManager<IdType, JObject> transactionManager)
-            : this(fileName, idToken, core, formatter, converter, transactionManager
+            : this(fileName, idToken, core, converter, formatter, transactionManager
             , new AtomicFileManagerFactory())
         {
 
@@ -152,11 +153,12 @@ namespace BESSy
         public JObjectDatabase(string fileName
             , string idToken
             , IFileCore<IdType, long> core
-            , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
+            , IQueryableFormatter formatter
+
             , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory)
-            : this(fileName, idToken, core, formatter, converter, transactionManager, fileManagerFactory
+            : this(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory
             , new DatabaseCacheFactory())
         {
 
@@ -165,12 +167,12 @@ namespace BESSy
         public JObjectDatabase(string fileName
             , string idToken
             , IFileCore<IdType, long> core
-            , IQueryableFormatter formatter
             , IBinConverter<IdType> converter
+            , IQueryableFormatter formatter
             , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
             , IDatabaseCacheFactory cacheFactory)
-            : this(fileName, idToken, core, formatter, converter, transactionManager, fileManagerFactory, cacheFactory
+            : this(fileName, idToken, core, converter, formatter, transactionManager, fileManagerFactory, cacheFactory
             , new IndexFileFactory()
             , new IndexFactory())
         {
@@ -180,8 +182,8 @@ namespace BESSy
         public JObjectDatabase(string fileName
             , string idToken
             , IFileCore<IdType, long> core
+                        , IBinConverter<IdType> converter
             , IQueryableFormatter formatter
-            , IBinConverter<IdType> converter
             , ITransactionManager<IdType, JObject> transactionManager
             , IAtomicFileManagerFactory fileManagerFactory
             , IDatabaseCacheFactory cacheFactory
@@ -206,7 +208,7 @@ namespace BESSy
         protected override void InitIdMethods()
         {
             _idGet = new Func<JObject, IdType>(j => j.Value<IdType>(_idToken));
-            _idSet = new Action<JObject, IdType>((j, v) => j.SetValue<IdType>(_idToken, v, Formatter.Serializer)); 
+            _idSet = new Action<JObject, IdType>((j, v) => j.SetValue<IdType>(_idToken, v, Formatter.Serializer));
         }
 
         protected override JObject LoadFromFile(long seg)

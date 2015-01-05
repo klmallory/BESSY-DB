@@ -114,7 +114,7 @@ namespace BESSy.Factories
             if (!typeParameters.ContainsKey("segmenttype"))
                 throw new ReplicationFactoryException("create string missing required field 'segmenttype'");
             if (!typeParameters.ContainsKey("filename"))
-                throw new ReplicationFactoryException("create string missing required field 'entitytype'");
+                throw new ReplicationFactoryException("create string missing required field 'filename'");
             //else
             //    throw new ReplicationFactoryException("no known index tBuilder");
 

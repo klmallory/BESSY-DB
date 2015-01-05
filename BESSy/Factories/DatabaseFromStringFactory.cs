@@ -35,6 +35,8 @@ namespace BESSy.Factories
             "idtype",
             "idtoken",
             "entitytype",
+            "dbtype",
+            "externalidtoken",
             "formattertype",
             "internalformattertype",
             "internalformattertype2",
@@ -51,6 +53,7 @@ namespace BESSy.Factories
             "indexfilefactorytype",
             "crypto",
             "securekey",
+            "proxyfactorytype",
             "authorizedusers",
             "username",
             "password"
@@ -94,67 +97,42 @@ namespace BESSy.Factories
             var core = ConstructCore(typeParameters);
             var transactionManager = ConstructTransactionManager(typeParameters);
             var binConverter = ConstructBinConverter(typeParameters);
+            var proxyFactory = ConstructProxyFactory(typeParameters);
 
-            if (indexFactory != null && indexFileFactory != null && cacheFactory != null && fileManagerFactory != null && transactionManager != null && formatter != null && binConverter != null && core != null && idToken != null)
+            if (indexFactory != null && indexFileFactory != null && cacheFactory != null && fileManagerFactory != null && transactionManager != null && formatter != null && binConverter != null && core != null && idToken != null && proxyFactory != null)
+            {
+                return Activator.CreateInstance(dbType, fileName, idToken, core, binConverter, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory, proxyFactory);
+            }
+            else if (indexFactory != null && indexFileFactory != null && cacheFactory != null && fileManagerFactory != null && transactionManager != null && formatter != null && binConverter != null && core != null && idToken != null)
             {
                 return Activator.CreateInstance(dbType, fileName, idToken, core, binConverter, formatter);
             }
-            else if (cacheFactory != null && fileManagerFactory != null && transactionManager != null && formatter != null && binConverter != null && core != null && idToken != null)
+            else if (indexFactory != null && indexFileFactory != null && cacheFactory != null && fileManagerFactory != null && formatter != null && transactionManager != null && proxyFactory != null)
             {
-                return Activator.CreateInstance(dbType, fileName, idToken, core, binConverter, formatter);
-            }
-            else if (fileManagerFactory != null && transactionManager != null && formatter != null && binConverter != null && core != null && idToken != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, idToken, core, binConverter, formatter);
+                return Activator.CreateInstance(dbType, fileName, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory, proxyFactory);
             }
             else if (indexFactory != null && indexFileFactory != null && cacheFactory != null && fileManagerFactory != null && formatter != null && transactionManager != null)
             {
                 return Activator.CreateInstance(dbType, fileName, formatter, transactionManager, fileManagerFactory, cacheFactory, indexFileFactory, indexFactory);
             }
-            else if (transactionManager != null && formatter != null && binConverter != null && core != null && idToken != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, idToken, core, binConverter, formatter);
-            }
-            else if (cacheFactory != null && fileManagerFactory != null && formatter != null && transactionManager != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, formatter, transactionManager, fileManagerFactory, cacheFactory);
-            }
-            else if (formatter != null && binConverter != null && core != null && idToken != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, idToken, core, binConverter, formatter);
-            }
-            else if (fileManagerFactory != null && formatter != null && transactionManager != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, formatter, transactionManager, fileManagerFactory);
-            }
-            else if (binConverter != null && core != null && idToken != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, idToken, core, binConverter);
-            }
-            else if (formatter != null && core != null && idToken != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, idToken, core, formatter);
-            }
-            else if (formatter != null && transactionManager != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, formatter, transactionManager);
-            }
-            else if (core != null && idToken != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, idToken, core);
-            }
-            else if (formatter != null)
-            {
-                return Activator.CreateInstance(dbType, fileName, formatter);
-            }
-            else if (typeParameters.ContainsKey("idtoken"))
-            {
-                return Activator.CreateInstance(dbType, fileName, idToken);
-            }
-            else
-                return Activator.CreateInstance(dbType, fileName);
 
             throw new DatabaseFactoryException(string.Format("constructor for typeParameters {0},{1},{2},{3},{4},{5},{6} not found", typeParameters));
+        }
+
+        private static object ConstructProxyFactory(IDictionary<string, object> typeParameters)
+        {
+            object trans = null;
+
+            if (typeParameters.ContainsKey("proxyfactorytype"))
+            {
+                //TODO: add alternative for trans manager constructors.
+                trans = Activator.CreateInstance((Type)typeParameters["proxyfactorytype"]);
+
+                if (trans == null)
+                    throw new DatabaseFactoryException("failed to create proxy factory from parameters.");
+            }
+
+            return trans;
         }
 
         internal static object GetSeedFrom(string str, Type idType)
@@ -189,7 +167,7 @@ namespace BESSy.Factories
 
         internal static object ConstructCore(IDictionary<string, object> typeParameters)
         {
-            object core = null;
+            IFileCore core = null;
             object seed = null;
 
             var idType = (Type)typeParameters["idtype"];
@@ -214,7 +192,13 @@ namespace BESSy.Factories
                     throw new DatabaseFactoryException("failed to create core from parameters.");
             }
 
-            core = Activator.CreateInstance(type, seed);
+
+            core = Activator.CreateInstance(type, seed) as IFileCore;
+
+
+            if (typeParameters.ContainsKey("externalidtoken"))
+                core.ExternalIdProperty = typeParameters["externalidtoken"] as string;
+            
 
             return core;
         }
@@ -232,6 +216,8 @@ namespace BESSy.Factories
                 if (bct == null)
                     throw new DatabaseFactoryException("failed to create binConverter from parameters.");
             }
+            else
+                return TypeFactory.GetBinConverterFor((Type)typeParameters["idtype"]);
 
             return bct;
         }
@@ -262,7 +248,7 @@ namespace BESSy.Factories
                 {
                     if (intFmt2 != null)
                     {
-                        //zip should come before crypto for practical reasons, compressing encrypted bytes has little reasons.
+                        //zip should come before crypto for practical reasons, compressing encrypted bytes has little benefit.
                         intFmt = Activator.CreateInstance((Type)typeParameters["internalformattertype"], intFmt2) as IQueryableFormatter;
                     }
                     else
@@ -297,6 +283,8 @@ namespace BESSy.Factories
                 if (formatter == null)
                     throw new DatabaseFactoryException("failed to create formatter from parameters.");
             }
+            else
+                return new BSONFormatter();
 
             return formatter;
         }
@@ -313,6 +301,8 @@ namespace BESSy.Factories
                 if (trans == null)
                     throw new DatabaseFactoryException("failed to create trans managerfrom parameters.");
             }
+            else
+                return Activator.CreateInstance(Type.GetType("BESSy.Transactions.TransactionManager`2").MakeGenericType((Type)typeParameters["idtype"], (Type)typeParameters["entitytype"]));
 
             return trans;
         }
@@ -328,6 +318,8 @@ namespace BESSy.Factories
                 if (indexFactory == null)
                     throw new DatabaseFactoryException("failed to create location factory from parameters.");
             }
+            else
+                return new IndexFactory();
 
             return indexFactory;
         }
@@ -343,6 +335,8 @@ namespace BESSy.Factories
                 if (indexFileFactory == null)
                     throw new DatabaseFactoryException("failed to create location file factory from parameters.");
             }
+            else
+                return new IndexFileFactory();
 
             return indexFileFactory;
         }
@@ -358,6 +352,8 @@ namespace BESSy.Factories
                 if (fileManagerFactory == null)
                     throw new DatabaseFactoryException("failed to create atomic file factory from parameters.");
             }
+            else
+                return new AtomicFileManagerFactory();
 
             return fileManagerFactory;
         }
@@ -382,6 +378,8 @@ namespace BESSy.Factories
                 if (cacheFactory == null)
                     throw new DatabaseFactoryException("failed to create cache factory from parameters.");
             }
+            else
+                return new DatabaseCacheFactory();
 
             return cacheFactory;
         }
@@ -432,11 +430,8 @@ namespace BESSy.Factories
         {
             return Create(createString, null);
         }
+
         public static object Create(string createString, string fileName)
-        {
-            return Create(createString, fileName, false);
-        }
-        public static object Create(string createString, string fileName, bool createCatalog)
         {
             if (string.IsNullOrWhiteSpace(createString))
                 throw new ArgumentNullException("Connection string was null or empty.");
@@ -448,88 +443,104 @@ namespace BESSy.Factories
             LoadAssemblies(parameters);
 
             string[] types;
+            
 
             foreach (var p in parameters.Where(p => paramNames.Contains(p.Key)))
             {
+                Type type = null;
+
                 switch (p.Key)
                 {
                     case "filename":
                         typeParameters.Add("filename", fileName == null ? p.Value : fileName);
                         break;
                     case "idtype":
-                        var type = Type.GetType(p.Value);
+                        types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
+                        type = GetType(types);
 
                         if (type.IsGenericType)
                             throw new DatabaseFactoryException(BAD_CONNECTION_STRING + ID_TYPE_GENERIC);
 
-                        typeParameters.Add("idtype", type);
+                        typeParameters.Add(p.Key, type);
                         break;
                     case "idtoken":
-                        typeParameters.Add("idtoken", createCatalog ? "Id" : p.Value);
+                        typeParameters.Add(p.Key, p.Value);
+                        break;
+                    case "dbtype":
+                        type = Type.GetType(p.Value);
+                        typeParameters.Add(p.Key, type);
                         break;
                     case "entitytype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("entitytype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
+                        break;
+                    case "externalidtoken":
+                        type = Type.GetType(p.Value);
+                        typeParameters.Add(p.Key, type);
                         break;
                     case "formattertype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("formattertype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "internalformattertype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("internalformattertype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "internalformattertype2":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("internalformattertype2", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "jsonserializersettings":
-                        typeParameters.Add("jsonserializersettings", p.Value);
+                        typeParameters.Add(p.Key, p.Value);
                         break;
                     case "seedtype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("seedtype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "startingseed":
-                        typeParameters.Add("startingseed", p.Value);
+                        typeParameters.Add(p.Key, p.Value);
                         break;
                     case "binconvertertype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("binconvertertype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "transactionmanagertype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("transactionmanagertype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "filefactorytype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("filefactorytype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "cachesize":
-                        typeParameters.Add("cachesize", p.Value);
+                        typeParameters.Add(p.Key, p.Value);
                         break;
                     case "cachefactorytype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("cachefactorytype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "indexfactorytype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("indexfactorytype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "indexfilefactorytype":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("indexfilefactorytype", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "crypto":
                         types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
-                        typeParameters.Add("crypto", GetType(types));
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     case "securekey":
                         var key = new SecureString();
                         foreach (var s in p.Value)
                             key.AppendChar(s);
 
-                        typeParameters.Add("securekey", key);
+                        typeParameters.Add(p.Key, key);
+                        break;
+                    case "proxyfactorytype":
+                        types = p.Value.Split(new string[] { "|" }, StringSplitOptions.None);
+                        typeParameters.Add(p.Key, GetType(types));
                         break;
                     default:
                         break;
@@ -543,8 +554,22 @@ namespace BESSy.Factories
             if (!typeParameters.ContainsKey("filename"))
                 throw new DatabaseFactoryException("connection string missing required field 'entitytype'");
 
-            var dbType = Type.GetType("BESSy.Database`2");
-            dbType = dbType.MakeGenericType((Type)typeParameters["idtype"], (Type)typeParameters["entitytype"]);
+            Type dbType = null;
+            if (((Type)typeParameters["entitytype"]).Name == typeof(BESSy.Json.Linq.JObject).Name)
+            {
+                dbType = Type.GetType("BESSy.JObjectDatabase`1");
+                dbType = dbType.MakeGenericType((Type)typeParameters["idtype"]);
+            }
+            else if (typeParameters.ContainsKey("dbtype") && ((Type)typeParameters["dbtype"]).Name == Type.GetType("BESSy.Relational.PocoRelationalDatabase`2").Name)
+            {
+                dbType = Type.GetType("BESSy.Relational.PocoRelationalDatabase`2");
+                dbType = dbType.MakeGenericType((Type)typeParameters["idtype"], (Type)typeParameters["entitytype"]);
+            }
+            else
+            {
+                dbType = Type.GetType("BESSy.Database`2");
+                dbType = dbType.MakeGenericType((Type)typeParameters["idtype"], (Type)typeParameters["entitytype"]);
+            }
 
             var database = ConstructDbFrom(dbType, typeParameters);
 
