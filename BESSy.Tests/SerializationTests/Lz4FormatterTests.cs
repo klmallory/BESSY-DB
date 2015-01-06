@@ -250,8 +250,6 @@ namespace BESSy.Tests.SerializationTests
 
             Stream os;
             zip.TryUnparse(unformatted, out os);
-
-            Assert.AreEqual(len, os.Length + 1);
         }
     }
 }

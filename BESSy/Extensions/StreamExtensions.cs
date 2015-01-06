@@ -153,6 +153,7 @@ namespace BESSy.Extensions
             {
                 isEmpty &= Array.TrueForAll(buffer, a => a == 0);
                 var last = Array.FindLastIndex(buffer, b => b != 0);
+
                 if (last >= 0)
                     lastNonZeroIndex = total + last;
 
@@ -160,6 +161,50 @@ namespace BESSy.Extensions
                 total += read;
 
                 Array.Resize(ref buffer, oldStride - total > bufferSize ? bufferSize : oldStride - total);
+                read = inStream.Read(buffer, 0, buffer.Length);
+            }
+
+            outStream.Position = outStream.Position + (newStride - oldStride);
+
+            return !isEmpty;
+        }
+
+        public static bool WriteSegmentToWithTrim(this Stream inStream, Stream outStream, int bufferSize, int newStride, int oldStride, ArraySegment<byte> trimMarker, out int lastNonZeroIndex)
+        {
+            var trimArray = trimMarker.Array;
+            lastNonZeroIndex = -1;
+            bool isEmpty = true;
+            int total = 0;
+            bool hasMarker = false;
+            var buffer = new byte[bufferSize];
+            
+            var read = inStream.Read(buffer, 0, buffer.Length);
+
+            while (read > 0)
+            {
+                isEmpty &= Array.TrueForAll(buffer, a => a == 0);
+                var last = Array.FindLastIndex(buffer, b => b != 0);
+
+                if (last >= 0)
+                {
+                    if (last > trimArray.Length)
+                    {
+                        hasMarker = true;
+
+                        for (var i = 0; i < trimArray.Length; i++)
+                            hasMarker &= buffer[last - i] == trimArray[trimArray.Length - i - 1];
+
+                        lastNonZeroIndex = total + last;
+                    }
+                    else
+                        lastNonZeroIndex = total + last;
+                }
+
+                outStream.Write(buffer, 0, read);
+                total += read;
+
+                Array.Resize(ref buffer, oldStride - total > bufferSize ? bufferSize : oldStride - total);
+
                 read = inStream.Read(buffer, 0, buffer.Length);
             }
 

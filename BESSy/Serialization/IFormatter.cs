@@ -52,7 +52,7 @@ namespace BESSy.Serialization
         T UnformatObj<T>(byte[] buffer);
         T UnformatObj<T>(Stream inStream);
         bool Trim { get; }
-        int TrimTerms { get; }
+        ArraySegment<byte> TrimMarker { get; }
     }
 
     public interface IBinFormatter

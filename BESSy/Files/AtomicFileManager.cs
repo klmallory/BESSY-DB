@@ -842,11 +842,12 @@ namespace BESSy.Files
                                 var tmpStream = new MemoryStream();
                                 int trim;
 
-                                stream.WriteSegmentToWithTrim(tmpStream, Environment.SystemPageSize, Stride, Stride, out trim);
+                                //if (_formatter.TrimMarker.Count > 0)
+                                //    stream.WriteSegmentToWithTrim(tmpStream, Environment.SystemPageSize, Stride, Stride, _formatter.TrimMarker, out trim);
+                                //else
+                                    stream.WriteSegmentToWithTrim(tmpStream, Environment.SystemPageSize, Stride, Stride, out trim);
+
                                 if (trim >= 0)
-                                    if (_formatter.TrimTerms > 0)
-                                    tmpStream.SetLength(trim + (trim % _formatter.TrimTerms));
-                                    else
                                         tmpStream.SetLength(trim + 1);
 
                                 _formatter.TryUnformatObj(tmpStream, out entity);
