@@ -98,7 +98,6 @@ namespace BESSy.Tests.DatabaseTests
             }
         }
 
-
         [Test]
         public void DatabaseUpdatesJObject()
         {

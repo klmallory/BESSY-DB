@@ -218,7 +218,7 @@ namespace BESSy.Files
             if (_fileStream != null && _fileStream.CanWrite)
             {
                 if (_core != null)
-                    _fileStream.SetLength(CorePosition + ((long)(MaxLength + 1) * Stride));
+                    _fileStream.SetLength(CorePosition + ((long)(Length + 1) * Stride));
 
                 _fileStream.Flush();
                 _fileStream.Close();
@@ -844,7 +844,10 @@ namespace BESSy.Files
 
                                 stream.WriteSegmentToWithTrim(tmpStream, Environment.SystemPageSize, Stride, Stride, out trim);
                                 if (trim >= 0)
-                                    tmpStream.SetLength(trim + 1);
+                                    if (_formatter.TrimTerms > 0)
+                                    tmpStream.SetLength(trim + (trim % _formatter.TrimTerms));
+                                    else
+                                        tmpStream.SetLength(trim + 1);
 
                                 _formatter.TryUnformatObj(tmpStream, out entity);
                             }

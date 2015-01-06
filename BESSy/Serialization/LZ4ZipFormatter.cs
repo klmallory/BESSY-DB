@@ -16,7 +16,7 @@ namespace BESSy.Serialization
     public class LZ4ZipFormatter : IQueryableFormatter
     {
         public LZ4ZipFormatter(IQueryableFormatter serializer)
-            : this(serializer, false, 1024000)
+            : this(serializer, false, 1048576)
         { }
 
         public LZ4ZipFormatter(IQueryableFormatter serializer, bool highCompress, int blockSize)
@@ -48,10 +48,9 @@ namespace BESSy.Serialization
             }
         }
 
-        public bool Trim
-        {
-            get { return true; }
-        }
+        public virtual bool Trim { get { return true; } }
+
+        public virtual int TrimTerms { get { return 16; } }
 
         public JObject AsQueryableObj<T>(T obj)
         {

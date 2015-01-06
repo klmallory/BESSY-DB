@@ -22,6 +22,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using BESSy.Extensions;
+using BESSy.Factories;
 using BESSy.Files;
 using BESSy.Seeding;
 using BESSy.Serialization;
@@ -59,6 +60,30 @@ namespace BESSy.Tests.DatabaseTests
             using (var db = new Database<int, MockClassA>(_testName + ".database"))
             {
                 db.Load();
+            }
+        }
+
+        [Test]
+        public void DatabaseKeepsInitializedTypes()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            using (var db = new Database<int, MockClassA>
+                (_testName + ".database", "Id",
+                new FileCore<int, long>(new MockSeed32() { LastSeed = 1024 }, new Seed64(15)),
+                new BinConverter32(), new BSONFormatter(),
+                new TransactionManager<int, MockClassA>() { Source = new BinConverterGuid().Max },
+                new AtomicFileManagerFactory(), new DatabaseCacheFactory(), new IndexFileFactory(), new IndexFactory()))
+            {
+                db.Load();
+            }
+
+            using (var db = new Database<int, MockClassA>(_testName + ".database"))
+            {
+                db.Load();
+
+                Assert.AreEqual(1024, db.Seed.LastSeed);
             }
         }
 

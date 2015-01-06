@@ -292,9 +292,6 @@ namespace BESSy
 
             var c = new Dictionary<IdType, JObject>();
 
-            //Parallel.Invoke(new System.Action[] { 
-            //    new System.Action(delegate() {
-
             lock (syncLocal)
                 foreach (var s in staging.Where(s => s.Value.Action != Action.Delete))
                     c.Add(s.Key, JObject.FromObject(s.Value.Entity, Formatter.Serializer));
@@ -306,13 +303,7 @@ namespace BESSy
             lock (_stagingCache)
                 _stagingCache.UpdateCache(transaction.Id, c, true, false);
 
-            //}),
-            //new System.Action(delegate() {
-
             SyncCache(staging);
-
-            //   })
-            //});
 
             Trace.TraceInformation("Transaction {0} update staging thread complete", transaction.Id);
         }

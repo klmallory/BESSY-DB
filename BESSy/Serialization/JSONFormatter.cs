@@ -57,7 +57,8 @@ namespace BESSy.Serialization
             }
         }
 
-        public bool Trim { get { return false; } }
+        public virtual bool Trim { get { return false; } }
+        public virtual int TrimTerms { get { return 0; } }
 
         /// <summary>
         /// Passthrough for Json

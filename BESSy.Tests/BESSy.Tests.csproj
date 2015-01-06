@@ -220,6 +220,7 @@
     <Compile Include="Mocks\MockProxyC.cs" />
     <Compile Include="Mocks\MockProxyDomain.cs" />
     <Compile Include="Mocks\MockProxyFactory.cs" />
+    <Compile Include="Mocks\MockSeed32.cs" />
     <Compile Include="Mocks\MockStreamConverter.cs" />
     <Compile Include="Mocks\MockTransaction.cs" />
     <Compile Include="Mocks\MockTransactionFactory.cs" />

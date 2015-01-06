@@ -36,7 +36,7 @@ namespace BESSy.Tests.DatabaseTests
     public class DatabaseCompressionTests
     {
         [Test]
-        public void DatabaseCompressesVeryLargeFiles()
+        public void FormatterCompressesVeryLargeFiles()
         {
             var test = new Mocks.MockImageContainer(testRes.IronAsteroid_NRM) { Name = "IronAsteroid_NRM" };
 
@@ -56,7 +56,7 @@ namespace BESSy.Tests.DatabaseTests
         }
 
         [Test]
-        public void DatabaseCompressesVeryLargeFileStreams()
+        public void FormatterCompressesVeryLargeFileStreams()
         {
             var test = new Mocks.MockStreamContainer(new MemoryStream(testRes.MiscAngelic)) { Name = "MiscAngelic" };
 
@@ -73,6 +73,24 @@ namespace BESSy.Tests.DatabaseTests
 
             Assert.AreEqual(unformatted.Name, test.Name);
             Assert.AreEqual(unformatted.GetResource<Stream>().Length, test.GetResource<Stream>().Length);
+        }
+
+        [Test]
+        public void FormatterParsesAndUnparsesStream()
+        {
+            var test = new Mocks.MockImageContainer(testRes.IronAsteroid_NRM) { Name = "IronAsteroid_NRM" };
+
+            var bson = new BSONFormatter();
+            var zip = new LZ4ZipFormatter(bson);
+
+            var formatted = zip.FormatObjStream(test);
+
+            formatted.SetLength((long)(formatted.Length * 1.2));
+
+            var unformatted = zip.UnformatObj<MockImageContainer>(formatted);
+
+            Assert.AreEqual(unformatted.Name, test.Name);
+            Assert.AreEqual(unformatted.GetResource<Bitmap>().Size.Height, test.GetResource<Bitmap>().Size.Height);
         }
     }
 }
