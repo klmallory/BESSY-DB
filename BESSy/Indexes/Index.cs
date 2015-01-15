@@ -224,6 +224,8 @@ namespace BESSy.Indexes
 
             if (_databaseFile.Length > Length)
                 _pTree.Reorganize(databaseFile.AsEnumerable());
+            else if (_databaseFile.Length < Length)
+                _pTree.Trim(_databaseFile.Length);
         }
 
         public void Dispose()

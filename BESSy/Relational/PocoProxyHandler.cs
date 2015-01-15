@@ -84,8 +84,6 @@ namespace BESSy.Relational
 
             for (var i = 0; i < fields.Length; i++)
             {
-                Console.WriteLine(fields.Length + " : " + i + " : " + fields[i]);
-
                 if (fields[i] == null)
                     continue;
 
