@@ -593,6 +593,9 @@ namespace BESSy
 
         public virtual void Update(EntityType item)
         {
+            if (object.Equals(item, default(EntityType)))
+                throw new ArgumentException("item to be updated was null or empty. Use delete command if this was intended.");
+
             var id = _idGet(item);
 
             lock (_syncOperations)
@@ -613,6 +616,9 @@ namespace BESSy
 
         public virtual void Update(EntityType item, IdType id)
         {
+            if (_idConverter.Compare(id, default(IdType)) == 0)
+                throw new ArgumentException("id was null or empty.");
+
             var newId = _idGet(item);
             var deleteFirst = (_idConverter.Compare(newId, id) != 0);
 
@@ -640,6 +646,9 @@ namespace BESSy
 
         public virtual void Delete(IdType id)
         {
+            if (_idConverter.Compare(id, default(IdType)) == 0)
+                throw new ArgumentException("id was null or empty.");
+
             lock (_syncOperations)
                 _operations.Push(4);
 
@@ -658,6 +667,9 @@ namespace BESSy
 
         public virtual void Delete(IEnumerable<IdType> ids)
         {
+            if (ids == null)
+                throw new ArgumentNullException();
+
             lock (_syncOperations)
                 _operations.Push(4);
 
@@ -677,6 +689,9 @@ namespace BESSy
 
         public virtual EntityType Fetch(IdType id)
         {
+            if (_idConverter.Compare(id, default(IdType)) == 0)
+                throw new ArgumentException("id was null or empty.");
+
             if (_transactionManager.HasActiveTransactions)
             {
                 using (var t = _transactionManager.GetActiveTransaction(false))

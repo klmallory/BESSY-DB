@@ -378,9 +378,9 @@ namespace BESSy.Cache
                 {
                     long location = 0;
                     var page = new Dictionary<long, NTreeItem<IndexType, SegmentType>>();
-                    var count = pageId < pages -1? _pageSize : rem;
+                    var count = pageId < pages -1 ? _pageSize : rem;
 
-                    using (var view = GetReadableFileStream(pageId, count + 1))
+                    using (var view = GetReadableFileStream(pageId * _pageSize, count + 1))
                     {
                         while (view.Position < view.Length)
                         {
@@ -426,6 +426,8 @@ namespace BESSy.Cache
 
         public void Trim(long dbFileLength)
         {
+            Clear();
+
             Trace.TraceInformation("PTree file loading");
 
             InitializeFile(dbFileLength, _stride);
@@ -536,14 +538,22 @@ namespace BESSy.Cache
                 Trace.TraceInformation("PTree Updating From Transaction");
 
                 IEnumerable<NTreeItem<IndexType, SegmentType>> inserts;
+                List<Tuple<long, NTreeItem<IndexType, SegmentType>>> updates;
                 IEnumerable<SegmentType> deletes;
-
+                
                 var actions = transaction.GetActions();
-                inserts = actions.Where(i => i.Action != Action.Delete).Select(s => new NTreeItem<IndexType, SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment)).ToList();
+
+                updates = actions.Where(i => i.Action == Action.Update)
+                    .Select(s => new Tuple<long, NTreeItem<IndexType, SegmentType>>(
+                         GetFirstLocationBySegment((SegmentType)s.DbSegment), 
+                        new NTreeItem<IndexType,SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment))).ToList();
+
+                inserts = actions.Where(i => i.Action == Action.Create).Select(s => new NTreeItem<IndexType, SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment)).ToList();
                 deletes = actions.Where(i => i.Action == Action.Delete && i.DbSegment != null).Select(s => s.DbSegment).Cast<SegmentType>().ToList();
 
                 Pop(deletes);
                 Push(inserts);
+                Push(updates);
             }
             catch (Exception)
             {

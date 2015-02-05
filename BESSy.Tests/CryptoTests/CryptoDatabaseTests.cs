@@ -10,6 +10,7 @@ using BESSy.Serialization.Converters;
 using NUnit.Framework;
 using BESSy.Tests.ResourceRepositoryTests.Resources;
 using BESSy.Containers;
+using BESSy.Reflection;
 
 namespace BESSy.Tests.CryptoTests
 {
@@ -150,6 +151,9 @@ namespace BESSy.Tests.CryptoTests
                     t.Commit();
                 }
 
+                var dmm = DynamicMemberManager.GetManager(db);
+                Assert.AreEqual(3, dmm._primaryIndex.Length);
+
                 using (var t = db.BeginTransaction())
                 {
                     foreach (var o in objects)
@@ -157,6 +161,8 @@ namespace BESSy.Tests.CryptoTests
 
                     t.Commit();
                 }
+
+                Assert.AreEqual(3, dmm._primaryIndex.Length);
             }
 
             using (var db = new Database<string, ResourceContainer>

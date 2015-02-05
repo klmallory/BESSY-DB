@@ -215,9 +215,9 @@ namespace BESSy.Files
             if (_fileMap != null)
                 _fileMap.Dispose();
 
-            if (_fileStream != null && _fileStream.CanWrite)
+            if (_fileStream != null)
             {
-                if (_core != null)
+                if (_core != null && _fileStream.CanWrite)
                     _fileStream.SetLength(CorePosition + ((long)(Length + 1) * Stride));
 
                 _fileStream.Flush();

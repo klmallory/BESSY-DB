@@ -37,6 +37,7 @@ using BESSy.Transactions;
 using BESSy.Json.Linq;
 using NUnit.Framework;
 using BESSy.Containers;
+using BESSy.Reflection;
 
 namespace BESSy.Tests.DatabaseTests
 {
@@ -212,6 +213,13 @@ namespace BESSy.Tests.DatabaseTests
                 Assert.AreEqual(db.Fetch("Luna_DIFF").GetResource<Bitmap>().Width, testRes.Luna_DIFF.Width);
                 Assert.AreEqual(db.Fetch("Luna_MAT").GetResource<Bitmap>().Width, testRes.Luna_MAT.Width);
                 Assert.AreEqual(db.Fetch("Luna_NRM").GetResource<Bitmap>().Width, testRes.Luna_NRM.Width);
+
+                var d = DynamicMemberManager.GetManager(db);
+                var idx = DynamicMemberManager.GetManager(d._primaryIndex);
+                var pt = DynamicMemberManager.GetManager(idx._pTree);
+
+                Assert.AreEqual(1, pt._cache.Count);
+                Assert.AreEqual(13, pt._cache[0].Count);
             }
         }
 

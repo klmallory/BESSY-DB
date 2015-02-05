@@ -206,6 +206,7 @@ namespace BESSy.Cache
                         return;
 
                     var page = _cache[pageId];
+
                     if (page.Any(p => _indexConverter.Compare(p.Value.Index, index) == 0))
                     {
                         foreach (var item in page)
@@ -503,26 +504,24 @@ namespace BESSy.Cache
 
         protected virtual void Push(NTreeItem<IndexType, SegmentType> nt, long ts)
         {
-            int pageId =0;
+            int pageHint = 0;
 
             lock (_syncHints)
-                pageId = (int)_indexHints.LastOrDefault(i => _indexConverter.Compare(i.Key, nt.Index) < 0).Value;
+                pageHint = (int)_indexHints.LastOrDefault(i => _indexConverter.Compare(i.Key, nt.Index) < 0).Value;
 
-            using (_pageSync.Lock(pageId))
+            var pages = Pages;
+
+            SafeIterate(pageHint, pages, new Action<int>(delegate(int pageId)
             {
-                if (_cache.Count < pageId)
-                    throw new KeyNotFoundException(string.Format("page not found for location: {0}, page: {1}, actual page count: {2}", ts, pageId, _cache.Count));
+                if (!_cache[pageId].ContainsKey(ts))
+                    return;
 
                 var page = _cache[pageId];
-
-                if (page == null || !page.ContainsKey(ts))
-                    throw new KeyNotFoundException(string.Format("location not found: {0}, page: {1}, actual page length: {2}", ts, pageId, page.Count));
-
                 page[ts] = nt;
 
                 if (ts % _hintSkip == 0)
                     UpdateHint(nt.Segment, nt.Index, pageId);
-            }
+            }));
         }
 
         protected virtual void Push(List<Tuple<long, NTreeItem<IndexType, SegmentType>>> items)
@@ -544,7 +543,7 @@ namespace BESSy.Cache
                         page[item.Item1] = item.Item2;
 
                         if (item.Item1 % _hintSkip == 0)
-                            UpdateHint(item.Item2.Segment, item.Item2.Index, item.Item1);
+                            UpdateHint(item.Item2.Segment, item.Item2.Index, pageId);
                     }
                 }
             }));
@@ -991,6 +990,13 @@ namespace BESSy.Cache
         {
             long ts;
             return GetFirstBySegment(segment, out ts);
+        }
+
+        public virtual long GetFirstLocationBySegment(SegmentType segment)
+        {
+            long ts;
+            GetFirstBySegment(segment, out ts);
+            return ts;
         }
 
         public virtual SegmentType GetFirstByIndex(IndexType index)
