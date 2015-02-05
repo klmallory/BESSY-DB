@@ -57,7 +57,11 @@ namespace BESSy.Serialization.Converters
         }
 
         [JsonIgnore]
+        /// <summary>
+        /// Minimum value
+        ///  <summary>
         public ulong Min { get { return ulong.MinValue; } }
+
         [JsonIgnore]
         public ulong Max { get { return ulong.MaxValue; } }
         [JsonIgnore]

@@ -392,7 +392,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
             {
                 afm.Load<int>();
 
-                Assert.LessOrEqual(511, afm.Stride);
+                Assert.LessOrEqual(461, afm.Stride);
                 Assert.AreEqual(10240, afm.CorePosition);
 
                 foreach (var entity in updateEntities)

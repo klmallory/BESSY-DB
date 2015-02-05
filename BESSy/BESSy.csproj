@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET40</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\Debug\BESSy.XML</DocumentationFile>
@@ -172,6 +172,7 @@
     <Compile Include="AbstractTransactionalDatabase_Fluent.cs" />
     <Compile Include="AbstractTransactionalDatabase_IProvideMetaData.cs" />
     <Compile Include="AbstractTransactionalDatabase_Server.cs" />
+    <Compile Include="AssemblyConstants.cs" />
     <Compile Include="Cache\NTree.cs" />
     <Compile Include="Cache\PTree.cs" />
     <Compile Include="Containers\ResourceStreamContainer.cs" />
@@ -182,11 +183,11 @@
     <Compile Include="DataProvision\ReplicationCommand.cs" />
     <Compile Include="Enumerators\PagedReverseEnumerator.cs" />
     <Compile Include="Enumerators\PagedEnumerator.cs" />
+    <Compile Include="Extensions\StringExtensions.cs" />
     <Compile Include="Factories\BsonWriterFactory.cs" />
     <Compile Include="Factories\IndexFromStringFactory.cs" />
     <Compile Include="Factories\JsonWriterFactory.cs" />
     <Compile Include="Enumerators\PagedStreamingEnumerator.cs" />
-    <Compile Include="Factories\PocoTransactionFactory.cs" />
     <Compile Include="Factories\ReplicationFromStringFactory.cs" />
     <Compile Include="Files\DataFileManager.cs" />
     <Compile Include="Indexes\ConsolidatedIndex.cs" />
@@ -194,21 +195,23 @@
     <Compile Include="Indexes\FileIndexRange.cs" />
     <Compile Include="Indexes\Index.cs" />
     <Compile Include="IServerRepository.cs" />
+    <Compile Include="JObjectDatabase.cs" />
     <Compile Include="Queries\AlgorithmEnum.cs" />
     <Compile Include="Queries\CompareToken.cs" />
     <Compile Include="Queries\DeleteExpression.cs" />
     <Compile Include="Queries\ExpressionResolver.cs" />
+    <Compile Include="Queries\ScalarSelectJoinExpression.cs" />
     <Compile Include="Queries\UpdateToken.cs" />
     <Compile Include="Queries\ValueEnum.cs" />
     <Compile Include="Queries\ScalarSelectExpression.cs" />
     <Compile Include="Queries\WhereExpression.cs" />
     <Compile Include="Queries\UpdateExpression.cs" />
     <Compile Include="Queries\ValueTypeEvaluator.cs" />
-    <Compile Include="Reflection\ExposedClass.cs" />
-    <Compile Include="Reflection\ExposedObject.cs" />
-    <Compile Include="Reflection\ExposedObjectHelper.cs" />
+    <Compile Include="Reflection\BESSyIgnoreAttribute.cs" />
+    <Compile Include="Reflection\DynamicMemberManager.cs" />
     <Compile Include="Relational\PocoProxyFactory.cs" />
     <Compile Include="Relational\PocoProxyHandler.cs" />
+    <Compile Include="Relational\PocoProxySerializer.cs" />
     <Compile Include="Relational\PocoRelationalDatabase.cs" />
     <Compile Include="Relational\ProxyCreationException.cs" />
     <Compile Include="Relational\ProxyWatchList.cs" />
@@ -272,8 +275,6 @@
     <Compile Include="Serialization\LZ4ZipFormatter.cs" />
     <Compile Include="Serialization\QueryCryptoFormatter.cs" />
     <Compile Include="Serialization\JSONFormatter.cs" />
-    <Compile Include="Transactions\PocoTransaction.cs" />
-    <Compile Include="Transactions\PocoTransactionManager.cs" />
     <Compile Include="Transactions\Rewind.cs" />
     <Compile Include="Transactions\RowLockContainer.cs" />
     <Compile Include="Transactions\UnitOfWork.cs" />

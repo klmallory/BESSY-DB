@@ -1,0 +1,314 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{B152AD3D-3B77-4F9C-AC12-0FC7F688DDA3}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>BESSy.Tests</RootNamespace>
+    <AssemblyName>BESSy.Tests</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;NET40</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <UseVSHostingProcess>true</UseVSHostingProcess>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE;NET40</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debugx64|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Debugx64\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <CodeAnalysisLogFile>bin\Debug\BESSy.Tests.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
+    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
+    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
+    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <CodeAnalysisLogFile>bin\Debug\BESSy.Tests.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
+    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
+    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
+    <CodeAnalysisIgnoreBuiltInRuleSets>true</CodeAnalysisIgnoreBuiltInRuleSets>
+    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
+    <CodeAnalysisIgnoreBuiltInRules>true</CodeAnalysisIgnoreBuiltInRules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <CodeAnalysisLogFile>bin\Release\BESSy.Tests.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
+    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
+    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
+    <CodeAnalysisIgnoreBuiltInRuleSets>true</CodeAnalysisIgnoreBuiltInRuleSets>
+    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
+    <CodeAnalysisIgnoreBuiltInRules>true</CodeAnalysisIgnoreBuiltInRules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debugx64|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debugx64\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <CodeAnalysisLogFile>bin\Debug\BESSy.Tests.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
+    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
+    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
+    <CodeAnalysisIgnoreBuiltInRuleSets>true</CodeAnalysisIgnoreBuiltInRuleSets>
+    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
+    <CodeAnalysisIgnoreBuiltInRules>true</CodeAnalysisIgnoreBuiltInRules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x86\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <CodeAnalysisLogFile>bin\Debug\BESSy.Tests.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
+    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
+    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
+    <CodeAnalysisIgnoreBuiltInRuleSets>true</CodeAnalysisIgnoreBuiltInRuleSets>
+    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
+    <CodeAnalysisIgnoreBuiltInRules>true</CodeAnalysisIgnoreBuiltInRules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <OutputPath>bin\x86\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <CodeAnalysisLogFile>bin\Release\BESSy.Tests.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
+    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
+    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
+    <CodeAnalysisIgnoreBuiltInRuleSets>true</CodeAnalysisIgnoreBuiltInRuleSets>
+    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
+    <CodeAnalysisIgnoreBuiltInRules>true</CodeAnalysisIgnoreBuiltInRules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debugx64|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x86\Debugx64\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <CodeAnalysisLogFile>bin\Debug\BESSy.Tests.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
+    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
+    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
+    <CodeAnalysisIgnoreBuiltInRuleSets>true</CodeAnalysisIgnoreBuiltInRuleSets>
+    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
+    <CodeAnalysisIgnoreBuiltInRules>true</CodeAnalysisIgnoreBuiltInRules>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>BESSy.Tests.keyfile.pfx</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <DelaySign>false</DelaySign>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BESSy.Json">
+      <HintPath>..\Tools\Json.NET.Fork\BESSy.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="nunit.framework">
+      <HintPath>..\Tools\nUnit\nunit.framework.dll</HintPath>
+    </Reference>
+    <Reference Include="nunit.mocks">
+      <HintPath>..\Tools\nUnit\nunit.mocks.dll</HintPath>
+    </Reference>
+    <Reference Include="pnunit.framework">
+      <HintPath>..\Tools\nUnit\pnunit.framework.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Transactions" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AtomicFileManagerTests\AtomicFileManagerCRUDTests.cs" />
+    <Compile Include="AtomicFileManagerTests\AtomicFileManagerHelper.cs" />
+    <Compile Include="AtomicFileManagerTests\AtomicFileManagerQueryTests.cs" />
+    <Compile Include="AtomicFileManagerTests\AtomicFileManagerRebuildTests.cs" />
+    <Compile Include="CachingTests\DatabaseCacheTests.cs" />
+    <Compile Include="CryptoTests\CryptoDatabaseTests.cs" />
+    <Compile Include="CryptoTests\RC2Tests.cs" />
+    <Compile Include="DatabaseFactoryTests\DatabaseFactoryNegativeTests.cs" />
+    <Compile Include="DatabaseFactoryTests\DataBaseFactoryTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseCapacityTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseCompressionTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseCRUDTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseQueryTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseServerTests.cs" />
+    <Compile Include="DatabaseTests\DatabaseTransactionTests.cs" />
+    <Compile Include="ExpressionResolverTests\ExpressionResolverDeleteTests.cs" />
+    <Compile Include="ExpressionResolverTests\ExpressionResolverEvaluationTests.cs" />
+    <Compile Include="ExpressionResolverTests\ExpressionResolverScalerSelectTests.cs" />
+    <Compile Include="ExpressionResolverTests\ExpressionResolverSelectTests.cs" />
+    <Compile Include="ExpressionResolverTests\ExpressionResolverUpdateScalarTests.cs" />
+    <Compile Include="FileRepositoryTests\XmlFileRepositoryTests.cs" />
+    <Compile Include="FileTest.cs" />
+    <Compile Include="Indexes\IndexTests.cs" />
+    <Compile Include="Indexes\SecondaryIndexTests.cs" />
+    <Compile Include="Mocks\MockAudioContainer.cs" />
+    <Compile Include="Mocks\MockBatchFileManager.cs" />
+    <Compile Include="Mocks\MockClassA.cs" />
+    <Compile Include="Mocks\MockClassB.cs" />
+    <Compile Include="Mocks\MockClassC.cs" />
+    <Compile Include="Mocks\MockClassD.cs" />
+    <Compile Include="Mocks\MockClassE.cs" />
+    <Compile Include="Mocks\MockDomain.cs" />
+    <Compile Include="Mocks\MockFileRepository.cs" />
+    <Compile Include="Mocks\MockImageContainer.cs" />
+    <Compile Include="Mocks\MockImageConverter.cs" />
+    <Compile Include="Mocks\MockProxyC.cs" />
+    <Compile Include="Mocks\MockProxyDomain.cs" />
+    <Compile Include="Mocks\MockProxyFactory.cs" />
+    <Compile Include="Mocks\MockStreamConverter.cs" />
+    <Compile Include="Mocks\MockTransaction.cs" />
+    <Compile Include="Mocks\MockTransactionFactory.cs" />
+    <Compile Include="Mocks\Tcp\MockTcpPublisher.cs" />
+    <Compile Include="Mocks\Tcp\MockTcpSubscriber.cs" />
+    <Compile Include="Mocks\Validation.cs" />
+    <Compile Include="NTreeTests\NTreeDeleteTests.cs" />
+    <Compile Include="NTreeTests\NTreeNonUniqueTests.cs" />
+    <Compile Include="NTreeTests\NTreeUniqueTests.cs" />
+    <Compile Include="OddBallTests\ExceptionTests.cs" />
+    <Compile Include="OddBallTests\ExtensionTests.cs" />
+    <Compile Include="ProxyTests\PocoProxyTests.cs" />
+    <Compile Include="PTreeTests\PTreeDeleteTests.cs" />
+    <Compile Include="PTreeTests\PTreeNonUniqueTests.cs" />
+    <Compile Include="PTreeTests\PTreeUniqueTests.cs" />
+    <Compile Include="RelationshipEntityTests\RelationshipDatabaseTests.cs" />
+    <Compile Include="RelationshipEntityTests\RelationshipEntityTest.cs" />
+    <Compile Include="RelationshipEntityTests\WatchListTests.cs" />
+    <Compile Include="ReplicationFactoryTests\ReplicationFactoryTests.cs" />
+    <Compile Include="Replication\MultiplePublisherSubscriberTests.cs" />
+    <Compile Include="Replication\PublisherTests.cs" />
+    <Compile Include="Replication\SubscriberTests.cs" />
+    <Compile Include="Replication\TcpTests.cs" />
+    <Compile Include="ResourceRepositoryTests\ResourceCRUDTests.cs" />
+    <Compile Include="ResourceRepositoryTests\Resources\testRes.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>testRes.resx</DependentUpon>
+    </Compile>
+    <Compile Include="SeedTests\Seed32Tests.cs" />
+    <Compile Include="SeedTests\Seed64Tests.cs" />
+    <Compile Include="SeedTests\SeedGuidTests.cs" />
+    <Compile Include="SeedTests\SeedU64Tests.cs" />
+    <Compile Include="SeedTests\TypeFactoryTests.cs" />
+    <Compile Include="SerializationTests\BSONFormatterTests.cs" />
+    <Compile Include="SerializationTests\BinConverterTests.cs" />
+    <Compile Include="SerializationTests\Lz4FormatterTests.cs" />
+    <Compile Include="SerializationTests\CryptoFormatterTests.cs" />
+    <Compile Include="SerializationTests\JSONFormatterTests.cs" />
+    <Compile Include="SynchronizationTests\RowSynchronizerTests.cs" />
+    <Compile Include="TempTests.cs" />
+    <Compile Include="Test.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Test.resx</DependentUpon>
+    </Compile>
+    <Compile Include="TestResourceFactory.cs" />
+    <Compile Include="Mocks\MockStruct.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TaskGroups\TaskGroupTests.cs" />
+    <Compile Include="TransactionTests\TransactionManagerTests.cs" />
+    <Compile Include="TransactionTests\TransactionScopeTests.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BESSy\BESSy.csproj">
+      <Project>{B4BC5256-DB79-4085-B70D-7C1FB586AB43}</Project>
+      <Name>BESSy</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="ExtensionsTest\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="ResourceRepositoryTests\Resources\testRes.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>testRes.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Test.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Test.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="BESSy.TestAssembly.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Compile Include="ProxyTests\MockProxyTests.cs" />
+    <Content Include="ResourceRepositoryTests\Resources\Images\IronAsteroid_NRM.png" />
+    <Content Include="ResourceRepositoryTests\Resources\Images\Luna_DIFF.png" />
+    <Content Include="ResourceRepositoryTests\Resources\Images\Luna_MAT.png" />
+    <Content Include="ResourceRepositoryTests\Resources\Images\Luna_NRM.png" />
+    <Content Include="ResourceRepositoryTests\Resources\Sounds\Speech Misrecognition.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="BESSy.Tests.cer" />
+    <None Include="BESSy.Tests.keyfile.pfx" />
+    <None Include="BESSy.Tests.keyfile.pub" />
+    <None Include="BESSy.Tests.pvk" />
+    <None Include="ResourceRepositoryTests\Resources\Sounds\MiscAngelic.ogg" />
+    <None Include="ResourceRepositoryTests\Resources\Sounds\MiscSitarOutOfTune.ogg" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

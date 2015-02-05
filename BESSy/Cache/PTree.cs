@@ -42,7 +42,13 @@ namespace BESSy.Cache
 
         [TargetedPatchingOptOut("Performance critical to inline this tBuilder of method across NGen image boundaries")]
         public PTree(string indexToken, string fileName, bool enforceUnique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer)
-            : base(indexToken, enforceUnique, indexConverter, segmentConverter, pageSynchronizer)
+            : this(indexToken, fileName, enforceUnique, startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer, GetIndexer(indexToken))
+        {
+
+        }
+
+        public PTree(string indexToken, string fileName, bool enforceUnique, int startingSize, IBinConverter<IndexType> indexConverter, IBinConverter<SegmentType> segmentConverter, IRowSynchronizer<long> rowSynchronizer, IRowSynchronizer<int> pageSynchronizer, Func<EntityType, IndexType> indexGet)
+            : base(indexToken, enforceUnique, indexConverter, segmentConverter, pageSynchronizer, indexGet)
         {
             _fileName = fileName;
 
@@ -125,7 +131,28 @@ namespace BESSy.Cache
         {
             _fileStream = OpenFile(_fileName, Environment.SystemPageSize);
 
-            _locationSeed = new Seed64(((_fileStream.Length / stride) -1).Clamp(0, long.MaxValue));
+            _locationSeed = new Seed64(((_fileStream.Length / stride) - 1).Clamp(0, long.MaxValue));
+
+            _maxLength = GetSizeWithGrowthFactor(Math.Max(Length + growth, _startingSize));
+
+            _fileStream.SetLength((_maxLength) * stride);
+
+            _fileMap = OpenMemoryMap(_fileStream, stride, _maxLength);
+
+            lock (_syncHints)
+            {
+                _hintSkip = (int)((long)Math.Ceiling(_maxLength / (double)TaskGrouping.ArrayLimit) / _pageSize).Clamp(1, int.MaxValue);
+
+                _indexHints.Clear();
+                _segmentHints.Clear();
+            }
+        }
+
+        protected virtual void InitializeFile(long dbInitialLength, int stride, long growth = 1)
+        {
+            _fileStream = OpenFile(_fileName, Environment.SystemPageSize);
+
+            _locationSeed = new Seed64(dbInitialLength);
 
             _maxLength = GetSizeWithGrowthFactor(Math.Max(Length + growth, _startingSize));
 
@@ -351,9 +378,9 @@ namespace BESSy.Cache
                 {
                     long location = 0;
                     var page = new Dictionary<long, NTreeItem<IndexType, SegmentType>>();
-                    var count = pageId < pages -1? _pageSize : rem;
+                    var count = pageId < pages -1 ? _pageSize : rem;
 
-                    using (var view = GetReadableFileStream(pageId, count + 1))
+                    using (var view = GetReadableFileStream(pageId * _pageSize, count + 1))
                     {
                         while (view.Position < view.Length)
                         {
@@ -391,10 +418,23 @@ namespace BESSy.Cache
             InitializeFile(_stride);
 
             Trace.TraceInformation("PTree Building Cache");
-            
+
             BuildCacheFromFile();
 
             return Length;
+        }
+
+        public void Trim(long dbFileLength)
+        {
+            Clear();
+
+            Trace.TraceInformation("PTree file loading");
+
+            InitializeFile(dbFileLength, _stride);
+
+            Trace.TraceInformation("PTree Building Cache");
+
+            BuildCacheFromFile();
         }
 
         public void Rebuild(long newLength)
@@ -498,14 +538,22 @@ namespace BESSy.Cache
                 Trace.TraceInformation("PTree Updating From Transaction");
 
                 IEnumerable<NTreeItem<IndexType, SegmentType>> inserts;
+                List<Tuple<long, NTreeItem<IndexType, SegmentType>>> updates;
                 IEnumerable<SegmentType> deletes;
-
+                
                 var actions = transaction.GetActions();
-                inserts = actions.Where(i => i.Action != Action.Delete).Select(s => new NTreeItem<IndexType, SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment));
-                deletes = actions.Where(i => i.Action == Action.Delete && i.DbSegment != null).Select(s => s.DbSegment).Cast<SegmentType>();
+
+                updates = actions.Where(i => i.Action == Action.Update)
+                    .Select(s => new Tuple<long, NTreeItem<IndexType, SegmentType>>(
+                         GetFirstLocationBySegment((SegmentType)s.DbSegment), 
+                        new NTreeItem<IndexType,SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment))).ToList();
+
+                inserts = actions.Where(i => i.Action == Action.Create).Select(s => new NTreeItem<IndexType, SegmentType>(_indexGet(s.Entity), (SegmentType)s.DbSegment)).ToList();
+                deletes = actions.Where(i => i.Action == Action.Delete && i.DbSegment != null).Select(s => s.DbSegment).Cast<SegmentType>().ToList();
 
                 Pop(deletes);
                 Push(inserts);
+                Push(updates);
             }
             catch (Exception)
             {

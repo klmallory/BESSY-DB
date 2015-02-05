@@ -84,6 +84,20 @@ namespace BESSy.Indexes
             _pTree = new PTree<IndexType, EntityType, SegmentType>(indexToken, fileNamePath, unique, startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer);
         }
 
+        public Index
+        (string fileNamePath,
+        string indexToken,
+        bool unique,
+        int startingSize,
+        Func<EntityType, IndexType> indexer,
+        IBinConverter<IndexType> indexConverter,
+        IBinConverter<SegmentType> segmentConverter,
+        IRowSynchronizer<long> rowSynchronizer,
+        IRowSynchronizer<int> pageSynchronizer)
+        {
+            _pTree = new PTree<IndexType, EntityType, SegmentType>(indexToken, fileNamePath, unique, startingSize, indexConverter, segmentConverter, rowSynchronizer, pageSynchronizer, indexer);
+        }
+
         protected PTree<IndexType, EntityType, SegmentType> _pTree;
         protected IAtomicFileManager<EntityType> _databaseFile;
 
@@ -210,6 +224,8 @@ namespace BESSy.Indexes
 
             if (_databaseFile.Length > Length)
                 _pTree.Reorganize(databaseFile.AsEnumerable());
+            else if (_databaseFile.Length < Length -1)
+                _pTree.Trim(_databaseFile.Length);
         }
 
         public void Dispose()

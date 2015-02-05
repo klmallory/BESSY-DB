@@ -9,6 +9,9 @@ using BESSy.Relational;
 using BESSy.Serialization;
 using BESSy.Seeding;
 using BESSy.Serialization.Converters;
+using BESSy.Json.Linq;
+using BESSy.Transactions;
+using BESSy.Factories;
 
 namespace BESSy.Tests.ProxyTests
 {
@@ -24,9 +27,10 @@ namespace BESSy.Tests.ProxyTests
             var domain = TestResourceFactory.CreateRandomDomain();
 
             using (var db = new PocoRelationalDatabase<int, MockClassA>
-                (_testName + ".database", "Id", new FileCore<int, long>(), 
-                new BinConverter32(), new BSONFormatter(), 
-                new MockProxyFactory<int, MockClassA>()))
+                (_testName + ".database", "Id",
+                new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                new TransactionManager<int, JObject>(), new AtomicFileManagerFactory(), new DatabaseCacheFactory(),
+                new IndexFileFactory(), new IndexFactory(), new MockProxyFactory<int, MockClassA>()))
             {
                 db.Load();
 
@@ -36,19 +40,26 @@ namespace BESSy.Tests.ProxyTests
 
                     var d = db.Fetch(domain.Id);
 
-                    (d as MockDomain).Validate(domain as MockDomain);
+                    Validation.ValidateDomain(d as MockDomain, domain as MockDomain);
 
                     t.Commit();
                 }
             }
 
-            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database",new BSONFormatter(), new MockProxyFactory<int, MockClassA>()))
+            using (var db = new PocoRelationalDatabase<int, MockClassA>(_testName + ".database",
+                new BSONFormatter(), 
+                new TransactionManager<int, JObject>(), 
+                new AtomicFileManagerFactory(), 
+                new DatabaseCacheFactory(), 
+                new IndexFileFactory(), 
+                new IndexFactory(), 
+                new MockProxyFactory<int, MockClassA>()))
             {
                 db.Load();
 
                 var d = db.Fetch(domain.Id);
 
-                (d as MockDomain).Validate(domain as MockDomain);
+                Validation.ValidateDomain(d as MockDomain, domain as MockDomain);
             }
         }
 	}

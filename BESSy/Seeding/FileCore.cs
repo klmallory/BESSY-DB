@@ -6,20 +6,26 @@ using BESSy.Json;
 
 namespace BESSy.Seeding
 {
-    public interface IFileCore<SegmentType>
+    public interface IFileCore
     {
+        long InitialDbSize { get; set; }
         string CategoryIdProperty { get; set; }
         object IdConverter { get; set; }
         string IdProperty { get; set; }
+        string ExternalIdProperty { get; set; }
         long LastReplicatedTimeStamp { get; set; }
         int MinimumCoreStride { get; set; }
         object PropertyConverter { get; set; }
-        ISeed<SegmentType> SegmentSeed { get; set; }
         Guid Source { get; }
         int Stride { get; set; }
         List<string> Publishers { get; set; }
         List<string> Subscribers { get; set; }
         List<string> Indexes { get; set; }
+    }
+
+    public interface IFileCore<SegmentType> : IFileCore
+    {
+        ISeed<SegmentType> SegmentSeed { get; set; }
     }
 
     public interface IFileCore<IdType, SegmentType> : IFileCore<SegmentType>
@@ -48,11 +54,14 @@ namespace BESSy.Seeding
             MinimumCoreStride = 10240;
             IdSeed = idSeed;
             SegmentSeed = segmentSeed;
-
+            InitialDbSize = 512;
             Indexes = new List<string>();
             Subscribers = new List<string>();
             Publishers = new List<string>();
         }
+
+        [JsonIgnore]
+        public long InitialDbSize { get; set; }
 
         [JsonProperty]
         public Guid Source { get; protected set; }
@@ -60,16 +69,13 @@ namespace BESSy.Seeding
         public long LastReplicatedTimeStamp { get; set; }
         public object PropertyConverter { get; set; }
         public object IdConverter { get; set; }
-
         public string IdProperty { get; set; }
+        public string ExternalIdProperty { get; set; }
         public string CategoryIdProperty { get; set; }
-
         public int MinimumCoreStride { get; set; }
         public int Stride { get; set; }
-
         public ISeed<SegmentType> SegmentSeed { get; set; }
         public ISeed<IdType> IdSeed { get; set; }
-
         public List<string> Publishers { get; set; }
         public List<string> Subscribers { get; set; }
         public List<string> Indexes { get; set; }

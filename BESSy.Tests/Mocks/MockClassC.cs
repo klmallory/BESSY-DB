@@ -9,9 +9,11 @@ using System.Text;
 using NUnit.Framework;
 using System.Security.Permissions;
 using System.Xml.Serialization;
+using System.Security;
 
 namespace BESSy.Tests.Mocks
 {
+    [SecuritySafeCritical]
     public class MockClassC : MockClassB
     {
         public short LittleId;

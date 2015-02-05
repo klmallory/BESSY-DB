@@ -71,7 +71,7 @@ namespace BESSy.Tests.Replication
                     Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
                     var objects = TestResourceFactory.GetMockClassAObjects(25).OfType<MockClassC>().ToList();
-                    objects.ForEach(o => o.ReplicationID = Guid.Empty);
+                    //objects.ForEach(o => o.ReplicationID = Guid.Empty);
 
                     using (var tran = pdb.BeginTransaction())
                     {

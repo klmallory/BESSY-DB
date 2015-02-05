@@ -156,5 +156,54 @@ namespace BESSy.Tests.FileRepositoryTests
                 Assert.AreEqual(22, repo.Length);
             }
         }
+
+        [Test]
+        public void FileAddsUpdatesWithoutIdAndDeletesFromCollection()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var list = TestResourceFactory.GetMockClassAObjects(22).Cast<MockClassC>().ToList();
+            list.ForEach(i => i.WithId(i.GetHashCode()));
+
+            var container = new MockContainer() { AsList = list };
+
+            using (var repo = new MockFileRepository(_testName + ".xml", "."))
+            {
+                repo.Load();
+                repo.Clear();
+
+                list.ForEach(i => i.Id = repo.Add(i));
+                repo.Update(list.First());
+                repo.AddOrUpdate(TestResourceFactory.CreateRandom() as MockClassC);
+
+                repo.Flush();
+            }
+
+            using (var repo = new MockFileRepository(_testName + ".xml", "."))
+            {
+                repo.Load();
+
+                repo.Delete(new int[] { list.Last().Id });
+                list.Remove(list.Last());
+
+                foreach (var orig in list)
+                {
+                    var item = repo.Fetch(orig.Id);
+
+                    Assert.AreEqual(item.Id, orig.Id);
+                    Assert.AreEqual(item.Name, orig.Name);
+                    Assert.AreEqual(item.GetSomeCheckSum[0], orig.GetSomeCheckSum[0]);
+                    Assert.AreEqual(item.Location.X, orig.Location.X);
+                    Assert.AreEqual(item.Location.Y, orig.Location.Y);
+                    Assert.AreEqual(item.Location.Z, orig.Location.Z);
+                    Assert.AreEqual(item.Location.W, orig.Location.W);
+                    Assert.AreEqual(item.ReferenceCode, orig.ReferenceCode);
+                    Assert.AreEqual(item.ReplicationID, orig.ReplicationID);
+                }
+
+                Assert.AreEqual(22, repo.Length);
+            }
+        }
     }
 }

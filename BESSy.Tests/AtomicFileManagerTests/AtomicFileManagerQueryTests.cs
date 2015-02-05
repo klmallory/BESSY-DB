@@ -109,7 +109,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
                         if (match == null || !match.Any())
                             continue;
 
-                        var result = match.First().ToObject<MockClassC>();
+                        var result = match.First(r => r.Value<int>("Id") == 10000).ToObject<MockClassC>();
 
                         Assert.IsNotNull(result);
                         Assert.AreEqual(10000, result.Id);

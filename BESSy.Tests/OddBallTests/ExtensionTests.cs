@@ -29,5 +29,32 @@ namespace BESSy.Tests.OddBallTests
             Assert.AreEqual(0, ((double)(-1)).Clamp(0, 10));
             Assert.AreEqual(1, ((double)(1)).Clamp(0, 10));
         }
+
+        [Test]
+        public void StringIsNotEmptyTest()
+        {
+            Assert.IsFalse("not empty".IsNullOrEmpty());
+            Assert.IsTrue("".IsNullOrEmpty());
+        }
+
+        [Test]
+        public void ListIsEmptyTest()
+        {
+            Assert.IsFalse(new List<int>() { 1 }.IsNullOrEmpty());
+            Assert.IsTrue(((IList<int>)null).IsNullOrEmpty());
+
+            Assert.IsTrue(new List<int>() { 1 }.IsNotNullAndNotEmpty());
+            Assert.IsFalse(((IList<int>)null).IsNotNullAndNotEmpty());
+        }
+
+        [Test]
+        public void EnumerableIsNotEmptyTest()
+        {
+            Assert.IsFalse(new List<int>() { 1 }.AsEnumerable<int>().IsNullOrEmpty());
+            Assert.IsTrue(((IList<int>)null).AsEnumerable<int>().IsNullOrEmpty());
+
+            Assert.IsTrue(new List<int>() { 1 }.AsEnumerable<int>().IsNotNullAndNotEmpty());
+            Assert.IsFalse(((IList<int>)null).AsEnumerable<int>().IsNotNullAndNotEmpty());
+        }
     }
 }

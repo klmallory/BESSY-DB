@@ -119,7 +119,9 @@ namespace BESSy
     public interface IRepository<T, I> : IReadOnlyRepository<T, I>
     {
         I Add(T item);
+        I AddOrUpdate(T item);
         I AddOrUpdate(T item, I id);
+        void Update(T item);
         void Update(T item, I id);
         void Delete(I id);
         void Delete(IEnumerable<I> ids);

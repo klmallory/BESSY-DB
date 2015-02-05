@@ -24,6 +24,7 @@ using System.Threading;
 using BESSy.Extensions;
 using BESSy.Files;
 using BESSy.Json.Linq;
+using BESSy.Reflection;
 using BESSy.Seeding;
 using BESSy.Serialization;
 using BESSy.Serialization.Converters;
@@ -98,7 +99,6 @@ namespace BESSy.Tests.DatabaseTests
             }
         }
 
-
         [Test]
         public void DatabaseUpdatesJObject()
         {
@@ -120,6 +120,8 @@ namespace BESSy.Tests.DatabaseTests
 
                     t.Commit();
                 }
+                var dmm = DynamicMemberManager.GetManager(db);
+                Assert.AreEqual(5000, dmm._primaryIndex.Length);
             }
 
             using (var db = new Database<int, MockClassA>(_testName + ".database"))

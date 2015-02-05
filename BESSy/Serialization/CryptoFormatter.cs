@@ -105,7 +105,8 @@ namespace BESSy.Serialization
 
         #region IFormatter Members
 
-        public bool Trim { get { return true; } }
+        public virtual bool Trim { get { return true; } }
+        public virtual ArraySegment<byte> TrimMarker { get { return new ArraySegment<byte>(); } }
 
         public Stream FormatObjStream<T>(T obj)
         {

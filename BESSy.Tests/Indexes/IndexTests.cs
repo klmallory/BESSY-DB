@@ -35,6 +35,8 @@ using BESSy.Transactions;
 using BESSy.Json.Linq;
 using NUnit.Framework;
 using BESSy.Tests.AtomicFileManagerTests;
+using BESSy.Reflection;
+using BESSy.Cache;
 
 namespace BESSy.Tests.Indexes
 {
@@ -160,6 +162,80 @@ namespace BESSy.Tests.Indexes
         }
 
         [Test]
+        public void IndexClosesWithCorrectLength()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
+            var core = new FileCore<string, long>() { IdSeed = new SeedString(2048), SegmentSeed = new Seed64(), Stride = 512 };
+
+            var objs = TestResourceFactory.GetMockClassAObjects(1000).ToDictionary(d => d.Name);
+            var additions = TestResourceFactory.GetMockClassAObjects(2).ToDictionary(d => d.Name);
+
+            IDictionary<string, long> segs = null;
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
+            {
+                using (var index = new Index<string, MockClassA, long>(_testName + ".index", "Name", true, 8, new BinConverterString(2048), new BinConverter64(), new RowSynchronizer<long>(new BinConverter64()), new RowSynchronizer<int>(new BinConverter32())))
+                {
+                    afm.Load<string>();
+
+                    index.Load();
+                    index.Register(afm);
+
+                    segs = AtomicFileManagerHelper.SaveSegments(afm, objs);
+
+                    Assert.AreEqual(1000, index.Length);
+                }
+            }
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
+            {
+                using (var index = new Index<string, MockClassA, long>(_testName + ".index", "Name", true, 8, new BinConverterString(2048), new BinConverter64(), new RowSynchronizer<long>(new BinConverter64()), new RowSynchronizer<int>(new BinConverter32())))
+                {
+                    afm.Load<string>();
+
+                    index.Load();
+
+                    Assert.AreEqual(1000, index.Length);
+
+                    index.Register(afm);
+
+                    Assert.AreEqual(1000, index.Length);
+
+                    var idx = DynamicMemberManager.GetManager(index);
+                    var pt = DynamicMemberManager.GetManager(idx._pTree);
+
+                    Assert.AreEqual(3, pt._cache.Count);
+                    Assert.AreEqual(400, pt._cache[0].Count);
+
+                    segs = AtomicFileManagerHelper.SaveSegments(afm, additions);
+                }
+            }
+
+            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
+            {
+                using (var index = new Index<string, MockClassA, long>(_testName + ".index", "Name", true, 8, new BinConverterString(2048), new BinConverter64(), new RowSynchronizer<long>(new BinConverter64()), new RowSynchronizer<int>(new BinConverter32())))
+                {
+                    afm.Load<string>();
+
+                    index.Load();
+
+                    Assert.AreEqual(1002, index.Length);
+
+                    index.Register(afm);
+
+                    Assert.AreEqual(1002, index.Length);
+
+                    var seg = index.FetchSegment(additions.First().Key);
+
+                    Assert.IsNotNull(seg);
+                }
+            }
+        }
+
+        [Test]
         public void IndexReorganizes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
@@ -204,20 +280,22 @@ namespace BESSy.Tests.Indexes
 
             using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
             {
-                var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true);
-                afm.Load<int>();
+                using (var index = new Index<int, MockClassA, long>(_testName + ".index", "Id", true))
+                {
+                    afm.Load<int>();
 
-                index.Load();
-                index.Register(afm);
+                    index.Load();
+                    index.Register(afm);
 
-                var f = index.FetchSegment(objs.First().Key);
-                Assert.AreEqual(segs[objs.First().Key], f);
+                    var f = index.FetchSegment(objs.First().Key);
+                    Assert.AreEqual(segs[objs.First().Key], f);
 
-                var all = index.FetchSegments(objs.First().Key, objs.Last().Key);
-                Assert.AreEqual(objs.Count, all.Count());
+                    var all = index.FetchSegments(objs.First().Key, objs.Last().Key);
+                    Assert.AreEqual(objs.Count, all.Count());
 
-                var many = index.FetchSegments(new int[] { objs.First().Key, objs.Last().Key });
-                Assert.AreEqual(2, many.Count());
+                    var many = index.FetchSegments(new int[] { objs.First().Key, objs.Last().Key });
+                    Assert.AreEqual(2, many.Count());
+                }
             }
         }
     }

@@ -5,12 +5,14 @@ All rights reserved.
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security;
 using System.Text;
 using BESSy.Json;
 using BESSy.Relational;
 
 namespace BESSy.Tests.Mocks
 {
+    [SecuritySafeCritical]
     public class MockClassD : RelationshipEntity<int, MockClassD>
     {
         public MockClassD() : base() { }

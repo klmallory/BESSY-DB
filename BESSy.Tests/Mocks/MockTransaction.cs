@@ -31,6 +31,7 @@ namespace BESSy.Tests.Mocks
 
         object _syncRoot = new object();
         bool _isCommitted = false;
+        bool _cascadesOn = true;
 
         ITransactionManager<IdType, EntityType> _transactionManager;
 
@@ -73,6 +74,9 @@ namespace BESSy.Tests.Mocks
 
         public void Cascade(Tuple<string, IEnumerable<IdType>, IEnumerable<IdType>> cascade)
         {
+            if (!_cascadesOn)
+                return;
+
             lock (_syncRoot)
             {
                 if (IsComplete || CommitInProgress) throw new TransactionStateException("Transaction is no longer active. No furthur cascades are possible.");
@@ -115,6 +119,14 @@ namespace BESSy.Tests.Mocks
         public IEnumerable<EntityType> GetEnlistedItems()
         {
             return _enlistedActions.Values.Select(v => v.Entity);
+        }
+
+        public IDictionary<IdType, EnlistedAction<EntityType>> GetEnlistedActions(int start, int count)
+        {
+            return (from entry in _enlistedActions select entry)
+                    .Skip(start)
+                   .Take(count)
+                   .ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
         public Guid Id { get; private set; }
@@ -239,8 +251,9 @@ namespace BESSy.Tests.Mocks
 
         #endregion
 
-
-
-
+        public void SuspendCascades()
+        {
+            _cascadesOn = false;
+        }
     }
 }

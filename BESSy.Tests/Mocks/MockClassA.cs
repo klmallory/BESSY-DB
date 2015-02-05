@@ -8,11 +8,13 @@ using System.Linq;
 using System.Text;
 using System.Reflection;
 using System.Security.Permissions;
+using System.Security;
 
 namespace BESSy.Tests.Mocks
 {
     //[SecurityPermission(SecurityAction.Assert, Flags = SecurityPermissionFlag.ControlEvidence)]
     //[ReflectionPermission(SecurityAction.Assert, Flags = ReflectionPermissionFlag.MemberAccess, Unrestricted = true, MemberAccess = true)]
+    [SecuritySafeCritical]
     public class MockClassA : Object
     {
         public int Id { get; set; }

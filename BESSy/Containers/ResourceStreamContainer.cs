@@ -22,6 +22,9 @@ namespace BESSy.Containers
         {
             byte[] bytes = new byte[0];
 
+            if (resource == null)
+                return bytes;
+
             var strm = resource as Stream;
 
             if (strm == null)

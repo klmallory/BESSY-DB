@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET40</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <UseVSHostingProcess>true</UseVSHostingProcess>
@@ -174,15 +174,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AssemblyConstants.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerCRUDTests.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerHelper.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerQueryTests.cs" />
     <Compile Include="AtomicFileManagerTests\AtomicFileManagerRebuildTests.cs" />
+    <Compile Include="AtomicFileManagerTests\AtomicFileManagerStreamingTests.cs" />
     <Compile Include="CachingTests\DatabaseCacheTests.cs" />
     <Compile Include="CryptoTests\CryptoDatabaseTests.cs" />
     <Compile Include="CryptoTests\RC2Tests.cs" />
-    <Compile Include="DatabaseFactoryTests\DatabaseFactoryNegativeTests.cs" />
-    <Compile Include="DatabaseFactoryTests\DataBaseFactoryTests.cs" />
+    <Compile Include="FactoryTests\DatabaseFactoryNegativeTests.cs" />
+    <Compile Include="FactoryTests\DatabaseFactoryTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCapacityTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCompressionTests.cs" />
     <Compile Include="DatabaseTests\DatabaseCRUDTests.cs" />
@@ -194,10 +196,17 @@
     <Compile Include="ExpressionResolverTests\ExpressionResolverScalerSelectTests.cs" />
     <Compile Include="ExpressionResolverTests\ExpressionResolverSelectTests.cs" />
     <Compile Include="ExpressionResolverTests\ExpressionResolverUpdateScalarTests.cs" />
+    <Compile Include="ExtensionsTest\JObjectExtensionTests.cs" />
+    <Compile Include="FactoryTests\IndexFactoryTests.cs" />
     <Compile Include="FileRepositoryTests\XmlFileRepositoryTests.cs" />
     <Compile Include="FileTest.cs" />
     <Compile Include="Indexes\IndexTests.cs" />
     <Compile Include="Indexes\SecondaryIndexTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JExpressionResolverScalerSelectTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JExpressionResolverSelectTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JDatabaseQueryTests.cs" />
+    <Compile Include="JObjectDatabaseTests\JDatabaseCRUDTests.cs" />
+    <Compile Include="Mocks\MockAudioContainer.cs" />
     <Compile Include="Mocks\MockBatchFileManager.cs" />
     <Compile Include="Mocks\MockClassA.cs" />
     <Compile Include="Mocks\MockClassB.cs" />
@@ -211,6 +220,8 @@
     <Compile Include="Mocks\MockProxyC.cs" />
     <Compile Include="Mocks\MockProxyDomain.cs" />
     <Compile Include="Mocks\MockProxyFactory.cs" />
+    <Compile Include="Mocks\MockSeed32.cs" />
+    <Compile Include="Mocks\MockStreamConverter.cs" />
     <Compile Include="Mocks\MockTransaction.cs" />
     <Compile Include="Mocks\MockTransactionFactory.cs" />
     <Compile Include="Mocks\Tcp\MockTcpPublisher.cs" />

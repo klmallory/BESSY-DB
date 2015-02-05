@@ -35,10 +35,22 @@ namespace BESSy.Serialization
             get { return _serializer.Serializer; }
         }
 
-        public bool Trim
+        public JsonSerializerSettings Settings
         {
-            get { return true; }
+            get
+            {
+                return _serializer != null ? _serializer.Settings : null;
+            }
+            set
+            {
+                if (_serializer != null && _serializer.Settings != null)
+                    _serializer.Settings = value;
+            }
         }
+
+        public virtual bool Trim { get { return true; } }
+
+        public virtual ArraySegment<byte> TrimMarker { get { return new ArraySegment<byte>(new byte[] { 1, 1, 1, 1 }); } }
 
         public JObject AsQueryableObj<T>(T obj)
         {
@@ -74,6 +86,9 @@ namespace BESSy.Serialization
             try
             {
                 stream = Unparse(token);
+
+                stream.Write(TrimMarker.Array, 0, TrimMarker.Array.Length);
+
                 return true;
             }
             catch (Exception) { stream = null; return false; }
@@ -126,6 +141,8 @@ namespace BESSy.Serialization
 
             lz4.Flush();
 
+            compressed.Write(TrimMarker.Array, 0, TrimMarker.Array.Length);
+
             return compressed.ToArray();
         }
 
@@ -142,12 +159,16 @@ namespace BESSy.Serialization
 
              lz4.Flush();
 
+             compressed.Write(TrimMarker.Array, 0, TrimMarker.Array.Length);
+
              return compressed;
         }
 
         [SecuritySafeCritical]
         public T UnformatObj<T>(byte[] buffer)
         {
+            Array.Resize(ref buffer, buffer.Length - TrimMarker.Count);
+
             using (var compressed = new MemoryStream(buffer))
             {
                 var lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
@@ -165,6 +186,7 @@ namespace BESSy.Serialization
         public T UnformatObj<T>(System.IO.Stream inStream)
         {
             inStream.Position = 0;
+            inStream.SetLength(inStream.Length - TrimMarker.Count);
 
             var lz4 = new LZ4.LZ4Stream(inStream, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
 
@@ -223,6 +245,8 @@ namespace BESSy.Serialization
 
                     lz4.Flush();
 
+                    output.Write(TrimMarker.Array, 0, TrimMarker.Array.Length);
+
                     return output.ToArray();
                 }
             }
@@ -241,12 +265,16 @@ namespace BESSy.Serialization
 
             lz4.Flush();
 
+            output.Write(TrimMarker.Array, 0, TrimMarker.Array.Length);
+
             return output;
         }
 
         [SecuritySafeCritical]
         public byte[] Unformat(byte[] buffer)
         {
+            Array.Resize(ref buffer, buffer.Length - TrimMarker.Count);
+
             var compressed = new MemoryStream(buffer);
 
             var lz4 = new LZ4.LZ4Stream(compressed, CompressionMode.Decompress, _highCompress, _blockSize);
@@ -255,12 +283,16 @@ namespace BESSy.Serialization
 
             lz4.WriteAllFromCurrentPositionTo(uncompressed);
 
+            //uncompressed.Write(TrimMarker.Array, 0, TrimMarker.Array.Length);
+
             return uncompressed.ToArray();
         }
 
         [SecuritySafeCritical]
         public System.IO.Stream Unformat(System.IO.Stream inStream)
         {
+            inStream.SetLength(inStream.Length - TrimMarker.Count);
+
             inStream.Position = 0;
 
             var lz4 = new LZ4.LZ4Stream(inStream, CompressionMode.Decompress, _highCompress, _blockSize);

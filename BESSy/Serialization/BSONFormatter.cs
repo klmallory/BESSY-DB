@@ -65,6 +65,8 @@ namespace BESSy.Serialization
 
         public bool Trim { get { return false; } }
 
+        public virtual ArraySegment<byte> TrimMarker { get { return new ArraySegment<byte>(); } }
+
         /// <summary>
         /// Passthrough for Bson
         /// </summary>

@@ -292,9 +292,6 @@ namespace BESSy
 
             var c = new Dictionary<IdType, JObject>();
 
-            //Parallel.Invoke(new System.Action[] { 
-            //    new System.Action(delegate() {
-
             lock (syncLocal)
                 foreach (var s in staging.Where(s => s.Value.Action != Action.Delete))
                     c.Add(s.Key, JObject.FromObject(s.Value.Entity, Formatter.Serializer));
@@ -306,13 +303,7 @@ namespace BESSy
             lock (_stagingCache)
                 _stagingCache.UpdateCache(transaction.Id, c, true, false);
 
-            //}),
-            //new System.Action(delegate() {
-
             SyncCache(staging);
-
-            //   })
-            //});
 
             Trace.TraceInformation("Transaction {0} update staging thread complete", transaction.Id);
         }
@@ -424,6 +415,39 @@ namespace BESSy
             //_primaryIndex.SaveCore<IdType>();
         }
 
+        protected bool IsPresent(IdType id)
+        {
+            if (_transactionManager.HasActiveTransactions)
+            {
+                using (var t = _transactionManager.GetActiveTransaction(false))
+                {
+                    if (t.Transaction != null && t.Transaction.EnlistCount > 0)
+                    {
+                        var i = t.Transaction.GetEnlistedActions().LastOrDefault(a => _idConverter.Compare(id, a.Key) == 0);
+
+                        if (_idConverter.Compare(default(IdType), i.Key) != 0)
+                            if (i.Value.Action != Action.Delete)
+                                return true;
+                            else
+                                return false;
+                    }
+                }
+            }
+            lock (_stagingCache)
+            {
+                if (_stagingCache.Count > 0 && _stagingCache.GetCache().Any(s => s.Value.ContainsKey(id)))
+                {
+                    var jo = _stagingCache.GetCache().Where(s => s.Value.ContainsKey(id)).Last().Value[id];
+
+                    if (jo != null)
+                        return true;
+
+                    return false;
+                }
+            }
+
+            return _primaryIndex.FetchSegment(id) > 0;
+        }
         
         public virtual long LastReplicatedTimeStamp { get { return _core.LastReplicatedTimeStamp; } }
         public virtual bool FileFlushQueueActive { get { return _fileManager.FileFlushQueueActive || _primaryIndex.FileFlushQueueActive || _indexes.Values.Cast<IFlush>().Any(i => i.FileFlushQueueActive); } }
@@ -450,9 +474,9 @@ namespace BESSy
                 lock (_syncTrans)
                 {
                     if (_createNew)
-                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, Caching.DetermineOptimumCacheSize(_core.Stride), _core,  Formatter, _rowSynchronizer);
+                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, (int)_core.InitialDbSize, Caching.DetermineOptimumCacheSize(_core.Stride), _core,  Formatter, _rowSynchronizer);
                     else
-                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, 0, Formatter,_rowSynchronizer);
+                        _fileManager = _fileFactory.Create<IdType, EntityType>(_fileName, Environment.SystemPageSize, 10240, 0, Formatter, _rowSynchronizer);
 
                     _fileManager.Load<IdType>();
 
@@ -460,12 +484,9 @@ namespace BESSy
                     _idToken = _core.IdProperty;
                     _idConverter = (IBinConverter<IdType>)_core.IdConverter;
 
-                    _primaryIndex = _indexFactory.Create<IdType, EntityType, long>
-                        (GetIndexName(_fileName), _idToken, true, 1024, _idConverter, new BinConverter64(), _rowSynchronizer, new RowSynchronizer<int>(new BinConverter32()));
+                    InitIdMethods();
 
-                    _primaryIndex.Load();
-
-                    _primaryIndex.Register(_fileManager);
+                    InitializePrimaryIndex();
 
                     //_fileManager.SaveFailed += new SaveFailed<EntityType>(OnSaveFailed);
                     _fileManager.TransactionCommitted += new Committed<EntityType>(AfterTransactionCommitted);
@@ -474,9 +495,6 @@ namespace BESSy
 
                     _databaseCache = _cacheFactory.Create<IdType, EntityType>(true, Parallelization.TaskGrouping.ArrayLimit, _idConverter);
                     _stagingCache = _cacheFactory.Create<Guid, IDictionary<IdType, JObject>>(true, Parallelization.TaskGrouping.ArrayLimit, new BinConverterGuid());
-
-                    _idGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
-                    _idSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
 
                     //is this segmentSeed a passthrough? jObj.e. string?
                     // _passthrough = IdConverter.Compare(_core.Peek(), default(IdType)) == 0;
@@ -495,6 +513,22 @@ namespace BESSy
                     return _fileManager.Length;
                 }
             }
+        }
+
+        protected virtual void InitializePrimaryIndex()
+        {
+            _primaryIndex = _indexFactory.Create<IdType, EntityType, long>
+                (GetIndexName(_fileName), _idToken, true, 1024, _idConverter, new BinConverter64(), _rowSynchronizer, new RowSynchronizer<int>(new BinConverter32()));
+
+            _primaryIndex.Load();
+
+            _primaryIndex.Register(_fileManager);
+        }
+
+        protected virtual void InitIdMethods()
+        {
+            _idGet = (Func<EntityType, IdType>)Delegate.CreateDelegate(typeof(Func<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetGetMethod());
+            _idSet = (Action<EntityType, IdType>)Delegate.CreateDelegate(typeof(Action<EntityType, IdType>), typeof(EntityType).GetProperty(_idToken).GetSetMethod());
         }
 
         public  virtual void Reorganize()
@@ -541,6 +575,14 @@ namespace BESSy
             return id;
         }
 
+        public virtual IdType AddOrUpdate(EntityType item)
+        {
+            if (_idConverter.Compare(_idGet(item), default(IdType)) == 0)
+                return Add(item);
+            else
+            { Update(item); return _idGet(item); }
+        }
+
         public virtual IdType AddOrUpdate(EntityType item, IdType id)
         {
             if (_idConverter.Compare(id, default(IdType)) == 0)
@@ -549,8 +591,34 @@ namespace BESSy
             { Update(item, id); return id; }
         }
 
+        public virtual void Update(EntityType item)
+        {
+            if (object.Equals(item, default(EntityType)))
+                throw new ArgumentException("item to be updated was null or empty. Use delete command if this was intended.");
+
+            var id = _idGet(item);
+
+            lock (_syncOperations)
+                _operations.Push(3);
+
+            try
+            {
+                using (var tLock = _transactionManager.GetActiveTransaction(false))
+                {
+                    if (!IsPresent(id))
+                        throw new KeyNotFoundException(string.Format("Could not find entity with id {0}", id));
+
+                    tLock.Transaction.Enlist(Action.Update, id, item);
+                }
+            }
+            finally { lock (_syncOperations) _operations.Pop(); }
+        }
+
         public virtual void Update(EntityType item, IdType id)
         {
+            if (_idConverter.Compare(id, default(IdType)) == 0)
+                throw new ArgumentException("id was null or empty.");
+
             var newId = _idGet(item);
             var deleteFirst = (_idConverter.Compare(newId, id) != 0);
 
@@ -561,7 +629,8 @@ namespace BESSy
             {
                 using (var tLock = _transactionManager.GetActiveTransaction(false))
                 {
-                    var oldSeg = _primaryIndex.FetchSegment(id);
+                    if (!IsPresent(id))
+                        throw new KeyNotFoundException(string.Format("Could not find entity with id {0}", id));
 
                     if (deleteFirst)
                     {
@@ -577,6 +646,9 @@ namespace BESSy
 
         public virtual void Delete(IdType id)
         {
+            if (_idConverter.Compare(id, default(IdType)) == 0)
+                throw new ArgumentException("id was null or empty.");
+
             lock (_syncOperations)
                 _operations.Push(4);
 
@@ -595,6 +667,9 @@ namespace BESSy
 
         public virtual void Delete(IEnumerable<IdType> ids)
         {
+            if (ids == null)
+                throw new ArgumentNullException();
+
             lock (_syncOperations)
                 _operations.Push(4);
 
@@ -614,6 +689,9 @@ namespace BESSy
 
         public virtual EntityType Fetch(IdType id)
         {
+            if (_idConverter.Compare(id, default(IdType)) == 0)
+                throw new ArgumentException("id was null or empty.");
+
             if (_transactionManager.HasActiveTransactions)
             {
                 using (var t = _transactionManager.GetActiveTransaction(false))
@@ -647,12 +725,17 @@ namespace BESSy
 
             if (seg > 0)
             {
-                var entity = _fileManager.LoadSegmentFrom(seg);
+                var entity = LoadFromFile(seg);
 
                 return entity;
             }
 
             return default(EntityType);
+        }
+
+        protected virtual EntityType LoadFromFile(long seg)
+        {
+            return  _fileManager.LoadSegmentFrom(seg);
         }
 
         public virtual IList<EntityType> FetchFromIndex<IndexType>(string name, IndexType indexProperty)

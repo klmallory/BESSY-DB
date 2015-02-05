@@ -237,6 +237,7 @@ namespace BESSy.Tests.SerializationTests
             var test = TestResourceFactory.CreateRandom() as MockClassC;
 
             var stream = zip.FormatObjStream(test);
+            var len = stream.Length;
 
             var copy = new MemoryStream();
             stream.CopyTo(copy);
@@ -246,6 +247,9 @@ namespace BESSy.Tests.SerializationTests
             var formatted = zip.Unparse(unformatted);
 
             Assert.AreEqual(new StreamReader(copy).ReadToEnd(), new StreamReader(formatted).ReadToEnd());
+
+            Stream os;
+            zip.TryUnparse(unformatted, out os);
         }
     }
 }

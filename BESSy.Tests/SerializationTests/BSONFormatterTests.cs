@@ -246,6 +246,7 @@ namespace BESSy.Tests.SerializationTests
             var bson = new BSONFormatter(arraySettings);
 
             var stream = bson.FormatObjStream(test);
+            var len = stream.Length;
 
             var copy = new MemoryStream();
             stream.Position = 0;
@@ -271,6 +272,12 @@ namespace BESSy.Tests.SerializationTests
             Assert.AreEqual(unformatted, reformatted);
 
             MockClassC.Validate(unformatted.ToObject<MockClassC>(), reformatted.ToObject<MockClassC>());
+
+            Stream os;
+            bson.TryUnparse(reformatted, out os);
+
+            Assert.AreEqual(len, os.Length);
+
         }
     }
 }

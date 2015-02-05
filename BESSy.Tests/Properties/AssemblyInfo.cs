@@ -15,7 +15,9 @@ using System.Security;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: AllowPartiallyTrustedCallers]
+#if !NCRUNCH
+//[assembly: AllowPartiallyTrustedCallers]
+#endif
 
 // Setting ComVisible to false makes the types in this assembly not visible 
 // to COM components.  If you need to access a tBuilder in this assembly from 

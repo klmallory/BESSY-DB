@@ -158,6 +158,21 @@ namespace BESSy
             return id;
         }
 
+        public I AddOrUpdate(T item)
+        {
+            var id = GetId(item);
+
+            lock (_syncRoot)
+            {
+                if (_cache.ContainsKey(id))
+                    Update(item, id);
+                else
+                    _cache.Add(id, item);
+            }
+
+            return id;
+        }
+
         public I AddOrUpdate(T item, I id)
         {
             lock (_syncRoot)
@@ -169,6 +184,19 @@ namespace BESSy
             }
 
             return id;
+        }
+
+        public void Update(T item)
+        {
+            var id = GetId(item);
+
+            lock (_syncRoot)
+            {
+                if (_cache.ContainsKey(id))
+                    _cache[id] = item;
+                else
+                    throw new InvalidOperationException(String.Format("No item with prop {0} to update", id));
+            }
         }
 
         public void Update(T item, I id)

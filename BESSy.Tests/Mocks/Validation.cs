@@ -2,13 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using BESSy.Relational;
 using NUnit.Framework;
 
 namespace BESSy.Tests.Mocks
 {
     public static class Validation
     {
-        internal static bool Validate(this MockClassA a, MockClassA b)
+        internal static bool ValidateA(MockClassA a, MockClassA b)
         {
             Assert.AreEqual(a.CatalogName, b.CatalogName);
             Assert.AreEqual(a.Id, b.Id);
@@ -18,12 +19,12 @@ namespace BESSy.Tests.Mocks
             return true;
         }
 
-        internal static bool Validate(this MockClassB a, MockClassB b)
+        internal static bool ValidateB(MockClassB a, MockClassB b)
         {
             if (a == null && b == null)
                 return true;
 
-            (a as MockClassA).Validate(b);
+           ValidateA(a as MockClassA, b);
 
             Assert.AreEqual(a.MyDate, b.MyDate);
             Assert.AreEqual(a.DecAnimal, b.DecAnimal);
@@ -31,7 +32,7 @@ namespace BESSy.Tests.Mocks
             return true;
         }
 
-        internal static bool Validate(this MockClassC a, MockClassC b)
+        internal static bool ValidateC(MockClassC a, MockClassC b)
         {
             Assert.AreEqual(a.Id, b.Id);
             Assert.AreEqual(a.Name, b.Name);
@@ -53,46 +54,46 @@ namespace BESSy.Tests.Mocks
             Assert.AreEqual(a.LittleId, b.LittleId);
 
             if (a.Friend != null)
-                a.Friend.Validate(b.Friend);
+                ValidateC(a.Friend, b.Friend);
 
             return true;
         }
 
-        internal static bool Validate(this MockDomain a, MockDomain b)
+        internal static bool ValidateDomain(dynamic a, MockDomain b)
         {
             if (a == null && b == null)
                 return true;
 
-            (a as MockClassC).Validate(b);
+            ValidateC(a as MockClassC, b);
 
             if (a.ADomain == null && b.ADomain == null)
                 return true;
 
-            a.ADomain.Validate(b.ADomain);
+            ValidateA(a.ADomain, b.ADomain);
 
             if (a.BDomain == null && b.BDomain == null)
                 return true;
 
-            a.BDomain.Validate(b.BDomain);
+            ValidateB(a.BDomain, b.BDomain);
 
             if (a.CDomain == null && b.CDomain == null)
                 return true;
 
-            a.CDomain.Validate(b.CDomain);
+            ValidateC(a.CDomain, b.CDomain);
 
             if (a.CDomains == null && b.CDomains == null)
                 return true;
 
             Assert.AreEqual(a.CDomains.Count, b.CDomains.Count);
             for (var i = 0; i < a.CDomains.Count; i++)
-                a.CDomains[i].Validate(b.CDomains[i]);
+                ValidateC(a.CDomains[i], b.CDomains[i]);
 
             if (a.BDomains == null && b.BDomains == null)
                 return true;
 
             Assert.AreEqual(a.BDomains.Length, b.BDomains.Length);
             for (var i = 0; i < a.BDomains.Length; i++)
-                a.BDomains[i].Validate(b.BDomains[i]);
+                ValidateB(a.BDomains[i], b.BDomains[i]);
 
             if (a.MyHashMash != null)
             {
@@ -107,6 +108,7 @@ namespace BESSy.Tests.Mocks
             }
 
             Assert.AreEqual(a.GetFieldTestValue(), b.GetFieldTestValue());
+            Assert.AreEqual(a.GetFieldTest2Value(), b.GetFieldTest2Value());
 
             return true;
         }

@@ -45,6 +45,7 @@ namespace BESSy.Parallelization
 
     public static class TaskGrouping
     {
+        internal static readonly int TransactionLimit = Environment.Is64BitOperatingSystem ? 20480000 : 10240000;
         internal static readonly int MemoryLimit = Environment.Is64BitOperatingSystem ? 2048000 : 1024000;
         internal static readonly int ReadLimit = Environment.Is64BitOperatingSystem ? 1638400 : 819200;
         internal static readonly int InsertLimit = Environment.Is64BitOperatingSystem ? 409600 : 204800;

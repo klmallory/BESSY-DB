@@ -55,6 +55,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AssemblyContants.cs" />
     <Compile Include="GetTypeNames.cs" />
     <Compile Include="LongConverter.cs" />
     <Compile Include="LongSeed.cs" />

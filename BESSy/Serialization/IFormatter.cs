@@ -23,6 +23,7 @@ namespace BESSy.Serialization
 {
     public interface IQueryableFormatter : ISafeFormatter
     {
+        JsonSerializerSettings Settings { get; set; }
         JsonSerializer Serializer { get; }
         JObject AsQueryableObj<T>(T obj);
         JObject Parse(Stream inStream);
@@ -51,6 +52,7 @@ namespace BESSy.Serialization
         T UnformatObj<T>(byte[] buffer);
         T UnformatObj<T>(Stream inStream);
         bool Trim { get; }
+        ArraySegment<byte> TrimMarker { get; }
     }
 
     public interface IBinFormatter
