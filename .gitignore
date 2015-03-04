@@ -10,7 +10,7 @@ dist
 *.nupkg
 *dotCover*
 Solutions/_NCrunch_BESSy
+Solutions/_NCrunch_BESSy_45
+Solutions/_NCrunch_BESSy_Mono
 *.ncrunchsolution
 *.ncrunchproject
-
-Solutions/_NCrunch_BESSy_45
