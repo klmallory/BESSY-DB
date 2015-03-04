@@ -19,7 +19,9 @@ using System.Linq;
 using System.Runtime;
 using System.Text;
 using System.Threading;
-using Microsoft.Runtime;
+#if !MONO
+    using Microsoft.Runtime;
+#endif
 
 namespace BESSy.Transactions
 {

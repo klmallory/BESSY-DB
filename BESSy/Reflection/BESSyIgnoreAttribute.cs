@@ -7,5 +7,6 @@ namespace BESSy.Reflection
 {
     public class BESSyIgnoreAttribute : Attribute
     {
+
     }
 }

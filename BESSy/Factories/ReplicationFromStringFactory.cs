@@ -132,11 +132,11 @@ namespace BESSy.Factories
 
         private static object ConstructListnerSettings(IDictionary<string, object> typeParameters)
         {
-            IPProtectionLevel level;
+            //IPProtectionLevel level;
 
             return new TcpListenerSettings()
             {
-                IpProtectionLevel = typeParameters.ContainsKey("ipprotectionlevel") && Enum.TryParse((string)typeParameters["ipprotectionlevel"], out level) ? level : IPProtectionLevel.Unrestricted,
+                //IpProtectionLevel = typeParameters.ContainsKey("ipprotectionlevel") && Enum.TryParse((string)typeParameters["ipprotectionlevel"], out level) ? level : IPProtectionLevel.Unrestricted,
                 ExclusiveAddressUse = typeParameters.ContainsKey("exclusiveaddress") ? (bool)typeParameters["exclusiveaddress"] : false,
                 DontFragment = typeParameters.ContainsKey("dontfragment") ? (bool)typeParameters["dontfragment"] : false,
                 Linger = typeParameters.ContainsKey("linger") ? (bool)typeParameters["linger"] : false,

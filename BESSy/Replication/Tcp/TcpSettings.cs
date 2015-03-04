@@ -19,7 +19,7 @@ namespace BESSy.Replication.Tcp
 
     public class TcpListenerSettings
     {
-        public IPProtectionLevel IpProtectionLevel = IPProtectionLevel.Unrestricted;
+        //public IPProtectionLevel IpProtectionLevel = IPProtectionLevel.Unrestricted;
         public bool ExclusiveAddressUse = false;
         public bool DontFragment = true;
         public bool Linger = true;

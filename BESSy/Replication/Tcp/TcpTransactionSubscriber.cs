@@ -65,7 +65,7 @@ namespace BESSy.Replication.Tcp
         protected TcpListener CreateListener(int port)
         {
             var listener = new TcpListener(IPAddress.Any, port);
-            listener.Server.SetIPProtectionLevel(_settings.IpProtectionLevel);
+            //listener.Server.SetIPProtectionLevel(_settings.IpProtectionLevel);
             listener.Server.ExclusiveAddressUse = _settings.ExclusiveAddressUse;
             listener.Server.DontFragment = _settings.DontFragment;
             listener.Server.LingerState = _settings.Linger ? new LingerOption(_settings.Linger, _settings.LingerTime) : new LingerOption(false, 0);

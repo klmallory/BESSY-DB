@@ -121,12 +121,11 @@ namespace BESSy.Tests.DatabaseFactoryTests
 
             var port = new Random().Next(8355, 25000);
             var s = string.Format(
-                @"subscribertype = {0}; port = {1};
-                ipprotectionlevel = {2}; exclusiveaddress = {3}; dontfragment = {4}; linger = {5}; lingertime = {6};
-                formattertype = {7}; crypto = {8}; internalformattertype = {9}; internalformattertype2 = {10}; securekey = hobgoblin; assembly = {11}",
+                @"subscribertype = {0}; port = {1}; exclusiveaddress = {2}; dontfragment = {3}; linger = {4}; lingertime = {5};
+                formattertype = {6}; crypto = {7}; internalformattertype = {8}; internalformattertype2 = {9}; securekey = hobgoblin; assembly = {10}",
                 typeof(TcpTransactionSubscriber<int, MockClassA>).AssemblyQualifiedName,
                 port,
-                IPProtectionLevel.EdgeRestricted.ToString(), true, true, true, 30,
+                 true, true, true, 30,
                 typeof(QueryCryptoFormatter).AssemblyQualifiedName,
                 typeof(RC2Crypto).AssemblyQualifiedName,
                 typeof(LZ4ZipFormatter).AssemblyQualifiedName,
