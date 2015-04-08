@@ -172,6 +172,8 @@
     <Compile Include="AbstractTransactionalDatabase_Fluent.cs" />
     <Compile Include="AbstractTransactionalDatabase_IProvideMetaData.cs" />
     <Compile Include="AbstractTransactionalDatabase_Server.cs" />
+    <Compile Include="API\CommandAPI.cs" />
+    <Compile Include="API\SchemaAPI.cs" />
     <Compile Include="AssemblyConstants.cs" />
     <Compile Include="Cache\NTree.cs" />
     <Compile Include="Cache\PTree.cs" />
@@ -190,6 +192,7 @@
     <Compile Include="Enumerators\PagedStreamingEnumerator.cs" />
     <Compile Include="Factories\ReplicationFromStringFactory.cs" />
     <Compile Include="Files\DataFileManager.cs" />
+    <Compile Include="Files\ManagedFileLock.cs" />
     <Compile Include="Indexes\ConsolidatedIndex.cs" />
     <Compile Include="Indexes\ConsolidatedIndexFileManager.cs" />
     <Compile Include="Indexes\FileIndexRange.cs" />
@@ -325,6 +328,7 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Commands\" />
     <Folder Include="Replication\RollingLogFile\" />
     <Folder Include="Replication\RollingTransactionErrorFile\" />
     <Folder Include="Replication\RollingTransactionFile\" />

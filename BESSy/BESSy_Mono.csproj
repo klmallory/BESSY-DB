@@ -30,7 +30,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>NET40</DefineConstants>
+    <DefineConstants>NET40,MONO</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <BaseAddress>4466024</BaseAddress>
@@ -167,9 +167,6 @@
     <Reference Include="BESSy.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=4fec75cb0ab4ea50, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Tools\BEESy.Json.Mono\BESSy.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="LZ4">
-      <HintPath>..\Tools\LZ4\LZ4.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />

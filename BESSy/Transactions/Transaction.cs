@@ -359,9 +359,6 @@ namespace BESSy.Transactions
 
         public void Dispose()
         {
-            if (_scope != null)
-                _scope.Dispose();
-
             if (!IsComplete)
             {
                 if (!_isCommitted && !CommitInProgress)
@@ -383,6 +380,9 @@ namespace BESSy.Transactions
                         Thread.Sleep(100);
                 }
             }
+
+            if (_scope != null)
+                _scope.Dispose();
 
             //remove the reference to the transactionMagager.
             lock (_syncRoot)
