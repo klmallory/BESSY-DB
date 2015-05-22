@@ -7,6 +7,7 @@ using BESSy.Seeding;
 using BESSy.Tests.Mocks;
 using NUnit.Framework;
 using BESSy.Relational;
+using BESSy.Files;
 
 namespace BESSy.Tests.RelationshipEntityTests
 {
@@ -22,36 +23,40 @@ namespace BESSy.Tests.RelationshipEntityTests
         public void SingleRelationshipSaves()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var seed = new Seed32();
             IList<MockClassE> objs = null;
             var ids = new List<int>();
 
-            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var t = db.BeginTransaction())
+                using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
                 {
-                    objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
+                    db.Load();
 
-                    objs.ToList().ForEach(o => o.Id = db.Add(o));
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
 
-                    t.Commit();
+                        objs.ToList().ForEach(o => o.Id = db.Add(o));
+
+                        t.Commit();
+                    }
                 }
-            }
 
-            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
-            {
-                db.Load();
-
-                foreach (var obj in objs)
+                using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
                 {
-                    var orig = obj as MockClassE;
-                    var item = db.Fetch(obj.Id) as MockClassE;
+                    db.Load();
 
-                    AssertMockClassE(item, orig, db);
+                    foreach (var obj in objs)
+                    {
+                        var orig = obj as MockClassE;
+                        var item = db.Fetch(obj.Id) as MockClassE;
+
+                        AssertMockClassE(item, orig, db);
+                    }
                 }
             }
         }
@@ -60,39 +65,43 @@ namespace BESSy.Tests.RelationshipEntityTests
         public void SingleRelationshipSavesAndSelects()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var seed = new Seed32();
             List<MockClassE> objs = null;
             var ids = new List<int>();
 
-            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var t = db.BeginTransaction())
+                using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
                 {
-                    objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
+                    db.Load();
 
-                    objs.ToList().ForEach(o => o.Id = db.Add(o));
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
 
-                    t.Commit();
+                        objs.ToList().ForEach(o => o.Id = db.Add(o));
+
+                        t.Commit();
+                    }
                 }
-            }
 
-            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
-            {
-                db.Load();
+                using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
+                {
+                    db.Load();
 
-                var first = db.SelectFirst(s => s.Value<int>("Id") > 0, 50);
-                
-                foreach (var obj in objs)
-                    AssertMockClassE((MockClassE)first.First(f => f.Id == obj.Id), obj as MockClassE, db);
+                    var first = db.SelectFirst(s => s.Value<int>("Id") > 0, 50);
 
-                var last = db.SelectLast(s => s.Value<int>("Id") > 0, 50);
+                    foreach (var obj in objs)
+                        AssertMockClassE((MockClassE)first.First(f => f.Id == obj.Id), obj as MockClassE, db);
 
-                foreach (var obj in objs)
-                    AssertMockClassE((MockClassE)last.First(f => f.Id == obj.Id), obj as MockClassE, db);
+                    var last = db.SelectLast(s => s.Value<int>("Id") > 0, 50);
+
+                    foreach (var obj in objs)
+                        AssertMockClassE((MockClassE)last.First(f => f.Id == obj.Id), obj as MockClassE, db);
+                }
             }
         }
 
@@ -100,53 +109,58 @@ namespace BESSy.Tests.RelationshipEntityTests
         public void SingleRelationshipSavesAndDeletes()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
+
 
             var seed = new Seed32();
             List<MockClassE> objs = null;
             var ids = new List<int>();
 
-            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var t = db.BeginTransaction())
+                using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
                 {
-                    objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
+                    db.Load();
 
-                    objs.ToList().ForEach(o => o.Id = db.Add(o));
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
 
-                    t.Commit();
-                }
-            }
+                        objs.ToList().ForEach(o => o.Id = db.Add(o));
 
-            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
-            {
-                db.Load();
-
-                var first = db.Fetch(objs[0].Id);
-
-                using (var t = db.BeginTransaction())
-                {
-                    first.LowBall = new List<MockClassD>();
-
-                    db.Update(first, first.Id);
-
-                    t.Commit();
+                        t.Commit();
+                    }
                 }
 
-                first = db.Fetch(objs[0].Id);
+                using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
+                {
+                    db.Load();
 
-                Assert.AreEqual(0, first.LowBall.Count());
-            }
+                    var first = db.Fetch(objs[0].Id);
 
-            using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
-            {
-                db.Load();
+                    using (var t = db.BeginTransaction())
+                    {
+                        first.LowBall = new List<MockClassD>();
 
-                var first = db.Fetch(objs.First().Id);
+                        db.Update(first, first.Id);
 
-                Assert.AreEqual(0, first.LowBall.Count());
+                        t.Commit();
+                    }
+
+                    first = db.Fetch(objs[0].Id);
+
+                    Assert.AreEqual(0, first.LowBall.Count());
+                }
+
+                using (var db = new RelationalDatabase<int, MockClassD>(_testName + ".database"))
+                {
+                    db.Load();
+
+                    var first = db.Fetch(objs.First().Id);
+
+                    Assert.AreEqual(0, first.LowBall.Count());
+                }
             }
         }
 

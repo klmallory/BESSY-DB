@@ -62,7 +62,6 @@ namespace BESSy.Tests.AtomicFileManagerTests
         public void AfmSavesNewObjects()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
             var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
@@ -70,41 +69,45 @@ namespace BESSy.Tests.AtomicFileManagerTests
             var entity = TestResourceFactory.CreateRandom() as MockClassC;
             long seg = -1;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                afm.Load<int>();
-
-                entity.Id = core.IdSeed.Increment();
-
-                afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                Cleanup();
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core))
                 {
+                    afm.Load<int>();
+
+                    entity.Id = core.IdSeed.Increment();
+
+                    afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                    {
+                        afm.SaveCore<int>();
+                    });
+
+                    seg = AtomicFileManagerHelper.SaveSegment(afm, entity, entity.Id);
+
                     afm.SaveCore<int>();
-                });
+                }
 
-                seg = AtomicFileManagerHelper.SaveSegment(afm, entity, entity.Id);
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database"))
+                {
+                    afm.Load<int>();
 
-                afm.SaveCore<int>();
-            }
+                    Assert.AreEqual(512, afm.Stride);
+                    Assert.AreEqual(1024, afm.CorePosition);
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database"))
-            {
-                afm.Load<int>();
+                    var obj = afm.LoadSegmentFrom(seg) as MockClassC;
 
-                Assert.AreEqual(512, afm.Stride);
-                Assert.AreEqual(1024, afm.CorePosition);
-
-                var obj = afm.LoadSegmentFrom(seg) as MockClassC;
-
-                Assert.IsNotNull(obj);
-                Assert.AreEqual(entity.Id, obj.Id);
-                Assert.AreEqual(entity.Name, obj.Name);
-                Assert.AreEqual(entity.GetSomeCheckSum, obj.GetSomeCheckSum);
-                Assert.AreEqual(entity.Location.X, obj.Location.X);
-                Assert.AreEqual(entity.Location.Y, obj.Location.Y);
-                Assert.AreEqual(entity.Location.Z, obj.Location.Z);
-                Assert.AreEqual(entity.Location.W, obj.Location.W);
-                Assert.AreEqual(entity.ReferenceCode, obj.ReferenceCode);
-                Assert.AreEqual(entity.ReplicationID, obj.ReplicationID);
+                    Assert.IsNotNull(obj);
+                    Assert.AreEqual(entity.Id, obj.Id);
+                    Assert.AreEqual(entity.Name, obj.Name);
+                    Assert.AreEqual(entity.GetSomeCheckSum, obj.GetSomeCheckSum);
+                    Assert.AreEqual(entity.Location.X, obj.Location.X);
+                    Assert.AreEqual(entity.Location.Y, obj.Location.Y);
+                    Assert.AreEqual(entity.Location.Z, obj.Location.Z);
+                    Assert.AreEqual(entity.Location.W, obj.Location.W);
+                    Assert.AreEqual(entity.ReferenceCode, obj.ReferenceCode);
+                    Assert.AreEqual(entity.ReplicationID, obj.ReplicationID);
+                }
             }
         }
 
@@ -112,7 +115,6 @@ namespace BESSy.Tests.AtomicFileManagerTests
         public void AfmLoadsJObjectsObjects()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
             var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
@@ -120,41 +122,46 @@ namespace BESSy.Tests.AtomicFileManagerTests
             var entity = TestResourceFactory.CreateRandom() as MockClassC;
             long seg = -1;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                afm.Load<int>();
+                Cleanup();
 
-                entity.Id = core.IdSeed.Increment();
-
-                afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core))
                 {
+                    afm.Load<int>();
+
+                    entity.Id = core.IdSeed.Increment();
+
+                    afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                    {
+                        afm.SaveCore<int>();
+                    });
+
+                    seg = AtomicFileManagerHelper.SaveSegment(afm, entity, entity.Id);
+
                     afm.SaveCore<int>();
-                });
+                }
 
-                seg = AtomicFileManagerHelper.SaveSegment(afm, entity, entity.Id);
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database"))
+                {
+                    afm.Load<int>();
 
-                afm.SaveCore<int>();
-            }
+                    Assert.AreEqual(512, afm.Stride);
+                    Assert.AreEqual(1024, afm.CorePosition);
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database"))
-            {
-                afm.Load<int>();
+                    var obj = afm.LoadJObjectFrom(seg);
 
-                Assert.AreEqual(512, afm.Stride);
-                Assert.AreEqual(1024, afm.CorePosition);
-
-                var obj = afm.LoadJObjectFrom(seg);
-
-                Assert.IsNotNull(obj);
-                Assert.AreEqual(entity.Id, obj.Value<int>("Id"));
-                Assert.AreEqual(entity.Name, obj.Value<string>("Name"));
-                Assert.AreEqual(entity.GetSomeCheckSum, obj.GetAsTypedArray<double>("GetSomeCheckSum"));
-                Assert.AreEqual(entity.Location.X, obj.SelectToken("Location.X").Value<float>());
-                Assert.AreEqual(entity.Location.Y, obj.SelectToken("Location.Y").Value<float>());
-                Assert.AreEqual(entity.Location.Z, obj.SelectToken("Location.Z").Value<float>());
-                Assert.AreEqual(entity.Location.W, obj.SelectToken("Location.W").Value<float>());
-                Assert.AreEqual(entity.ReferenceCode, obj.Value<string>("ReferenceCode"));
-                Assert.AreEqual(entity.ReplicationID, obj.Value<Guid>("ReplicationID"));
+                    Assert.IsNotNull(obj);
+                    Assert.AreEqual(entity.Id, obj.Value<int>("Id"));
+                    Assert.AreEqual(entity.Name, obj.Value<string>("Name"));
+                    Assert.AreEqual(entity.GetSomeCheckSum, obj.GetAsTypedArray<double>("GetSomeCheckSum"));
+                    Assert.AreEqual(entity.Location.X, obj.SelectToken("Location.X").Value<float>());
+                    Assert.AreEqual(entity.Location.Y, obj.SelectToken("Location.Y").Value<float>());
+                    Assert.AreEqual(entity.Location.Z, obj.SelectToken("Location.Z").Value<float>());
+                    Assert.AreEqual(entity.Location.W, obj.SelectToken("Location.W").Value<float>());
+                    Assert.AreEqual(entity.ReferenceCode, obj.Value<string>("ReferenceCode"));
+                    Assert.AreEqual(entity.ReplicationID, obj.Value<Guid>("ReplicationID"));
+                }
             }
         }
 
@@ -167,64 +174,66 @@ namespace BESSy.Tests.AtomicFileManagerTests
         public void AfmUpdatesAndDeletesExistingObjects()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
             var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
 
-          
             var entity1 = TestResourceFactory.CreateRandom() as MockClassC;
             var entity2 = TestResourceFactory.CreateRandom() as MockClassC;
             long seg = -1;
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                afm.Load<int>();
+                Cleanup();
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
+                {
+                    afm.Load<int>();
 
-               seg = AtomicFileManagerHelper.SaveSegment(afm, entity1, entity1.Id);
-            }
+                    seg = AtomicFileManagerHelper.SaveSegment(afm, entity1, entity1.Id);
+                }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
-            {
-                afm.Load<int>();
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
+                {
+                    afm.Load<int>();
 
-                AtomicFileManagerHelper.SaveSegment(afm, entity2, entity2.Id, seg);
-            }
+                    AtomicFileManagerHelper.SaveSegment(afm, entity2, entity2.Id, seg);
+                }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
-            {
-                afm.Load<int>();
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
+                {
+                    afm.Load<int>();
 
-                Assert.Less(512, afm.Stride);
-                Assert.Greater(1024, afm.CorePosition);
+                    Assert.Less(512, afm.Stride);
+                    Assert.Greater(1024, afm.CorePosition);
 
-                var obj = afm.LoadSegmentFrom(seg) as MockClassC;
+                    var obj = afm.LoadSegmentFrom(seg) as MockClassC;
 
-                Assert.IsNotNull(obj);
-                Assert.AreEqual(entity2.Id, obj.Id);
-                Assert.AreEqual(entity2.Name, obj.Name);
-                Assert.AreEqual(entity2.GetSomeCheckSum, obj.GetSomeCheckSum);
-                Assert.AreEqual(entity2.Location.X, obj.Location.X);
-                Assert.AreEqual(entity2.Location.Y, obj.Location.Y);
-                Assert.AreEqual(entity2.Location.Z, obj.Location.Z);
-                Assert.AreEqual(entity2.Location.W, obj.Location.W);
-                Assert.AreEqual(entity2.ReferenceCode, obj.ReferenceCode);
-                Assert.AreEqual(entity2.ReplicationID, obj.ReplicationID);
+                    Assert.IsNotNull(obj);
+                    Assert.AreEqual(entity2.Id, obj.Id);
+                    Assert.AreEqual(entity2.Name, obj.Name);
+                    Assert.AreEqual(entity2.GetSomeCheckSum, obj.GetSomeCheckSum);
+                    Assert.AreEqual(entity2.Location.X, obj.Location.X);
+                    Assert.AreEqual(entity2.Location.Y, obj.Location.Y);
+                    Assert.AreEqual(entity2.Location.Z, obj.Location.Z);
+                    Assert.AreEqual(entity2.Location.W, obj.Location.W);
+                    Assert.AreEqual(entity2.ReferenceCode, obj.ReferenceCode);
+                    Assert.AreEqual(entity2.ReplicationID, obj.ReplicationID);
 
-                AtomicFileManagerHelper.DeleteSegment(afm, obj.Id, seg);
+                    AtomicFileManagerHelper.DeleteSegment(afm, obj.Id, seg);
 
-                obj = afm.LoadSegmentFrom(seg) as MockClassC;
+                    obj = afm.LoadSegmentFrom(seg) as MockClassC;
 
-                Assert.IsNull(obj);
-            }
+                    Assert.IsNull(obj);
+                }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
-            {
-                afm.Load<int>();
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
+                {
+                    afm.Load<int>();
 
-                var obj = afm.LoadSegmentFrom(seg) as MockClassC;
+                    var obj = afm.LoadSegmentFrom(seg) as MockClassC;
 
-                Assert.IsNull(obj);
+                    Assert.IsNull(obj);
+                }
             }
         }
 

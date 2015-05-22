@@ -140,6 +140,34 @@ namespace BESSy.Extensions
             return !isEmpty;
         }
 
+        public static int ReadTrimLocation(this Stream inStream, int bufferSize, int stride)
+        {
+            var lastNonZeroIndex = -1;
+
+            bool isEmpty = true;
+            int total = 0;
+            var buffer = new byte[bufferSize];
+
+            var read = inStream.Read(buffer, 0, buffer.Length);
+
+            while (read > 0)
+            {
+                isEmpty &= Array.TrueForAll(buffer, a => a == 0);
+                var last = Array.FindLastIndex(buffer, b => b != 0);
+
+                if (last >= 0)
+                    lastNonZeroIndex = total + last;
+                else if (lastNonZeroIndex / stride < (total / stride) + 2)
+                    break;
+
+                total += read;
+
+                read = inStream.Read(buffer, 0, buffer.Length);
+            }
+
+            return lastNonZeroIndex;
+        }
+
         public static bool WriteSegmentToWithTrim(this Stream inStream, Stream outStream, int bufferSize, int newStride, int oldStride, out int lastNonZeroIndex)
         {
             lastNonZeroIndex = -1;

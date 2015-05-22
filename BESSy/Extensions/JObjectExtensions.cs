@@ -96,10 +96,14 @@ namespace BESSy.Extensions
                         var missing = string.IsNullOrWhiteSpace(current) ? token : token.Replace(current, "");
 
                         if (!missing.Contains(".") && !Regex.Match(missing, IndexRegEx).Success)
+                        {
                             ((JObject)obj.SelectToken(current.TrimEnd('.'))).Add(s, sVal);
+                            return;
+                        }
                         else if (!missing.Contains(".") && Regex.Match(missing, IndexRegEx).Success)
                         {
                             ((JObject)obj.SelectToken(current.TrimEnd('.'))).Add(s, new JArray(sVal));
+                            return;
                         }
                         else
                         {

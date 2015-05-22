@@ -19,7 +19,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NET40,MONO</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;MONO</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\Debug\BESSy.xml</DocumentationFile>
@@ -30,13 +30,14 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>NET40,MONO</DefineConstants>
+    <DefineConstants>MONO</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <BaseAddress>4466024</BaseAddress>
     <DocumentationFile>bin\Release\BESSy.xml</DocumentationFile>
     <DebugSymbols>true</DebugSymbols>
     <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>4</LangVersion>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>BESSy.ico</ApplicationIcon>
@@ -61,7 +62,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\x64\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;MONO</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
     <CodeAnalysisLogFile>bin\Debug\BESSy.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
@@ -90,6 +91,7 @@
     <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
     <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
     <Prefer32Bit>false</Prefer32Bit>
+    <DefineConstants>MONO</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debugx64|x64'">
     <DebugSymbols>true</DebugSymbols>
@@ -111,7 +113,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\x86\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;MONO</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <CodeAnalysisLogFile>bin\Debug\BESSy.dll.CodeAnalysisLog.xml</CodeAnalysisLogFile>
@@ -138,6 +140,7 @@
     <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
     <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
     <Prefer32Bit>false</Prefer32Bit>
+    <DefineConstants>MONO</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debugx64|x86'">
     <DebugSymbols>true</DebugSymbols>
@@ -180,6 +183,8 @@
     <Compile Include="AbstractTransactionalDatabase_Fluent.cs" />
     <Compile Include="AbstractTransactionalDatabase_IProvideMetaData.cs" />
     <Compile Include="AbstractTransactionalDatabase_Server.cs" />
+    <Compile Include="API\CommandApi.cs" />
+    <Compile Include="API\SchemaAPI.cs" />
     <Compile Include="AssemblyConstants.cs" />
     <Compile Include="Cache\NTree.cs" />
     <Compile Include="Cache\PTree.cs" />
@@ -198,6 +203,8 @@
     <Compile Include="Enumerators\PagedStreamingEnumerator.cs" />
     <Compile Include="Factories\ReplicationFromStringFactory.cs" />
     <Compile Include="Files\DataFileManager.cs" />
+    <Compile Include="Files\ManagedFileLock.cs" />
+    <Compile Include="Indexes\CascadeIndex.cs" />
     <Compile Include="Indexes\ConsolidatedIndex.cs" />
     <Compile Include="Indexes\ConsolidatedIndexFileManager.cs" />
     <Compile Include="Indexes\FileIndexRange.cs" />
@@ -219,6 +226,7 @@
     <Compile Include="Reflection\DynamicMemberManager.cs" />
     <Compile Include="Relational\PocoProxyFactory.cs" />
     <Compile Include="Relational\PocoProxyHandler.cs" />
+    <Compile Include="Relational\PocoProxySerializer.cs" />
     <Compile Include="Relational\PocoRelationalDatabase.cs" />
     <Compile Include="Relational\ProxyCreationException.cs" />
     <Compile Include="Relational\ProxyWatchList.cs" />
@@ -332,6 +340,7 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Commands\" />
     <Folder Include="Replication\RollingLogFile\" />
     <Folder Include="Replication\RollingTransactionErrorFile\" />
     <Folder Include="Replication\RollingTransactionFile\" />
@@ -346,6 +355,12 @@
     <None Include="BESSy.cer" />
     <None Include="BESSy.keyfile.pfx" />
     <None Include="BESSy.pvk" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BESSy.LZ4_Mono\BESSy.LZ4_Mono.csproj">
+      <Project>{6c913f14-d315-46f7-a2b7-7f3c1ad27ba1}</Project>
+      <Name>BESSy.LZ4_Mono</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

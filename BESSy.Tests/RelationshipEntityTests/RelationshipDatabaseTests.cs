@@ -22,29 +22,32 @@ namespace BESSy.Tests.RelationshipEntityTests
         public void RSelectTest()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
-
-                var objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
-
-                using (var t = db.BeginTransaction())
+                Cleanup();
+                using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
                 {
-                    objs.ToList().ForEach(o => o.Id = db.Add(o));
+                    db.Load();
 
-                    t.Commit();
+                    var objs = TestResourceFactory.GetMockClassDObjects(3, db).ToList();
+
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs.ToList().ForEach(o => o.Id = db.Add(o));
+
+                        t.Commit();
+                    }
                 }
-            }
 
-            using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
-            {
-                db.Load();
+                using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                var all = db.Select(s => s.Value<int>("Id") > 0);
+                    var all = db.Select(s => s.Value<int>("Id") > 0);
 
-                Assert.AreEqual(15, all.Count);
+                    Assert.AreEqual(15, all.Count);
+                }
             }
         }
 
@@ -52,47 +55,50 @@ namespace BESSy.Tests.RelationshipEntityTests
         public void CascadeIndexClosesWithCorrectLength()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
             var core = new FileCore<string, long>() { IdSeed = new SeedString(2048), SegmentSeed = new Seed64(), Stride = 512 };
 
-            using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                Cleanup();
+                using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
                 {
-                    var objs = TestResourceFactory.GetMockClassDObjects(300, db).ToList();
+                    db.Load();
 
-                    objs.ToList().ForEach(o => o.Id = db.Add(o));
+                    using (var t = db.BeginTransaction())
+                    {
+                        var objs = TestResourceFactory.GetMockClassDObjects(300, db).ToList();
 
-                    t.Commit();
+                        objs.ToList().ForEach(o => o.Id = db.Add(o));
+
+                        t.Commit();
+                    }
+
+                    var dbx = DynamicMemberManager.GetManager(db);
+                    var pt = DynamicMemberManager.GetManager(dbx._cascadeIndex);
+
+                    Assert.AreEqual(2, pt.Length);
                 }
 
-                var dbx = DynamicMemberManager.GetManager(db);
-                var pt = DynamicMemberManager.GetManager(dbx._cascadeIndex);
-
-                Assert.AreEqual(2, pt.Length);
-            }
-
-            using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
-            {
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                using (var db = new Relational.RelationalDatabase<int, MockClassD>(_testName + ".database", "Id"))
                 {
-                    var additions = TestResourceFactory.GetMockClassDObjects(200, db).ToList();
+                    db.Load();
 
-                    additions.ToList().ForEach(o => o.Id = db.Add(o));
+                    using (var t = db.BeginTransaction())
+                    {
+                        var additions = TestResourceFactory.GetMockClassDObjects(200, db).ToList();
 
-                    t.Commit();
+                        additions.ToList().ForEach(o => o.Id = db.Add(o));
+
+                        t.Commit();
+                    }
+
+                    var dbx = DynamicMemberManager.GetManager(db);
+                    var pt = DynamicMemberManager.GetManager(dbx._cascadeIndex);
+
+                    Assert.AreEqual(3, pt.Length);
                 }
-
-                var dbx = DynamicMemberManager.GetManager(db);
-                var pt = DynamicMemberManager.GetManager(dbx._cascadeIndex);
-
-                Assert.AreEqual(3, pt.Length);
             }
         }
     }

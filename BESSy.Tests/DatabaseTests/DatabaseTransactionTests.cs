@@ -108,44 +108,48 @@ namespace BESSy.Tests.DatabaseTests
 
             var objects = TestResourceFactory.GetMockClassAObjects(10000);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>() { InitialDbSize = 9000 }))
+            using (var fLock = new ManagedFileLock(_testName + ".database"))
             {
-                db.Load();
 
-                using (var tran = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>() { InitialDbSize = 9000 }))
                 {
+                    db.Load();
 
-                    foreach (var obj in objects)
-                        obj.Id = db.AddOrUpdate(obj, 0);
+                    using (var tran = db.BeginTransaction())
+                    {
 
-                    var update = db.Fetch(3);
+                        foreach (var obj in objects)
+                            obj.Id = db.AddOrUpdate(obj, 0);
 
-                    update.Name = "Updated " + update.Id;
+                        var update = db.Fetch(3);
 
-                    db.AddOrUpdate(update, update.Id);
+                        update.Name = "Updated " + update.Id;
 
-                    tran.Commit();
+                        db.AddOrUpdate(update, update.Id);
+
+                        tran.Commit();
+                    }
+
+                    db.FlushAll();
                 }
 
-                db.FlushAll();
-            }
+                var deletes = objects.Skip(5000).Take(2500);
+                var queryDeletes = objects.Skip(7500);
 
-            var deletes = objects.Skip(5000).Take(2500);
-            var queryDeletes = objects.Skip(7500);
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
-
-                var check = db.Fetch(10000);
-
-                using (var tran = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
                 {
-                    deletes.ToList().ForEach(d => db.Delete(d.Id));
+                    db.Load();
 
-                    db.Delete(s => s.Value<int>("Id") >= objects.First().Id);
+                    var check = db.Fetch(10000);
 
-                    tran.Commit();
+                    using (var tran = db.BeginTransaction())
+                    {
+                        deletes.ToList().ForEach(d => db.Delete(d.Id));
+
+                        db.Delete(s => s.Value<int>("Id") >= objects.First().Id);
+
+                        tran.Commit();
+                    }
                 }
             }
         }
@@ -158,31 +162,34 @@ namespace BESSy.Tests.DatabaseTests
 
             var objects = TestResourceFactory.GetMockClassAObjects(12);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName + ".database"))
             {
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
                 {
-                    objects.ToList().ForEach(o => o.Id = db.Add(o));
+                    db.Load();
 
-                    db.Update(objects[1], objects[1].Id);
+                    using (var t = db.BeginTransaction())
+                    {
+                        objects.ToList().ForEach(o => o.Id = db.Add(o));
 
-                    t.Commit();
+                        db.Update(objects[1], objects[1].Id);
+
+                        t.Commit();
+                    }
                 }
-            }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
                 {
-                    db.Update<MockClassA>(s => s.Value<int>("Id") == objects[2].Id, a => a.Name = a.Name + " updated");
+                    db.Load();
 
-                    db.Delete(objects[2].Id);
+                    using (var t = db.BeginTransaction())
+                    {
+                        db.Update<MockClassA>(s => s.Value<int>("Id") == objects[2].Id, a => a.Name = a.Name + " updated");
 
-                    t.Commit();
+                        db.Delete(objects[2].Id);
+
+                        t.Commit();
+                    }
                 }
             }
         }
@@ -196,35 +203,38 @@ namespace BESSy.Tests.DatabaseTests
 
             var objects = TestResourceFactory.GetMockClassAObjects(12);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName + ".database"))
             {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                db.BeginTransaction();
+                    db.BeginTransaction();
 
-                foreach (var obj in objects)
-                    db.AddOrUpdate(obj, 0);
+                    foreach (var obj in objects)
+                        db.AddOrUpdate(obj, 0);
 
-                var update = db.Fetch(3);
+                    var update = db.Fetch(3);
 
-                update.Name = "Updated " + update.Id;
+                    update.Name = "Updated " + update.Id;
 
-                db.AddOrUpdate(update, update.Id);
+                    db.AddOrUpdate(update, update.Id);
 
-                db.Flush();
-            }
+                    db.Flush();
+                }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    db.Load();
 
-                db.BeginTransaction();
+                    db.BeginTransaction();
 
-                db.Delete(d => d.Value<string>("Name").Contains("Updated"));
+                    db.Delete(d => d.Value<string>("Name").Contains("Updated"));
 
-                db.Update<MockClassA>(u => u.Value<string>("Name").Contains("Updated"), m => m.Name = "Should Fail " + m.Id);
+                    db.Update<MockClassA>(u => u.Value<string>("Name").Contains("Updated"), m => m.Name = "Should Fail " + m.Id);
 
-                db.Flush();
+                    db.Flush();
+                }
             }
         }
     }

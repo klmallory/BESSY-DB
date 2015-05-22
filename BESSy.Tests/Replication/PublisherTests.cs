@@ -8,6 +8,7 @@ using BESSy.Extensions;
 using BESSy.Tests.Mocks;
 using NUnit.Framework;
 using BESSy.Replication;
+using BESSy.Files;
 
 namespace BESSy.Tests.Replication
 {
@@ -45,36 +46,39 @@ namespace BESSy.Tests.Replication
         public void PublisherUnInititializes()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
-                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
-
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-
-                db.Flush();
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database")
-                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
-            {
-                db.Load();
-                db.WithoutPublishing("Test");
-
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-
-                using (var tran = db.BeginTransaction())
+                Cleanup();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
+                    .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
                 {
-                    TestResourceFactory.GetMockClassAObjects(25).ToList().ForEach(m => db.Add(m));
+                    db.Load();
 
-                    tran.Commit();
+                    Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+
+                    db.Flush();
                 }
 
-                Thread.Sleep(100);
+                using (var db = new Database<int, MockClassA>(_testName + ".database")
+                    .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
+                {
+                    db.Load();
+                    db.WithoutPublishing("Test");
 
-                Assert.AreEqual(0, Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.tLock").Count());
+                    Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+
+                    using (var tran = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(25).ToList().ForEach(m => db.Add(m));
+
+                        tran.Commit();
+                    }
+
+                    Thread.Sleep(100);
+
+                    Assert.AreEqual(0, Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.tLock").Count());
+                }
             }
         }
 
@@ -82,36 +86,40 @@ namespace BESSy.Tests.Replication
         public void PublisherWritesTransactionOnCommit()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
-                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-                db.Add(TestResourceFactory.CreateRandom());
-                db.Flush();
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database")
-                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
-            {
-                db.Load();
-
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-
-                using (var tran = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id")
+                    .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
                 {
-                    TestResourceFactory.GetMockClassAObjects(25).ToList().ForEach(m => db.Add(m));
+                    db.Load();
 
-                    tran.Commit();
+                    Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+                    db.Add(TestResourceFactory.CreateRandom());
+                    db.Flush();
                 }
 
-                while (db.FileFlushQueueActive)
-                    Thread.Sleep(100);
+                using (var db = new Database<int, MockClassA>(_testName + ".database")
+                    .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
+                {
+                    db.Load();
 
-                Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count(), 0);
+                    Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+
+                    using (var tran = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(25).ToList().ForEach(m => db.Add(m));
+
+                        tran.Commit();
+                    }
+
+                    while (db.FileFlushQueueActive)
+                        Thread.Sleep(100);
+
+                    Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count(), 0);
+                }
             }
         }
 
@@ -119,47 +127,51 @@ namespace BESSy.Tests.Replication
         public void PublisherQueuesTransactionsOnPause()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                db.Add(TestResourceFactory.CreateRandom());
-
-                db.FlushAll();
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database")
-                .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
-            {
-                db.Load();
-
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-
-                using (var fs = File.Create(Path.Combine(Environment.CurrentDirectory, _testName, "test.pause")))
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
                 {
-                    fs.Flush();
+                    db.Load();
+
+                    db.Add(TestResourceFactory.CreateRandom());
+
+                    db.FlushAll();
                 }
 
-                using (var tran = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database")
+                    .WithPublishing("Test", new FilePublisher<int, MockClassA>(_testName)))
                 {
-                    TestResourceFactory.GetMockClassAObjects(25).ToList().ForEach(m => db.Add(m));
+                    db.Load();
 
-                    tran.Commit();
+                    Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+
+                    using (var fs = File.Create(Path.Combine(Environment.CurrentDirectory, _testName, "test.pause")))
+                    {
+                        fs.Flush();
+                    }
+
+                    using (var tran = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(25).ToList().ForEach(m => db.Add(m));
+
+                        tran.Commit();
+                    }
+
+                    Thread.Sleep(100);
+
+                    Assert.AreEqual(0, Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count());
+
+                    File.Delete(Path.Combine(Environment.CurrentDirectory, _testName, "test.pause"));
+
+                    Thread.Sleep(3000);
+
+                    Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count(), 0);
+
+                    db.FlushAll();
                 }
-
-                Thread.Sleep(100);
-
-                Assert.AreEqual(0, Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count());
-
-                File.Delete(Path.Combine(Environment.CurrentDirectory, _testName, "test.pause"));
-
-                Thread.Sleep(3000);
-
-                Assert.Greater(Directory.GetFiles(Path.Combine(Environment.CurrentDirectory, _testName), "*.trans").Count(), 0);
-
-                db.FlushAll();
             }
         }
     }

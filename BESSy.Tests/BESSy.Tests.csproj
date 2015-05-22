@@ -261,7 +261,6 @@
     <Compile Include="SerializationTests\CryptoFormatterTests.cs" />
     <Compile Include="SerializationTests\JSONFormatterTests.cs" />
     <Compile Include="SynchronizationTests\RowSynchronizerTests.cs" />
-    <Compile Include="TempTests.cs" />
     <Compile Include="Test.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -307,6 +306,7 @@
     <None Include="BESSy.Tests.keyfile.pfx" />
     <None Include="BESSy.Tests.keyfile.pub" />
     <None Include="BESSy.Tests.pvk" />
+    <None Include="packages.config" />
     <None Include="ResourceRepositoryTests\Resources\Sounds\MiscAngelic.ogg" />
     <None Include="ResourceRepositoryTests\Resources\Sounds\MiscSitarOutOfTune.ogg" />
   </ItemGroup>

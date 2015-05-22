@@ -127,6 +127,31 @@ namespace BESSy.Cache
             }
         }
 
+        protected virtual void InitializeFileTrimEmpty(int stride)
+        {
+            _fileStream = OpenFile(_fileName, Environment.SystemPageSize);
+
+            var last = _fileStream.ReadTrimLocation(Environment.SystemPageSize, stride);
+
+            _fileStream.SetLength(((last / stride) + 1) * stride);
+
+            _locationSeed = new Seed64(((_fileStream.Length / stride) - 1).Clamp(0, long.MaxValue));
+
+            _maxLength = GetSizeWithGrowthFactor(Math.Max(Length + 1, _startingSize));
+
+            _fileStream.SetLength((_maxLength) * stride);
+
+            _fileMap = OpenMemoryMap(_fileStream, stride, _maxLength);
+
+            lock (_syncHints)
+            {
+                _hintSkip = (int)((long)Math.Ceiling(_maxLength / (double)TaskGrouping.ArrayLimit) / _pageSize).Clamp(1, int.MaxValue);
+
+                _indexHints.Clear();
+                _segmentHints.Clear();
+            }
+        }
+
         protected virtual void InitializeFile(int stride, long growth = 1)
         {
             _fileStream = OpenFile(_fileName, Environment.SystemPageSize);
@@ -432,7 +457,20 @@ namespace BESSy.Cache
 
             InitializeFile(dbFileLength, _stride);
 
-            Trace.TraceInformation("PTree Building Cache");
+            Trace.TraceInformation("PTree building cache");
+
+            BuildCacheFromFile();
+        }
+
+        public void Trim()
+        {
+            Clear();
+
+            Trace.TraceInformation("PTree file loading with trim empty");
+
+            InitializeFileTrimEmpty(_stride);
+
+            Trace.TraceInformation("PTree building cache");
 
             BuildCacheFromFile();
         }

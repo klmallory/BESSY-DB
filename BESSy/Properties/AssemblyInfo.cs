@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Resources;
 using System.Security;
 using System;
+using System.Runtime.Versioning;
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
@@ -44,8 +45,8 @@ using System;
 //sn -p BESSy.Tests.keyfile.pfx BESSy.Tests.keyfile.pub
 //sn -tp BESSy.Tests.keyfile.pub
 
-[assembly: AssemblyVersion("0.9.1.5")]
-[assembly: AssemblyFileVersion("0.9.1.5")]
+[assembly: AssemblyVersion("0.9.1.6")]
+[assembly: AssemblyFileVersion("0.9.1.6")]
 [assembly: CLSCompliant(true)]
 [assembly: NeutralResourcesLanguageAttribute("en-US")]
 

@@ -101,12 +101,12 @@ namespace BESSy.Indexes
         protected PTree<IndexType, EntityType, SegmentType> _pTree;
         protected IAtomicFileManager<EntityType> _databaseFile;
 
-        void OnTransactionCommitted(ITransaction<EntityType> transaction)
+        protected void OnTransactionCommitted(ITransaction<EntityType> transaction)
         {
             _pTree.UpdateFromTransaction(transaction);
         }
 
-        void OnDatabaseReorganized(int recordsWritten)
+        protected void OnDatabaseReorganized(int recordsWritten)
         {
             _pTree.Reorganize(_databaseFile.AsEnumerable());
         }
@@ -214,7 +214,7 @@ namespace BESSy.Indexes
             return _pTree.Load();
         }
 
-        public void Register(IAtomicFileManager<EntityType> databaseFile)
+        public virtual void Register(IAtomicFileManager<EntityType> databaseFile)
         {
             //databaseFile.Rebuilt += new Rebuild<EntityType>(OnDatabaseRebuilt);
             databaseFile.Reorganized += new Reorganized<EntityType>(OnDatabaseReorganized);

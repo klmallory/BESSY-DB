@@ -313,9 +313,11 @@ namespace BESSy.Relational
         {
             var length = base.Load();
 
-            _cascadeIndex = new Index<string, EntityType, IdType>(_fileName + ".cascade" + ".index", null, false);
+            _cascadeIndex = new CascadeIndex<string, EntityType, IdType>(_fileName + ".cascade" + ".index", null, false);
 
             _cascadeIndex.Load();
+
+            _cascadeIndex.Register(this._fileManager);
 
             return length;
         }

@@ -116,18 +116,21 @@ namespace BESSy.Tests.DatabaseTests
 
             var objs = TestResourceFactory.GetMockClassAObjects(10000).ToList();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(new Seed32(999))))
+            using (var fLock = new ManagedFileLock(_testName + ".database"))
             {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(new Seed32(999))))
+                {
+                    db.Load();
 
-                objs.ToList().ForEach(o => db.Add(o));
-            }
+                    objs.ToList().ForEach(o => db.Add(o));
+                }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                var len = db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    var len = db.Load();
 
-                Assert.AreEqual(objs.Count(), len);
+                    Assert.AreEqual(objs.Count(), len);
+                }
             }
         }
 
@@ -135,31 +138,35 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseSavesLargeFile()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var tran = db.BeginTransaction())
+                using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name"))
                 {
-                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF" });
-                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT" });
-                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM" });
+                    db.Load();
 
-                    tran.Commit();
+                    using (var tran = db.BeginTransaction())
+                    {
+                        db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF" });
+                        db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT" });
+                        db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM" });
+
+                        tran.Commit();
+                    }
                 }
-            }
 
-            using (var db = new Database<string, ResourceContainer>(_testName + ".database"))
-            {
-                var len = db.Load();
+                using (var db = new Database<string, ResourceContainer>(_testName + ".database"))
+                {
+                    var len = db.Load();
 
-                Assert.AreEqual(3, len);
+                    Assert.AreEqual(3, len);
 
-                Assert.AreEqual(db.Fetch("Luna_DIFF").GetResource<Bitmap>().Width, testRes.Luna_DIFF.Width);
-                Assert.AreEqual(db.Fetch("Luna_MAT").GetResource<Bitmap>().Width, testRes.Luna_MAT.Width);
-                Assert.AreEqual(db.Fetch("Luna_NRM").GetResource<Bitmap>().Width, testRes.Luna_NRM.Width);
+                    Assert.AreEqual(db.Fetch("Luna_DIFF").GetResource<Bitmap>().Width, testRes.Luna_DIFF.Width);
+                    Assert.AreEqual(db.Fetch("Luna_MAT").GetResource<Bitmap>().Width, testRes.Luna_MAT.Width);
+                    Assert.AreEqual(db.Fetch("Luna_NRM").GetResource<Bitmap>().Width, testRes.Luna_NRM.Width);
+                }
             }
         }
 
@@ -167,152 +174,161 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseRebuildsWithLargeFile()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name", 
-                new FileCore<string, long>(new SeedString(50)) { InitialDbSize = 8}))
+            using (var fLock = new ManagedFileLock(_testName + ".database"))
             {
-                db.Load();
+                Cleanup();
 
-                using (var tran = db.BeginTransaction())
+                using (var db = new Database<string, ResourceContainer>(_testName + ".database", "Name",
+                    new FileCore<string, long>(new SeedString(50)) { InitialDbSize = 8 }))
                 {
-                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF" });
-                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF1" });
-                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF2" });
-                    db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF3" });
-                    tran.Commit();
+                    db.Load();
+
+                    using (var tran = db.BeginTransaction())
+                    {
+                        db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF" });
+                        db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF1" });
+                        db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF2" });
+                        db.Add(new MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF3" });
+                        tran.Commit();
+                    }
+
+                    using (var tran = db.BeginTransaction())
+                    {
+                        db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT" });
+                        db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT1" });
+                        db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT2" });
+                        db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT3" });
+
+                        tran.Commit();
+                    }
+
+                    using (var tran = db.BeginTransaction())
+                    {
+                        db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM" });
+                        db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM1" });
+                        db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM2" });
+                        db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM3" });
+
+                        tran.Commit();
+                    }
                 }
 
-                using (var tran = db.BeginTransaction())
+                using (var db = new Database<string, ResourceContainer>(_testName + ".database"))
                 {
-                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT" });
-                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT1" });
-                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT2" });
-                    db.Add(new MockImageContainer(testRes.Luna_MAT) { Name = "Luna_MAT3" });
+                    var len = db.Load();
 
-                    tran.Commit();
+                    Assert.AreEqual(12, len);
+
+                    Assert.AreEqual(db.Fetch("Luna_DIFF").GetResource<Bitmap>().Width, testRes.Luna_DIFF.Width);
+                    Assert.AreEqual(db.Fetch("Luna_MAT").GetResource<Bitmap>().Width, testRes.Luna_MAT.Width);
+                    Assert.AreEqual(db.Fetch("Luna_NRM").GetResource<Bitmap>().Width, testRes.Luna_NRM.Width);
+
+                    var d = DynamicMemberManager.GetManager(db);
+                    var idx = DynamicMemberManager.GetManager(d._primaryIndex);
+                    var pt = DynamicMemberManager.GetManager(idx._pTree);
+
+                    Assert.AreEqual(1, pt._cache.Count);
+                    Assert.AreEqual(13, pt._cache[0].Count);
                 }
-
-                using (var tran = db.BeginTransaction())
-                {
-                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM" });
-                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM1" });
-                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM2" });
-                    db.Add(new MockImageContainer(testRes.Luna_NRM) { Name = "Luna_NRM3" });
-
-                    tran.Commit();
-                }
-            }
-
-            using (var db = new Database<string, ResourceContainer>(_testName + ".database"))
-            {
-                var len = db.Load();
-
-                Assert.AreEqual(12, len);
-
-                Assert.AreEqual(db.Fetch("Luna_DIFF").GetResource<Bitmap>().Width, testRes.Luna_DIFF.Width);
-                Assert.AreEqual(db.Fetch("Luna_MAT").GetResource<Bitmap>().Width, testRes.Luna_MAT.Width);
-                Assert.AreEqual(db.Fetch("Luna_NRM").GetResource<Bitmap>().Width, testRes.Luna_NRM.Width);
-
-                var d = DynamicMemberManager.GetManager(db);
-                var idx = DynamicMemberManager.GetManager(d._primaryIndex);
-                var pt = DynamicMemberManager.GetManager(idx._pTree);
-
-                Assert.AreEqual(1, pt._cache.Count);
-                Assert.AreEqual(13, pt._cache[0].Count);
             }
         }
 
         [Test]
+        [Category("Integration")]
         public void DatabaseSavesOneHundredThousandRecords()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             decimal avgTime = 0;
             var stopWatch = new Stopwatch();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                stopWatch.Start();
-                using (var t = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
                 {
-                    TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
+                    db.Load();
 
-                    t.Commit();
+                    stopWatch.Start();
+                    using (var t = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
+
+                        t.Commit();
+                    }
+                    stopWatch.Stop();
+                    avgTime = (avgTime + stopWatch.ElapsedMilliseconds);
+
+                    Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    using (var t = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
+
+                        t.Commit();
+                    }
+                    stopWatch.Stop();
+                    avgTime = (avgTime + stopWatch.ElapsedMilliseconds) / 2;
+
+                    Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    using (var t = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
+
+                        t.Commit();
+                    }
+                    stopWatch.Stop();
+                    avgTime = (avgTime + stopWatch.ElapsedMilliseconds) / 2;
+
+                    Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    using (var t = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
+
+                        t.Commit();
+                    }
+                    stopWatch.Stop();
+                    avgTime = (avgTime + stopWatch.ElapsedMilliseconds) / 2;
+
+                    Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    Console.WriteLine("Avg Commit time for trans with 25000 entities {0} seconds", avgTime / 1000m);
+
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    Assert.AreEqual(20000, db.Select(o => o.Value<int>("Id") > 80000).Count());
+                    stopWatch.Stop();
+
+                    Console.WriteLine("query with 20000 records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    db.Flush();
                 }
-                stopWatch.Stop();
-                avgTime = (avgTime + stopWatch.ElapsedMilliseconds);
 
-                Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
-
-                stopWatch.Reset();
-                stopWatch.Start();
-                using (var t = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
                 {
-                    TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
+                    var len = db.Load();
 
-                    t.Commit();
+                    Assert.AreEqual(100000, len);
+
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    Assert.AreEqual(20000, db.Select(o => o.Value<int>("Id") > 80000).Count());
+                    stopWatch.Stop();
+
+                    Console.WriteLine("query with 20000 records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    db.Clear();
                 }
-                stopWatch.Stop();
-                avgTime = (avgTime + stopWatch.ElapsedMilliseconds) / 2;
-
-                Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
-
-                stopWatch.Reset();
-                stopWatch.Start();
-                using (var t = db.BeginTransaction())
-                {
-                    TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
-
-                    t.Commit();
-                }
-                stopWatch.Stop();
-                avgTime = (avgTime + stopWatch.ElapsedMilliseconds) / 2;
-
-                Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
-
-                stopWatch.Reset();
-                stopWatch.Start();
-                using (var t = db.BeginTransaction())
-                {
-                    TestResourceFactory.GetMockClassAObjects(25000).ToList().ForEach(a => db.Add(a));
-
-                    t.Commit();
-                }
-                stopWatch.Stop();
-                avgTime = (avgTime + stopWatch.ElapsedMilliseconds) / 2;
-
-                Console.WriteLine("Transaction with 25000 entities committed in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
-
-                Console.WriteLine("Avg Commit time for trans with 25000 entities {0} seconds", avgTime / 1000m);
-
-                stopWatch.Reset();
-                stopWatch.Start();
-                Assert.AreEqual(20000, db.Select(o => o.Value<int>("Id") > 80000).Count());
-                stopWatch.Stop();
-
-                Console.WriteLine("query with 20000 records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
-
-                db.Flush();
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                var len = db.Load();
-
-                Assert.AreEqual(100000, len);
-
-                stopWatch.Reset();
-                stopWatch.Start();
-                Assert.AreEqual(20000, db.Select(o => o.Value<int>("Id") > 80000).Count());
-                stopWatch.Stop();
-
-                Console.WriteLine("query with 20000 records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
-
-                db.Clear();
             }
         }
     }

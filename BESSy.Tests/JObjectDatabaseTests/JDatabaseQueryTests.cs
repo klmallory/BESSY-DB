@@ -49,7 +49,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
 
-            using (var fLock = new ManagedFileLock(_testName + ".database"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
                 Cleanup();
 
@@ -106,7 +106,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
 
-            using (var fLock = new ManagedFileLock(_testName + ".database"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
                 Cleanup();
 
@@ -157,6 +157,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
                     foreach (var item in gets)
                         Assert.Greater(item.Id, 23999);
                 }
+
             }
         }
 
@@ -165,7 +166,7 @@ namespace BESSy.Tests.JObjectDatabaseTests
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
 
-            using (var fLock = new ManagedFileLock(_testName + ".database"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
                 Cleanup();
 

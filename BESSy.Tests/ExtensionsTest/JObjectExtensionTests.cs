@@ -68,5 +68,32 @@ namespace BESSy.Tests.ExtensionsTest
             Assert.AreEqual(true, raised);
             Assert.AreEqual("Location", propertyChangedName);
         }
+        [Test]
+        public void SetStringValue()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+            Cleanup();
+
+            var propertyChangedName = "";
+            var raised = false;
+            var serializer = JsonSerializer.Create(BSONFormatter.GetDefaultSettings());
+            var c = TestResourceFactory.CreateRandom() as MockClassC;
+
+            c.Location = default(MockStruct);
+            c.Friend = null;
+
+            var obj = JObject.FromObject(c, serializer);
+
+            obj.PropertyChanged += delegate(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+            {
+                propertyChangedName = e.PropertyName;
+                raised = true;
+            };
+
+            obj.SetValue<string>("Name", "Hello", serializer);
+
+            Assert.AreEqual(true, raised);
+            Assert.AreEqual("Name", propertyChangedName);
+        }
     }
 }

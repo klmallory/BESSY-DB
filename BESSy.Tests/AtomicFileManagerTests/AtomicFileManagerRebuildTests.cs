@@ -210,7 +210,6 @@ namespace BESSy.Tests.AtomicFileManagerTests
         public void AfmRebuildsOnFailedTransaction()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var formatter = new BSONFormatter();
             var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512 };
@@ -219,87 +218,90 @@ namespace BESSy.Tests.AtomicFileManagerTests
             var largeEntity = TestResourceFactory.CreateRandom().WithName(new String('a', 2000)) as MockClassC;
 
             IDictionary<int, long> returnSegments = null;
-
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                afm.Load<int>();
-
-                using (var manager = new TransactionManager<int, MockClassA>
-                    (new MockTransactionFactory<int, MockClassA>()
-                    , new TransactionSynchronizer<int, MockClassA>()))
+                Cleanup();
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", core, formatter))
                 {
-                    manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
-                        delegate(ITransaction<int, MockClassA> tranny)
-                        {
-                            returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, long>());
+                    afm.Load<int>();
 
-                            while (afm.FileFlushQueueActive)
-                                Thread.Sleep(100);
-
-                            tranny.MarkComplete();
-
-                            afm.SaveCore<int>();
-                        });
-
-
-                    using (var tLock = manager.BeginTransaction())
+                    using (var manager = new TransactionManager<int, MockClassA>
+                        (new MockTransactionFactory<int, MockClassA>()
+                        , new TransactionSynchronizer<int, MockClassA>()))
                     {
-                        tLock.Transaction.Enlist(Action.Create, entity.Id, entity);
+                        manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
+                            delegate(ITransaction<int, MockClassA> tranny)
+                            {
+                                returnSegments = afm.CommitTransaction(tranny, new Dictionary<int, long>());
 
-                        tLock.Transaction.Commit();
+                                while (afm.FileFlushQueueActive)
+                                    Thread.Sleep(100);
+
+                                tranny.MarkComplete();
+
+                                afm.SaveCore<int>();
+                            });
+
+
+                        using (var tLock = manager.BeginTransaction())
+                        {
+                            tLock.Transaction.Enlist(Action.Create, entity.Id, entity);
+
+                            tLock.Transaction.Commit();
+                        }
                     }
                 }
-            }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
-            {
-                afm.Load<int>();
-
-                using (var manager = new TransactionManager<int, MockClassA>
-                    (new MockTransactionFactory<int, MockClassA>()
-                    , new TransactionSynchronizer<int, MockClassA>()))
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
                 {
-                    manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
-                        delegate(ITransaction<int, MockClassA> tranny)
-                        {
-                            returnSegments = afm.CommitTransaction(tranny, returnSegments);
-                           
-                            while (afm.FileFlushQueueActive)
-                                Thread.Sleep(100);
+                    afm.Load<int>();
 
-                            tranny.MarkComplete();
-
-                            afm.SaveCore<int>();
-                        });
-
-                    using (var tLock = manager.BeginTransaction())
+                    using (var manager = new TransactionManager<int, MockClassA>
+                        (new MockTransactionFactory<int, MockClassA>()
+                        , new TransactionSynchronizer<int, MockClassA>()))
                     {
-                        tLock.Transaction.Enlist(Action.Update, largeEntity.Id, largeEntity);
+                        manager.TransactionCommitted += new TransactionCommit<int, MockClassA>(
+                            delegate(ITransaction<int, MockClassA> tranny)
+                            {
+                                returnSegments = afm.CommitTransaction(tranny, returnSegments);
 
-                        tLock.Transaction.Commit();
+                                while (afm.FileFlushQueueActive)
+                                    Thread.Sleep(100);
+
+                                tranny.MarkComplete();
+
+                                afm.SaveCore<int>();
+                            });
+
+                        using (var tLock = manager.BeginTransaction())
+                        {
+                            tLock.Transaction.Enlist(Action.Update, largeEntity.Id, largeEntity);
+
+                            tLock.Transaction.Commit();
+                        }
                     }
                 }
-            }
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
-            {
-                afm.Load<int>();
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", formatter))
+                {
+                    afm.Load<int>();
 
-                Assert.Greater(afm.Stride, 2200);
-                Assert.AreEqual(1024, afm.CorePosition);
+                    Assert.Greater(afm.Stride, 2200);
+                    Assert.AreEqual(1024, afm.CorePosition);
 
-                var obj = afm.LoadSegmentFrom(returnSegments.First().Value) as MockClassC;
+                    var obj = afm.LoadSegmentFrom(returnSegments.First().Value) as MockClassC;
 
-                Assert.IsNotNull(obj);
-                Assert.AreEqual(largeEntity.Id, obj.Id);
-                Assert.AreEqual(largeEntity.Name, obj.Name);
-                Assert.AreEqual(largeEntity.GetSomeCheckSum, obj.GetSomeCheckSum);
-                Assert.AreEqual(largeEntity.Location.X, obj.Location.X);
-                Assert.AreEqual(largeEntity.Location.Y, obj.Location.Y);
-                Assert.AreEqual(largeEntity.Location.Z, obj.Location.Z);
-                Assert.AreEqual(largeEntity.Location.W, obj.Location.W);
-                Assert.AreEqual(largeEntity.ReferenceCode, obj.ReferenceCode);
-                Assert.AreEqual(largeEntity.ReplicationID, obj.ReplicationID);
+                    Assert.IsNotNull(obj);
+                    Assert.AreEqual(largeEntity.Id, obj.Id);
+                    Assert.AreEqual(largeEntity.Name, obj.Name);
+                    Assert.AreEqual(largeEntity.GetSomeCheckSum, obj.GetSomeCheckSum);
+                    Assert.AreEqual(largeEntity.Location.X, obj.Location.X);
+                    Assert.AreEqual(largeEntity.Location.Y, obj.Location.Y);
+                    Assert.AreEqual(largeEntity.Location.Z, obj.Location.Z);
+                    Assert.AreEqual(largeEntity.Location.W, obj.Location.W);
+                    Assert.AreEqual(largeEntity.ReferenceCode, obj.ReferenceCode);
+                    Assert.AreEqual(largeEntity.ReplicationID, obj.ReplicationID);
+                }
             }
         }
 
@@ -307,7 +309,6 @@ namespace BESSy.Tests.AtomicFileManagerTests
         public void AfmReorganizesWithCorrectNumberOfRows()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var formatter = new BSONFormatter();
             var core = new FileCore<int, long>() { IdSeed = new Seed32(999), SegmentSeed = new Seed64(), MinimumCoreStride = 512, InitialDbSize = 10240 };
@@ -319,44 +320,49 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
             addEntities.Reverse();
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", 4096, 20000, 4096, core, formatter, new RowSynchronizer<long>(new BinConverter64())))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                afm.Load<int>();
+                Cleanup();
 
-                afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", 4096, 20000, 4096, core, formatter, new RowSynchronizer<long>(new BinConverter64())))
                 {
-                    afm.SaveCore<int>();
-                });
+                    afm.Load<int>();
 
-                AtomicFileManagerHelper.SaveSegments(afm, addEntities.ToDictionary(e => e.Id));
-            }
+                    afm.Rebuilt += new Rebuild<MockClassA>(delegate(Guid transactionId, int newStride, long newLength, int newSeedStride)
+                    {
+                        afm.SaveCore<int>();
+                    });
 
-            addEntities.Reverse();
+                    AtomicFileManagerHelper.SaveSegments(afm, addEntities.ToDictionary(e => e.Id));
+                }
 
-            var seg = 1;
+                addEntities.Reverse();
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", 4096, 20000, 4096, formatter, new RowSynchronizer<long>(new BinConverter64())))
-            {
-                afm.Load<int>();
+                var seg = 1;
 
-                Assert.AreNotEqual(1, afm.LoadSegmentFrom(seg).Id);
-
-                afm.Reorganized += new Reorganized<MockClassA>(delegate(int recordsWritten)
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", 4096, 20000, 4096, formatter, new RowSynchronizer<long>(new BinConverter64())))
                 {
-                    afm.SaveCore<int>();
-                });
+                    afm.Load<int>();
 
-                afm.Reorganize<int>(new BinConverter32(), j => j.Value<int>("Id"));
-            }
+                    Assert.AreNotEqual(1, afm.LoadSegmentFrom(seg).Id);
 
-            using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", 4096, 20000, 4096, core, formatter, new RowSynchronizer<long>(new BinConverter64())))
-            {
-                afm.Load<int>();
+                    afm.Reorganized += new Reorganized<MockClassA>(delegate(int recordsWritten)
+                    {
+                        afm.SaveCore<int>();
+                    });
 
-                foreach (var entity in addEntities)
+                    afm.Reorganize<int>(new BinConverter32(), j => j.Value<int>("Id"));
+                }
+
+                using (var afm = new AtomicFileManager<MockClassA>(_testName + ".database", 4096, 20000, 4096, core, formatter, new RowSynchronizer<long>(new BinConverter64())))
                 {
-                    Assert.AreEqual(entity.Id, afm.LoadSegmentFrom(seg).Id, "Id {0} was not found in the right order, Id {1} was found instead.", entity.Id, afm.LoadSegmentFrom(seg).Id);
-                    seg++;
+                    afm.Load<int>();
+
+                    foreach (var entity in addEntities)
+                    {
+                        Assert.AreEqual(entity.Id, afm.LoadSegmentFrom(seg).Id, "Id {0} was not found in the right order, Id {1} was found instead.", entity.Id, afm.LoadSegmentFrom(seg).Id);
+                        seg++;
+                    }
                 }
             }
         }

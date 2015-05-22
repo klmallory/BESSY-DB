@@ -42,60 +42,64 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseFetechesJObject()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var core = new FileCore<int, long>(new Seed32(999));
             var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
 
             var stopWatch = new Stopwatch();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", core))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var t = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", core))
                 {
-                    TestResourceFactory.GetMockClassAObjects(5000).ToList().ForEach(a => db.AddJObj(JObject.FromObject(a, formatter.Serializer)));
+                    db.Load();
 
-                    t.Commit();
+                    using (var t = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(5000).ToList().ForEach(a => db.AddJObj(JObject.FromObject(a, formatter.Serializer)));
+
+                        t.Commit();
+                    }
+
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    var gets = db.SelectJObjLast(o => o.Value<int>("Id") > 4000, 10);
+                    stopWatch.Stop();
+
+                    Console.WriteLine("query with 10 last records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    Assert.AreEqual(10, gets.Count());
+
+                    foreach (var item in gets)
+                        Assert.Greater(item.Value<int>("Id"), 4989);
+
+                    var obj = db.FetchJObj(4000);
+
+                    Assert.AreEqual(obj.Value<int>("Id"), 4000);
                 }
 
-                stopWatch.Reset();
-                stopWatch.Start();
-                var gets = db.SelectJObjLast(o => o.Value<int>("Id") > 4000, 10);
-                stopWatch.Stop();
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    var len = db.Load();
 
-                Console.WriteLine("query with 10 last records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    var gets = db.SelectLast(o => o.Value<int>("Id") > 4000, 10);
+                    stopWatch.Stop();
 
-                Assert.AreEqual(10, gets.Count());
+                    Console.WriteLine("query with 10 last records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
 
-                foreach (var item in gets)
-                    Assert.Greater(item.Value<int>("Id"), 4989);
+                    Assert.AreEqual(10, gets.Count());
 
-                var obj = db.FetchJObj(4000);
+                    foreach (var item in gets)
+                        Assert.Greater(item.Id, 4000);
 
-                Assert.AreEqual(obj.Value<int>("Id"), 4000);
-            }
+                    var obj = db.FetchJObj(4000);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                var len = db.Load();
-
-                stopWatch.Reset();
-                stopWatch.Start();
-                var gets = db.SelectLast(o => o.Value<int>("Id") > 4000, 10);
-                stopWatch.Stop();
-
-                Console.WriteLine("query with 10 last records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
-
-                Assert.AreEqual(10, gets.Count());
-
-                foreach (var item in gets)
-                    Assert.Greater(item.Id, 4000);
-
-                var obj = db.FetchJObj(4000);
-
-                Assert.AreEqual(obj.Value<int>("Id"), 4000);
+                    Assert.AreEqual(obj.Value<int>("Id"), 4000);
+                }
             }
         }
 
@@ -103,64 +107,68 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseUpdatesJObject()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var core = new FileCore<int, long>(new Seed32(999));
             var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();
 
             var stopWatch = new Stopwatch();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", core))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var t = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", core))
                 {
-                    TestResourceFactory.GetMockClassAObjects(5000).ToList().ForEach(a => db.AddOrUpdateJObj(JObject.FromObject(a, formatter.Serializer), a.Id));
+                    db.Load();
 
-                    t.Commit();
-                }
-                var dmm = DynamicMemberManager.GetManager(db);
-                Assert.AreEqual(5000, dmm._primaryIndex.Length);
-            }
+                    using (var t = db.BeginTransaction())
+                    {
+                        TestResourceFactory.GetMockClassAObjects(5000).ToList().ForEach(a => db.AddOrUpdateJObj(JObject.FromObject(a, formatter.Serializer), a.Id));
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                var len = db.Load();
-
-                using (var t = db.BeginTransaction())
-                {
-                    var old = db.FetchJObj(2000);
-
-                    var eVal = old.SelectToken("LittleId") as JValue;
-                    var sVal = JToken.FromObject(10, db.Formatter.Serializer);
-
-                    eVal.Replace(sVal);
-
-                    db.AddOrUpdateJObj(old, old.Value<int>("Id"));
-
-                    t.Commit();
+                        t.Commit();
+                    }
+                    var dmm = DynamicMemberManager.GetManager(db);
+                    Assert.AreEqual(5000, dmm._primaryIndex.Length);
                 }
 
-                stopWatch.Reset();
-                stopWatch.Start();
-                var gets = db.SelectLast(o => o.Value<int>("Id") > 4000, 10);
-                stopWatch.Stop();
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    var len = db.Load();
 
-                Console.WriteLine("query with 10 last records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+                    using (var t = db.BeginTransaction())
+                    {
+                        var old = db.FetchJObj(2000);
 
-                Assert.AreEqual(10, gets.Count());
+                        var eVal = old.SelectToken("LittleId") as JValue;
+                        var sVal = JToken.FromObject(10, db.Formatter.Serializer);
 
-                foreach (var item in gets)
-                    Assert.Greater(item.Id, 4000);
+                        eVal.Replace(sVal);
 
-                var obj = db.FetchJObj(4000);
+                        db.AddOrUpdateJObj(old, old.Value<int>("Id"));
 
-                Assert.AreEqual(obj.Value<int>("Id"), 4000);
+                        t.Commit();
+                    }
 
-                var updated = db.Fetch(2000) as MockClassC;
+                    stopWatch.Reset();
+                    stopWatch.Start();
+                    var gets = db.SelectLast(o => o.Value<int>("Id") > 4000, 10);
+                    stopWatch.Stop();
 
-                Assert.AreEqual(10, updated.LittleId);
+                    Console.WriteLine("query with 10 last records retreived in {0} seconds", stopWatch.ElapsedMilliseconds / 1000m);
+
+                    Assert.AreEqual(10, gets.Count());
+
+                    foreach (var item in gets)
+                        Assert.Greater(item.Id, 4000);
+
+                    var obj = db.FetchJObj(4000);
+
+                    Assert.AreEqual(obj.Value<int>("Id"), 4000);
+
+                    var updated = db.Fetch(2000) as MockClassC;
+
+                    Assert.AreEqual(10, updated.LittleId);
+                }
             }
         }
 
@@ -170,7 +178,6 @@ namespace BESSy.Tests.DatabaseTests
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
             Cleanup();
-
 
             var core = new FileCore<int, long>(new Seed32(999));
             var formatter = TestResourceFactory.CreateJsonFormatterWithoutArrayFormatting();

@@ -23,206 +23,97 @@ namespace BESSy.Tests.TransactionTests
     [TestFixture]
     public class TransactionScopeTests : FileTest
     {
-
         [Test]
         public void SinglePhaseScopeCommitsTest()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objects = TestResourceFactory.GetMockClassAObjects(12);
 
             ITransaction trans = null;
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
-
-                using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                Cleanup();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
                 {
-                    trans = db.BeginTransaction();
+                    db.Load();
 
-                    foreach (var obj in objects)
-                        obj.Id = db.AddOrUpdate(obj, 0);
+                    using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                    {
+                        trans = db.BeginTransaction();
 
-                    var update = db.Fetch(3);
+                        foreach (var obj in objects)
+                            obj.Id = db.AddOrUpdate(obj, 0);
 
-                    update.Name = "Updated " + update.Id;
+                        var update = db.Fetch(3);
 
-                    db.AddOrUpdate(update, update.Id);
+                        update.Name = "Updated " + update.Id;
 
-                    db.Delete(objects.Last().Id);
+                        db.AddOrUpdate(update, update.Id);
 
-                    scope.Complete();
+                        db.Delete(objects.Last().Id);
+
+                        scope.Complete();
+                    }
+
+                    while (!trans.IsComplete)
+                        Thread.Sleep(100);
                 }
 
-                while (!trans.IsComplete)
-                    Thread.Sleep(100);
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
-            {
-                db.Load();
-
-                using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
                 {
-                    trans = db.BeginTransaction();
+                    db.Load();
 
-                    db.Update<MockClassA>(u => !u.Value<string>("Name").Contains("Updated"), m => m.Name = "batch " + m.Id);
+                    using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                    {
+                        trans = db.BeginTransaction();
 
-                    var old = db.Select(s => s.Value<string>("Name").Contains("Updated"));
+                        db.Update<MockClassA>(u => !u.Value<string>("Name").Contains("Updated"), m => m.Name = "batch " + m.Id);
 
-                    Assert.AreEqual(1, old.Count);
-                    Assert.AreEqual("Updated 3", old.Single().Name);
+                        var old = db.Select(s => s.Value<string>("Name").Contains("Updated"));
 
-                    var updates = db.SelectFirst(s => s.Value<string>("Name").Contains("batch"), 11);
+                        Assert.AreEqual(1, old.Count);
+                        Assert.AreEqual("Updated 3", old.Single().Name);
 
-                    Assert.AreEqual(10, updates.Count);
-                    Assert.AreEqual(1, updates.First().Id);
-                    Assert.AreEqual(11, updates.Last().Id);
+                        var updates = db.SelectFirst(s => s.Value<string>("Name").Contains("batch"), 11);
 
-                    scope.Complete();
+                        Assert.AreEqual(10, updates.Count);
+                        Assert.AreEqual(1, updates.First().Id);
+                        Assert.AreEqual(11, updates.Last().Id);
+
+                        scope.Complete();
+                    }
+
+                    while (!trans.IsComplete)
+                        Thread.Sleep(100);
                 }
-
-                while (!trans.IsComplete)
-                    Thread.Sleep(100);
             }
         }
 
         [Test]
         public void SinglePhaseScopeRollsBackTest()
         {
-
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objects = TestResourceFactory.GetMockClassAObjects(12);
 
             ITransaction trans = null;
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
                 {
-                    trans = db.BeginTransaction();
+                    db.Load();
 
-                    foreach (var obj in objects)
-                        obj.Id = db.AddOrUpdate(obj, 0);
-
-                    var update = db.Fetch(3);
-
-                    update.Name = "Updated " + update.Id;
-
-                    db.AddOrUpdate(update, update.Id);
-
-                    db.Delete(objects.Last().Id);
-                }
-
-                while (!trans.IsComplete)
-                    Thread.Sleep(100);
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
-            {
-                db.Load();
-
-                Assert.AreEqual(0, db.Length);
-            }
-        }
-
-        [Test]
-        public void FullEnlistmentScopeCommitsTest()
-        {
-
-            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
-
-            var objects = TestResourceFactory.GetMockClassAObjects(12);
-
-            ITransaction trans = null;
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
-            {
-                db.Load();
-
-                using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
-                {
-                    trans = db.BeginTransaction();
-
-                    foreach (var obj in objects)
-                        obj.Id = db.AddOrUpdate(obj, 0);
-
-                    var update = db.Fetch(3);
-
-                    update.Name = "Updated " + update.Id;
-
-                    db.AddOrUpdate(update, update.Id);
-
-                    db.Delete(objects.Last().Id);
-
-                    scope.Complete();
-                }
-
-                while (!trans.IsComplete)
-                    Thread.Sleep(100);
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
-            {
-                db.Load();
-
-                using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
-                {
-                    trans = db.BeginTransaction();
-
-                    db.Update<MockClassA>(u => !u.Value<string>("Name").Contains("Updated"), m => m.Name = "batch " + m.Id);
-
-                    var old = db.Select(s => s.Value<string>("Name").Contains("Updated"));
-
-                    Assert.AreEqual(1, old.Count);
-                    Assert.AreEqual("Updated 3", old.Single().Name);
-
-                    var updates = db.SelectFirst(s => s.Value<string>("Name").Contains("batch"), 11);
-
-                    Assert.AreEqual(10, updates.Count);
-                    Assert.AreEqual(1, updates.First().Id);
-                    Assert.AreEqual(11, updates.Last().Id);
-
-                    scope.Complete();
-                }
-
-                while (!trans.IsComplete)
-                    Thread.Sleep(100);
-            }
-        }
-
-        [Test]
-        public void FullEnlistmentScopeRollsBackTest()
-        {
-            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
-
-            var objects = TestResourceFactory.GetMockClassAObjects(12);
-
-            ITransaction trans = null;
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
-            {
-                db.Load();
-
-                using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
-                {
-                    using (trans = db.BeginTransaction())
+                    using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
                     {
+                        trans = db.BeginTransaction();
 
                         foreach (var obj in objects)
                             obj.Id = db.AddOrUpdate(obj, 0);
@@ -235,35 +126,111 @@ namespace BESSy.Tests.TransactionTests
 
                         db.Delete(objects.Last().Id);
                     }
+
+                    while (!trans.IsComplete)
+                        Thread.Sleep(100);
                 }
-            }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.SinglePhasePromotable }))
+                {
+                    db.Load();
 
-                Assert.AreEqual(0, db.Length);
+                    Assert.AreEqual(0, db.Length);
+                }
+
             }
         }
 
         [Test]
-        public void FullEnlistmentScopeRollsBackOnExceptionTest()
+        public void FullEnlistmentScopeCommitsTest()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objects = TestResourceFactory.GetMockClassAObjects(12);
 
             ITransaction trans = null;
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                try
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
                 {
+                    db.Load();
+
+                    using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                    {
+                        trans = db.BeginTransaction();
+
+                        foreach (var obj in objects)
+                            obj.Id = db.AddOrUpdate(obj, 0);
+
+                        var update = db.Fetch(3);
+
+                        update.Name = "Updated " + update.Id;
+
+                        db.AddOrUpdate(update, update.Id);
+
+                        db.Delete(objects.Last().Id);
+
+                        scope.Complete();
+                    }
+
+                    while (!trans.IsComplete)
+                        Thread.Sleep(100);
+                }
+
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
+                {
+                    db.Load();
+
+                    using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                    {
+                        trans = db.BeginTransaction();
+
+                        db.Update<MockClassA>(u => !u.Value<string>("Name").Contains("Updated"), m => m.Name = "batch " + m.Id);
+
+                        var old = db.Select(s => s.Value<string>("Name").Contains("Updated"));
+
+                        Assert.AreEqual(1, old.Count);
+                        Assert.AreEqual("Updated 3", old.Single().Name);
+
+                        var updates = db.SelectFirst(s => s.Value<string>("Name").Contains("batch"), 11);
+
+                        Assert.AreEqual(10, updates.Count);
+                        Assert.AreEqual(1, updates.First().Id);
+                        Assert.AreEqual(11, updates.Last().Id);
+
+                        scope.Complete();
+                    }
+
+                    while (!trans.IsComplete)
+                        Thread.Sleep(100);
+                }
+            }
+        }
+
+        [Test]
+        public void FullEnlistmentScopeRollsBackTest()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+
+            var objects = TestResourceFactory.GetMockClassAObjects(12);
+
+            ITransaction trans = null;
+
+            using (var fLock = new ManagedFileLock(_testName))
+            {
+                Cleanup();
+
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
+                {
+                    db.Load();
+
                     using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
                     {
                         using (trans = db.BeginTransaction())
@@ -279,20 +246,70 @@ namespace BESSy.Tests.TransactionTests
                             db.AddOrUpdate(update, update.Id);
 
                             db.Delete(objects.Last().Id);
-
-                            throw new Exception();
                         }
                     }
                 }
-                catch (Exception) { }
+
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
+                {
+                    db.Load();
+
+                    Assert.AreEqual(0, db.Length);
+                }
             }
+        }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
+        [Test]
+        public void FullEnlistmentScopeRollsBackOnExceptionTest()
+        {
+            _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
+
+            var objects = TestResourceFactory.GetMockClassAObjects(12);
+
+            ITransaction trans = null;
+
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                Assert.AreEqual(0, db.Length);
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
+                {
+                    db.Load();
+
+                    try
+                    {
+                        using (var scope = new System.Transactions.TransactionScope(TransactionScopeOption.RequiresNew))
+                        {
+                            using (trans = db.BeginTransaction())
+                            {
+
+                                foreach (var obj in objects)
+                                    obj.Id = db.AddOrUpdate(obj, 0);
+
+                                var update = db.Fetch(3);
+
+                                update.Name = "Updated " + update.Id;
+
+                                db.AddOrUpdate(update, update.Id);
+
+                                db.Delete(objects.Last().Id);
+
+                                throw new Exception();
+                            }
+                        }
+                    }
+                    catch (Exception) { }
+                }
+
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id", new FileCore<int, long>(), new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { DistributedScopeEnlistment = TransactionEnlistmentType.FullEnlistmentNotification }))
+                {
+                    db.Load();
+
+                    Assert.AreEqual(0, db.Length);
+                }
             }
         }
     }

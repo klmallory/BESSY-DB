@@ -1,55 +1,47 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
+using BESSy.Extensions;
 
 namespace BESSy.Files
 {
     public class ManagedFileLock : IDisposable
     {
-        static object _syncRoot = new object();
-
-        static Dictionary<string, ManagedFileLock> _locks = new Dictionary<string, ManagedFileLock>();
+        Mutex _mutex;
+        string _name;
 
         public ManagedFileLock(string name)
         {
-            Name = name;
-
-            bool isLocked = false;
-
-            lock (_syncRoot)
-                isLocked = _locks.ContainsKey(name);
-
-            while (isLocked)
+            _name = name;
+            var mutexName = String.Format(@"Global\{0}", name);
+            
+            if (!FileExtensions.TryOpenExistingMutex(mutexName, out _mutex));
             {
-                Thread.Sleep(50);
-
-                lock (_syncRoot)
-                {
-                    isLocked = _locks.ContainsKey(name);
-
-                    if (!isLocked)
-                    {
-                        _locks.Add(this.Name, this);
-                        return;
-                    }
-                }
+                bool isNew = true;
+                MutexSecurity mSec = new MutexSecurity();
+                SecurityIdentifier sid = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
+                MutexAccessRule rule = new MutexAccessRule(sid, MutexRights.FullControl, AccessControlType.Allow);
+                
+                mSec.AddAccessRule(rule);
+                _mutex = new Mutex(false, mutexName, out isNew, mSec);
             }
+
+            if (!_mutex.WaitOne(10000))
+                throw new InvalidOperationException(string.Format("File Locked {0}", _name));
         }
 
-        public string Name { get; protected set; }
 
         public void Dispose()
         {
-            lock (_syncRoot)
+            if (_mutex != null)
             {
-                if (!_locks.ContainsKey(Name))
-                    return;
-                else
-                {
-                    _locks.Remove(Name);
-                }
+                _mutex.ReleaseMutex();
+                _mutex.Dispose();
             }
         }
     }

@@ -9,6 +9,7 @@ using BESSy.Extensions;
 using BESSy.Tests.Mocks;
 using NUnit.Framework;
 using BESSy.Replication;
+using BESSy.Files;
 
 namespace BESSy.Tests.Replication
 {
@@ -27,26 +28,30 @@ namespace BESSy.Tests.Replication
         public void SubscriberInititializes()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var pdb = new Database<int, MockClassA>(_testName + ".publisher" + ".database", "Id")
-                .WithPublishing("Test", new FilePublisher<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                pdb.Load();
+                Cleanup();
 
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-
-                using (var sdb = new Database<int, MockClassA>(_testName + ".subscriber" + ".database", "Id")
-                    .WithSubscription("Test", new FileSubscriber<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
+                using (var pdb = new Database<int, MockClassA>(_testName + ".publisher" + ".database", "Id")
+                    .WithPublishing("Test", new FilePublisher<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
                 {
-                    sdb.Load();
+                    pdb.Load();
 
                     Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
-                    sdb.Flush();
-                }
+                    using (var sdb = new Database<int, MockClassA>(_testName + ".subscriber" + ".database", "Id")
+                        .WithSubscription("Test", new FileSubscriber<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
+                    {
+                        sdb.Load();
 
-                pdb.Flush();
+                        Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+
+                        sdb.Flush();
+                    }
+
+                    pdb.Flush();
+                }
             }
         }
 
@@ -54,45 +59,49 @@ namespace BESSy.Tests.Replication
         public void SubscriberPicksUpTransaction()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var pdb = new Database<Guid, MockClassA>(_testName + ".publisher" + ".database", "ReplicationID")
-                .WithPublishing("Test", new FilePublisher<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                pdb.Load();
+                Cleanup();
 
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-
-                using (var sdb = new Database<Guid, MockClassA>(_testName + ".subscriber" + ".database", "ReplicationID")
-                    .WithSubscription("Test", new FileSubscriber<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
+                using (var pdb = new Database<Guid, MockClassA>(_testName + ".publisher" + ".database", "ReplicationID")
+                    .WithPublishing("Test", new FilePublisher<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
                 {
-                    sdb.Load();
+                    pdb.Load();
 
                     Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
-                    var objects = TestResourceFactory.GetMockClassAObjects(25).OfType<MockClassC>().ToList();
-                    //objects.ForEach(o => o.ReplicationID = Guid.Empty);
-
-                    using (var tran = pdb.BeginTransaction())
+                    using (var sdb = new Database<Guid, MockClassA>(_testName + ".subscriber" + ".database", "ReplicationID")
+                        .WithSubscription("Test", new FileSubscriber<Guid, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
                     {
-                        objects.ForEach(o => o.ReplicationID = pdb.Add(o));
+                        sdb.Load();
 
-                        tran.Commit();
+                        Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+
+                        var objects = TestResourceFactory.GetMockClassAObjects(25).OfType<MockClassC>().ToList();
+                        //objects.ForEach(o => o.ReplicationID = Guid.Empty);
+
+                        using (var tran = pdb.BeginTransaction())
+                        {
+                            objects.ForEach(o => o.ReplicationID = pdb.Add(o));
+
+                            tran.Commit();
+                        }
+
+                        var sw = new Stopwatch();
+                        sw.Start();
+
+                        while (sdb.Fetch(objects.First().ReplicationID) == null && sw.ElapsedMilliseconds < 6000)
+                            Thread.Sleep(750);
+
+
+                        Assert.IsNotNull(sdb.Fetch(objects.First().ReplicationID));
+
+                        sdb.Flush();
                     }
 
-                    var sw = new Stopwatch();
-                    sw.Start();
-
-                    while (sdb.Fetch(objects.First().ReplicationID) == null && sw.ElapsedMilliseconds < 6000)
-                        Thread.Sleep(750);
-
-
-                    Assert.IsNotNull(sdb.Fetch(objects.First().ReplicationID));
-
-                    sdb.Flush();
+                    pdb.Flush();
                 }
-
-                pdb.Flush();
             }
         }
 
@@ -100,27 +109,31 @@ namespace BESSy.Tests.Replication
         public void SubscriberUnInititializes()
         {
             _testName = System.Reflection.MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var pdb = new Database<int, MockClassA>(_testName + ".publisher" + ".database", "Id")
-                .WithPublishing("Test", new FilePublisher<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                pdb.Load();
+                Cleanup();
 
-                Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
-
-                using (var sdb = new Database<int, MockClassA>(_testName + ".subscriber" + ".database", "Id")
-                    .WithSubscription("Test", new FileSubscriber<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
+                using (var pdb = new Database<int, MockClassA>(_testName + ".publisher" + ".database", "Id")
+                    .WithPublishing("Test", new FilePublisher<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName))))
                 {
-                    sdb.Load();
-                    sdb.WithoutSubscription("Test");
+                    pdb.Load();
 
                     Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
 
-                    sdb.Flush();
-                }
+                    using (var sdb = new Database<int, MockClassA>(_testName + ".subscriber" + ".database", "Id")
+                        .WithSubscription("Test", new FileSubscriber<int, MockClassA>(Path.Combine(Environment.CurrentDirectory, _testName), new TimeSpan(0, 0, 0, 0, 500))))
+                    {
+                        sdb.Load();
+                        sdb.WithoutSubscription("Test");
 
-                pdb.Flush();
+                        Assert.IsTrue(Directory.Exists(Path.Combine(Environment.CurrentDirectory, _testName)));
+
+                        sdb.Flush();
+                    }
+
+                    pdb.Flush();
+                }
             }
         }
     }

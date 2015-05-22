@@ -2,13 +2,19 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using LZ4;
 using System.IO;
 using BESSy.Extensions;
 using BESSy.Json;
 using System.IO.Compression;
 using BESSy.Json.Linq;
 using System.Security;
+
+#if !MONO
+using LZ4;
+#else 
+using LZ4PCL;
+using LZ4 = LZ4PCL;
+#endif
 
 namespace BESSy.Serialization
 {
@@ -135,8 +141,11 @@ namespace BESSy.Serialization
 
             var compressed = new MemoryStream();
 
-            var lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Compress, _highCompress, _blockSize);
-
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Compress, _highCompress, _blockSize);
+#else 
+            Stream lz4 = new LZ4.LZ4Stream(compressed, LZ4.CompressionMode.Compress,true,_highCompress, _blockSize);
+#endif
             stream.WriteAllTo(lz4);
 
             lz4.Flush();
@@ -153,8 +162,11 @@ namespace BESSy.Serialization
 
             var compressed = new MemoryStream();
 
-            var lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Compress, _highCompress, _blockSize);
-
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Compress, _highCompress, _blockSize);
+#else 
+            Stream lz4 = new LZ4.LZ4Stream(compressed, LZ4.CompressionMode.Compress,true,_highCompress, _blockSize);
+#endif
              stream.WriteAllTo(lz4);
 
              lz4.Flush();
@@ -171,7 +183,11 @@ namespace BESSy.Serialization
 
             using (var compressed = new MemoryStream(buffer))
             {
-                var lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
+#else 
+            Stream lz4 = new LZ4.LZ4Stream(compressed, LZ4.CompressionMode.Decompress,true,_highCompress, _blockSize);
+#endif
 
                 using (var uncompressed = new MemoryStream())
                 {
@@ -188,8 +204,11 @@ namespace BESSy.Serialization
             inStream.Position = 0;
             inStream.SetLength(inStream.Length - TrimMarker.Count);
 
-            var lz4 = new LZ4.LZ4Stream(inStream, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
-
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(inStream, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
+#else 
+            Stream lz4 = new LZ4.LZ4Stream(inStream, LZ4.CompressionMode.Decompress,true,_highCompress, _blockSize);
+#endif
             using (var uncompressed = new MemoryStream())
             {
                 lz4.WriteAllFromCurrentPositionTo(uncompressed);
@@ -237,8 +256,11 @@ namespace BESSy.Serialization
         {
             using (var output = new MemoryStream())
             {
-                var lz4 = new LZ4.LZ4Stream(output, CompressionMode.Compress, _highCompress, _blockSize);
-
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(output, System.IO.Compression.CompressionMode.Compress, _highCompress, _blockSize);
+#else 
+            Stream lz4 = new LZ4.LZ4Stream(output, LZ4.CompressionMode.Compress,true,_highCompress, _blockSize);
+#endif
                 using (var ms = new MemoryStream(buffer, true))
                 {
                     ms.WriteAllTo(lz4);
@@ -257,8 +279,11 @@ namespace BESSy.Serialization
         {
             var output = new MemoryStream();
 
-            var lz4 = new LZ4.LZ4Stream(output, CompressionMode.Compress, _highCompress, _blockSize);
-
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(output, System.IO.Compression.CompressionMode.Compress, _highCompress, _blockSize);
+#else 
+            Stream lz4 = new LZ4.LZ4Stream(output, LZ4.CompressionMode.Compress,true,_highCompress, _blockSize);
+#endif
             inStream.Position = 0;
 
             inStream.WriteAllTo(lz4);
@@ -277,7 +302,11 @@ namespace BESSy.Serialization
 
             var compressed = new MemoryStream(buffer);
 
-            var lz4 = new LZ4.LZ4Stream(compressed, CompressionMode.Decompress, _highCompress, _blockSize);
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(compressed, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
+#else
+            Stream lz4 = new LZ4.LZ4Stream(compressed, LZ4.CompressionMode.Decompress, true, _highCompress, _blockSize);
+#endif
 
             var uncompressed = new MemoryStream();
 
@@ -295,7 +324,11 @@ namespace BESSy.Serialization
 
             inStream.Position = 0;
 
-            var lz4 = new LZ4.LZ4Stream(inStream, CompressionMode.Decompress, _highCompress, _blockSize);
+#if !MONO
+            Stream lz4 = new LZ4.LZ4Stream(inStream, System.IO.Compression.CompressionMode.Decompress, _highCompress, _blockSize);
+#else
+            Stream lz4 = new LZ4.LZ4Stream(inStream, LZ4.CompressionMode.Decompress, true, _highCompress, _blockSize);
+#endif
 
             var uncompressed = new MemoryStream();
 

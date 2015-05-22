@@ -67,23 +67,27 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseKeepsInitializedTypes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
-            using (var db = new Database<int, MockClassA>
-                (_testName + ".database", "Id",
-                new FileCore<int, long>(new MockSeed32() { LastSeed = 1024 }, new Seed64(15)),
-                new BinConverter32(), new BSONFormatter(),
-                new TransactionManager<int, MockClassA>() { Source = new BinConverterGuid().Max },
-                new AtomicFileManagerFactory(), new DatabaseCacheFactory(), new IndexFileFactory(), new IndexFactory()))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
-            }
+                Cleanup();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>
+                    (_testName + ".database", "Id",
+                    new FileCore<int, long>(new MockSeed32() { LastSeed = 1024 }, new Seed64(15)),
+                    new BinConverter32(), new BSONFormatter(),
+                    new TransactionManager<int, MockClassA>() { Source = new BinConverterGuid().Max },
+                    new AtomicFileManagerFactory(), new DatabaseCacheFactory(), new IndexFileFactory(), new IndexFactory()))
+                {
+                    db.Load();
+                }
 
-                Assert.AreEqual(1024, db.Seed.LastSeed);
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    db.Load();
+
+                    Assert.AreEqual(1024, db.Seed.LastSeed);
+                }
             }
         }
 
@@ -91,38 +95,42 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseFetchesSavedValues()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objs= TestResourceFactory.GetMockClassAObjects(3).ToList();
             var ids = new List<int>();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
-
-                db.FlushAll();
-            }
-
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
-
-                foreach (var obj in objs)
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
                 {
-                    var orig = obj as MockClassC;
-                    var item = db.Fetch(obj.Id) as MockClassC;
+                    db.Load();
 
-                    Assert.AreEqual(item.Id, orig.Id);
-                    Assert.AreEqual(item.Name, orig.Name);
-                    Assert.AreEqual(item.GetSomeCheckSum[0], orig.GetSomeCheckSum[0]);
-                    Assert.AreEqual(item.Location.X, orig.Location.X);
-                    Assert.AreEqual(item.Location.Y, orig.Location.Y);
-                    Assert.AreEqual(item.Location.Z, orig.Location.Z);
-                    Assert.AreEqual(item.Location.W, orig.Location.W);
-                    Assert.AreEqual(item.ReferenceCode, orig.ReferenceCode);
-                    Assert.AreEqual(item.ReplicationID, orig.ReplicationID);
+                    objs.ToList().ForEach(o => ids.Add(db.Add(o)));
+
+                    db.FlushAll();
+                }
+
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    db.Load();
+
+                    foreach (var obj in objs)
+                    {
+                        var orig = obj as MockClassC;
+                        var item = db.Fetch(obj.Id) as MockClassC;
+
+                        Assert.AreEqual(item.Id, orig.Id);
+                        Assert.AreEqual(item.Name, orig.Name);
+                        Assert.AreEqual(item.GetSomeCheckSum[0], orig.GetSomeCheckSum[0]);
+                        Assert.AreEqual(item.Location.X, orig.Location.X);
+                        Assert.AreEqual(item.Location.Y, orig.Location.Y);
+                        Assert.AreEqual(item.Location.Z, orig.Location.Z);
+                        Assert.AreEqual(item.Location.W, orig.Location.W);
+                        Assert.AreEqual(item.ReferenceCode, orig.ReferenceCode);
+                        Assert.AreEqual(item.ReplicationID, orig.ReplicationID);
+                    }
                 }
             }
         }
@@ -131,59 +139,63 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseFetchesUpdatesAndDeletes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                objs.ToList().ForEach(o => o.Id = db.Add(o));
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                db.FlushAll();
-            }
+                    objs.ToList().ForEach(o => o.Id = db.Add(o));
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
+                    db.FlushAll();
+                }
 
-                var last = db.Fetch(objs.Last().Id);
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    db.Load();
 
-                Assert.IsNotNull(last);
+                    var last = db.Fetch(objs.Last().Id);
 
-                last.Name = "last";
+                    Assert.IsNotNull(last);
 
-                db.Update(last);
+                    last.Name = "last";
 
-                db.FlushAll();
-            }
+                    db.Update(last);
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
-            {
-                db.Load();
+                    db.FlushAll();
+                }
 
-                var last = db.Fetch(objs.Last().Id);
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                Assert.IsNotNull(last);
-                Assert.AreEqual("last", last.Name);
+                    var last = db.Fetch(objs.Last().Id);
 
-                Assert.IsNotNull(db.Fetch(objs.First().Id));
+                    Assert.IsNotNull(last);
+                    Assert.AreEqual("last", last.Name);
 
-                db.Delete(objs.First().Id);
+                    Assert.IsNotNull(db.Fetch(objs.First().Id));
 
-                Assert.IsNull(db.Fetch(objs.First().Id));
+                    db.Delete(objs.First().Id);
 
-                db.FlushAll();
-            }
+                    Assert.IsNull(db.Fetch(objs.First().Id));
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
-            {
-                db.Load();
+                    db.FlushAll();
+                }
 
-                Assert.IsNull(db.Fetch(objs.First().Id));
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                db.Clear();
+                    Assert.IsNull(db.Fetch(objs.First().Id));
+
+                    db.Clear();
+                }
             }
         }
 
@@ -191,46 +203,49 @@ namespace BESSy.Tests.DatabaseTests
         public void AddOrUpdateWithoutIdAddsWithIdZeroAndUpdatesWithNonZeroId()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                objs.ToList().ForEach(o => o.Id = db.AddOrUpdate(o));
+                    objs.ToList().ForEach(o => o.Id = db.AddOrUpdate(o));
 
-                db.FlushAll();
-            }
+                    db.FlushAll();
+                }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    db.Load();
 
-                var last = db.Fetch(objs.Last().Id);
+                    var last = db.Fetch(objs.Last().Id);
 
-                Assert.IsNotNull(last);
+                    Assert.IsNotNull(last);
 
-                last.Name = "last";
+                    last.Name = "last";
 
-                db.AddOrUpdate(last);
+                    db.AddOrUpdate(last);
 
-                db.FlushAll();
-            }
+                    db.FlushAll();
+                }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                var last = db.Fetch(objs.Last().Id);
+                    var last = db.Fetch(objs.Last().Id);
 
-                Assert.IsNotNull(last);
-                Assert.AreEqual("last", last.Name);
+                    Assert.IsNotNull(last);
+                    Assert.AreEqual("last", last.Name);
 
-                Assert.IsNotNull(db.Fetch(objs.First().Id));
+                    Assert.IsNotNull(db.Fetch(objs.First().Id));
 
-                db.FlushAll();
+                    db.FlushAll();
+                }
             }
         }
 
@@ -239,74 +254,77 @@ namespace BESSy.Tests.DatabaseTests
         public void DatabaseUpdatesIdFieldAndIndexes()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var ids = new List<int>();
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                objs.ToList().ForEach(o => ids.Add(db.Add(o)));
+                    objs.ToList().ForEach(o => ids.Add(db.Add(o)));
 
-                db.FlushAll();
-            }
+                    db.FlushAll();
+                }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database"))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database"))
+                {
+                    db.Load();
 
-                var last = db.Fetch(objs.Last().Id);
+                    var last = db.Fetch(objs.Last().Id);
 
-                Assert.IsNotNull(last);
+                    Assert.IsNotNull(last);
 
-                var oldId = last.Id;
-                last.Name = "last";
-                last.Id = 1024;
+                    var oldId = last.Id;
+                    last.Name = "last";
+                    last.Id = 1024;
 
-                db.Update(last, oldId);
+                    db.Update(last, oldId);
 
-                last = db.Fetch(last.Id);
+                    last = db.Fetch(last.Id);
 
-                Assert.AreEqual(1024, last.Id);
+                    Assert.AreEqual(1024, last.Id);
 
-                var old = db.Fetch(oldId);
+                    var old = db.Fetch(oldId);
 
-                Assert.IsNull(old);
+                    Assert.IsNull(old);
 
-                db.FlushAll();
-            }
+                    db.FlushAll();
+                }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                var last = db.Fetch(objs.Last().Id);
-                Assert.IsNull(last);
+                    var last = db.Fetch(objs.Last().Id);
+                    Assert.IsNull(last);
 
-                last = db.Fetch(1024);
-                Assert.IsNotNull(last);
+                    last = db.Fetch(1024);
+                    Assert.IsNotNull(last);
 
-                Assert.AreEqual("last", last.Name);
+                    Assert.AreEqual("last", last.Name);
 
-                Assert.IsNotNull(db.Fetch(objs.First().Id));
+                    Assert.IsNotNull(db.Fetch(objs.First().Id));
 
-                db.Delete(new int[] { objs.First().Id, objs.Last().Id });
+                    db.Delete(new int[] { objs.First().Id, objs.Last().Id });
 
-                Assert.IsNull(db.Fetch(objs.First().Id));
-                Assert.IsNull(db.Fetch(objs.Last().Id));
+                    Assert.IsNull(db.Fetch(objs.First().Id));
+                    Assert.IsNull(db.Fetch(objs.Last().Id));
 
-                db.FlushAll();
-            }
+                    db.FlushAll();
+                }
 
-            using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
-            {
-                db.Load();
+                using (var db = new Database<int, MockClassA>(_testName + ".database", "Id"))
+                {
+                    db.Load();
 
-                Assert.IsNull(db.Fetch(objs.First().Id));
+                    Assert.IsNull(db.Fetch(objs.First().Id));
 
-                db.Clear();
+                    db.Clear();
+                }
             }
         }
     }

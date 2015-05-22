@@ -129,7 +129,7 @@ namespace BESSy.Relational
         }
 
         [JsonIgnore]
-        public IRelationalDatabase<IdType, EntityType> Repository { internal get; set; }
+        public virtual IRelationalDatabase<IdType, EntityType> Repository { internal get; set; }
 
         public abstract bool CascadeDelete { get; }
 

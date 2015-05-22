@@ -18,6 +18,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.Threading;
+using System.Security.AccessControl;
 
 namespace BESSy.Extensions
 {
@@ -40,6 +42,30 @@ namespace BESSy.Extensions
             }
 
             return false;
+        }
+
+        public static bool TryOpenExistingMutex(string mutexName, out Mutex mutex)
+        {
+            mutex = null;
+
+            try
+            {
+                mutex = Mutex.OpenExisting(mutexName, MutexRights.Modify | MutexRights.ReadPermissions | MutexRights.Synchronize);
+
+                return mutex != null;
+            }
+            catch (WaitHandleCannotBeOpenedException)
+            {
+                return false;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using BESSy.Files;
 using BESSy.Json.Linq;
 using BESSy.Queries;
 using BESSy.Tests.Mocks;
@@ -65,40 +66,43 @@ namespace BESSy.Tests.JObjectDatabaseTests
                 new CompareToken("ReferenceCode", CompareEnum.Like, first.ReferenceCode),
                 new CompareToken("Location.X", CompareEnum.Equals, first.Location.X),
                 new CompareToken("Name", CompareEnum.Like, first.Name.Substring(1, first.Name.Length - 2)));
-
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                var eval = new ExpressionResolver<int, JObject>(db);
-
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                Cleanup();
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
                 {
-                    objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-                    t.Commit();
+                    db.Load();
 
-                    var results = eval.ExecuteScaler(select);
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
 
-                    Assert.AreEqual(1, results.Count);
+                        t.Commit();
 
-                    Assert.AreEqual(first.Location.Y, Convert.ToSingle(results[0].Value<float>("Location.Y")));
+                        var results = eval.ExecuteScaler(select);
+
+                        Assert.AreEqual(1, results.Count);
+
+                        Assert.AreEqual(first.Location.Y, Convert.ToSingle(results[0].Value<float>("Location.Y")));
+                    }
+
+
                 }
 
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+                {
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-            }
+                    db.Load();
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
-            {
-                var eval = new ExpressionResolver<int, JObject>(db);
+                    var results2 = eval.ExecuteScaler(select);
 
-                db.Load();
+                    Assert.AreEqual(1, results2.Count);
 
-                var results2 = eval.ExecuteScaler(select);
-
-                Assert.AreEqual(1, results2.Count);
-
-                Assert.AreEqual(first.Location.Y, Convert.ToSingle(results2[0].Value<float>("Location.Y")));
+                    Assert.AreEqual(first.Location.Y, Convert.ToSingle(results2[0].Value<float>("Location.Y")));
+                }
             }
         }
 
@@ -117,40 +121,43 @@ namespace BESSy.Tests.JObjectDatabaseTests
                 new CompareToken("ReferenceCode", CompareEnum.Like, first.ReferenceCode),
                 new CompareToken("Location.X", CompareEnum.Equals, first.Location.X),
                 new CompareToken("Name", CompareEnum.Like, first.Name.Substring(1, first.Name.Length - 2)));
-
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                var eval = new ExpressionResolver<int, JObject>(db);
-
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                Cleanup();
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
                 {
-                    objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-                    t.Commit();
+                    db.Load();
 
-                    var results = eval.ExecuteScaler(select);
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
 
-                    Assert.AreEqual(1, results.Count);
+                        t.Commit();
 
-                    Assert.AreEqual(first.Location.Y, Convert.ToSingle(results[0].Value<float>("Location.Y")));
+                        var results = eval.ExecuteScaler(select);
+
+                        Assert.AreEqual(1, results.Count);
+
+                        Assert.AreEqual(first.Location.Y, Convert.ToSingle(results[0].Value<float>("Location.Y")));
+                    }
+
+
                 }
 
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+                {
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-            }
+                    db.Load();
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
-            {
-                var eval = new ExpressionResolver<int, JObject>(db);
+                    var results2 = eval.ExecuteScaler(select);
 
-                db.Load();
+                    Assert.AreEqual(1, results2.Count);
 
-                var results2 = eval.ExecuteScaler(select);
-
-                Assert.AreEqual(1, results2.Count);
-
-                Assert.AreEqual(first.Location.Y, Convert.ToSingle(results2[0].Value<float>("Location.Y")));
+                    Assert.AreEqual(first.Location.Y, Convert.ToSingle(results2[0].Value<float>("Location.Y")));
+                }
             }
         }
 
@@ -158,7 +165,6 @@ namespace BESSy.Tests.JObjectDatabaseTests
         public void ScalerFirstFromQuery()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objs = TestResourceFactory.GetMockClassAObjects(100).ToList();
             var first = objs.FirstOrDefault() as MockClassC;
@@ -167,33 +173,37 @@ namespace BESSy.Tests.JObjectDatabaseTests
                 new string[] { "Location.Y" },
                 new CompareToken("Name", CompareEnum.Greater, "Z" + first.Name));
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                var eval = new ExpressionResolver<int, JObject>(db);
-
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                Cleanup();
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
                 {
-                    objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-                    t.Commit();
+                    db.Load();
 
-                    var results = eval.ExecuteScaler(select);
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
 
-                    Assert.LessOrEqual(10, results.Count);
+                        t.Commit();
+
+                        var results = eval.ExecuteScaler(select);
+
+                        Assert.LessOrEqual(10, results.Count);
+                    }
                 }
-            }
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
-            {
-                var eval = new ExpressionResolver<int, JObject>(db);
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+                {
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-                db.Load();
+                    db.Load();
 
-                var results2 = eval.ExecuteScaler(select);
+                    var results2 = eval.ExecuteScaler(select);
 
-                Assert.LessOrEqual(10, results2.Count);
+                    Assert.LessOrEqual(10, results2.Count);
+                }
             }
         }
 
@@ -209,34 +219,37 @@ namespace BESSy.Tests.JObjectDatabaseTests
             var select = new ScalarSelectExpression(10, false,
                 new string[] { "Location.Y" } ,
                 new CompareToken("Name", CompareEnum.Greater, "Z" + first.Name));
-
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                var eval = new ExpressionResolver<int, JObject>(db);
-
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                Cleanup();
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
                 {
-                    objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-                    t.Commit();
+                    db.Load();
 
-                    var results = eval.ExecuteScaler(select);
+                    using (var t = db.BeginTransaction())
+                    {
+                        objs.ToList().ForEach(o => o.Id = db.Add(db.Formatter.AsQueryableObj(o)));
 
-                    Assert.LessOrEqual(10, results.Count);
+                        t.Commit();
+
+                        var results = eval.ExecuteScaler(select);
+
+                        Assert.LessOrEqual(10, results.Count);
+                    }
                 }
-            }
 
-            using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
-            {
-                var eval = new ExpressionResolver<int, JObject>(db);
+                using (var db = new JObjectDatabase<int>(_testName + ".database", "Id"))
+                {
+                    var eval = new ExpressionResolver<int, JObject>(db);
 
-                db.Load();
+                    db.Load();
 
-                var results2 = eval.ExecuteScaler(select);
+                    var results2 = eval.ExecuteScaler(select);
 
-                Assert.LessOrEqual(10, results2.Count);
+                    Assert.LessOrEqual(10, results2.Count);
+                }
             }
         }
     }

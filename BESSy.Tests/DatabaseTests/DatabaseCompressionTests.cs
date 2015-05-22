@@ -81,36 +81,40 @@ namespace BESSy.Tests.DatabaseTests
         public void FormatterCompressesAndUnCompressesManyRandomObjects()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var objs = TestResourceFactory.GetMockClassAObjects(257);
 
-            using (var db = new Database<int, MockClassA>
-                (_testName + ".database", "Id",
-                new FileCore<int, long>() { MinimumCoreStride = 4096, InitialDbSize = 256 },
-                 new LZ4ZipFormatter(new BSONFormatter())))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
+                Cleanup();
 
-                using (var t = db.BeginTransaction())
+                using (var db = new Database<int, MockClassA>
+                    (_testName + ".database", "Id",
+                    new FileCore<int, long>() { MinimumCoreStride = 4096, InitialDbSize = 256 },
+                     new LZ4ZipFormatter(new BSONFormatter())))
                 {
-                    foreach (var o in objs)
-                        o.Id = db.Add(o);
+                    db.Load();
 
-                    t.Commit();
+                    using (var t = db.BeginTransaction())
+                    {
+                        foreach (var o in objs)
+                            o.Id = db.Add(o);
+
+                        t.Commit();
+                    }
                 }
-            }
-            using (var db = new Database<int, MockClassA>
-                (_testName + ".database", new LZ4ZipFormatter(new BSONFormatter())))
-            {
-                db.Load();
-
-                foreach (var o in objs)
+                using (var db = new Database<int, MockClassA>
+                    (_testName + ".database", new LZ4ZipFormatter(new BSONFormatter())))
                 {
-                    var test = db.Fetch(o.Id);
+                    db.Load();
 
-                    Assert.IsNotNull(test, "object could not be decompressed or fetched {0}", o.Id);
-                    Validation.ValidateC(o as MockClassC, test as MockClassC);
+                    foreach (var o in objs)
+                    {
+                        var test = db.Fetch(o.Id);
+
+                        Assert.IsNotNull(test, "object could not be decompressed or fetched {0}", o.Id);
+                        Validation.ValidateC(o as MockClassC, test as MockClassC);
+                    }
                 }
             }
         }
@@ -119,37 +123,40 @@ namespace BESSy.Tests.DatabaseTests
         public void FormatterParsesAndUnparsesStream()
         {
             _testName = MethodInfo.GetCurrentMethod().Name.GetHashCode().ToString();
-            Cleanup();
 
             var test1 = new Mocks.MockImageContainer(testRes.Luna_DIFF) { Name = "Luna_DIFF" };
             var test2 = new Mocks.MockImageContainer(testRes.IronAsteroid_NRM) { Name = "IronAsteroid_NRM" };
 
-            using (var db = new Database<string, MockImageContainer>
-                (_testName + ".database", "Name",
-                new FileCore<string, long>(new SeedString(255)) { MinimumCoreStride = 4096, InitialDbSize = 256 },
-                 new LZ4ZipFormatter(new BSONFormatter())))
+            using (var fLock = new ManagedFileLock(_testName))
             {
-                db.Load();
-
-                using (var t = db.BeginTransaction())
+                Cleanup();
+                using (var db = new Database<string, MockImageContainer>
+                    (_testName + ".database", "Name",
+                    new FileCore<string, long>(new SeedString(255)) { MinimumCoreStride = 4096, InitialDbSize = 256 },
+                     new LZ4ZipFormatter(new BSONFormatter())))
                 {
-                    db.Add(test1);
-                    db.Add(test2);
+                    db.Load();
 
-                    t.Commit();
+                    using (var t = db.BeginTransaction())
+                    {
+                        db.Add(test1);
+                        db.Add(test2);
+
+                        t.Commit();
+                    }
                 }
-            }
-            
-            using (var db = new Database<string, MockImageContainer>
-                (_testName + ".database", new LZ4ZipFormatter(new BSONFormatter())))
-            {
-                db.Load();
 
-                var fetched = db.Fetch("Luna_DIFF");
+                using (var db = new Database<string, MockImageContainer>
+                    (_testName + ".database", new LZ4ZipFormatter(new BSONFormatter())))
+                {
+                    db.Load();
 
-                Assert.IsNotNull(fetched);
-                Assert.AreEqual(fetched.Name, test1.Name);
-                Assert.AreEqual(fetched.GetResource<Bitmap>().Size.Height, test1.GetResource<Bitmap>().Size.Height);
+                    var fetched = db.Fetch("Luna_DIFF");
+
+                    Assert.IsNotNull(fetched);
+                    Assert.AreEqual(fetched.Name, test1.Name);
+                    Assert.AreEqual(fetched.GetResource<Bitmap>().Size.Height, test1.GetResource<Bitmap>().Size.Height);
+                }
             }
         }
     }

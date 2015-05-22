@@ -477,6 +477,9 @@ namespace BESSy.Relational
                     return _assemblyBuilderCache[assemblyName];
             }
 
+#if MONO
+            var bessyAss = Assembly.Load("BESSy");
+#endif
 #if NET40
             var bessyAss = Assembly.Load("BESSy");
 #endif
