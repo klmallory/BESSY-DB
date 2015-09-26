@@ -332,6 +332,7 @@
     <Compile Include="Transactions\TransactionStateException.cs" />
     <Compile Include="Transactions\TransactionSynchronizer.cs" />
     <Compile Include="UniqueKeyViolationException.cs" />
+    <Compile Include="ver.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="BESSy.ico" />

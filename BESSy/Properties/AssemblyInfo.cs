@@ -45,11 +45,6 @@ using System.Runtime.Versioning;
 //sn -p BESSy.Tests.keyfile.pfx BESSy.Tests.keyfile.pub
 //sn -tp BESSy.Tests.keyfile.pub
 
-[assembly: AssemblyVersion("0.9.1.6")]
-[assembly: AssemblyFileVersion("0.9.1.6")]
-[assembly: CLSCompliant(true)]
-[assembly: NeutralResourcesLanguageAttribute("en-US")]
-
 
 #if NCRUNCH
     //#if NET40
