@@ -72,7 +72,7 @@ namespace BESSy.Tests.AtomicFileManagerTests
 
                 Assert.IsNotNull(s);
                 Assert.GreaterOrEqual(s.Length, 1441792);
-                Assert.AreEqual(9, afm.AsStreaming().Count());
+                Assert.AreEqual(8, afm.AsStreaming().Count());
             }
         }
     }

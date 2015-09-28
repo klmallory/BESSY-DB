@@ -5742,6 +5742,12 @@
             </summary>
             <param name="e">The <see cref="T:System.Collections.Specialized.NotifyCollectionChangedEventArgs"/> instance containing the event data.</param>
         </member>
+        <member name="M:BESSy.Json.Linq.JContainer.OnPropertyChanging(System.String)">
+            <summary>
+            Raises the <see cref="E:BESSy.Json.Linq.JContainer.PropertyChanging"/> event with the provided arguments.
+            </summary>
+            <param name="propertyName">Name of the property.</param>
+        </member>
         <member name="M:BESSy.Json.Linq.JContainer.Children">
             <summary>
             Returns a collection of the child tokens of this token, in document order.
@@ -5814,6 +5820,11 @@
             Gets the container's children tokens.
             </summary>
             <value>The container's children tokens.</value>
+        </member>
+        <member name="E:BESSy.Json.Linq.JContainer.PropertyChanging">
+            <summary>
+            Occurs when a property value is changing.
+            </summary>
         </member>
         <member name="P:BESSy.Json.Linq.JContainer.HasValues">
             <summary>
@@ -6117,18 +6128,6 @@
             A <see cref="T:System.Collections.Generic.IEnumerator`1"/> that can be used to iterate through the collection.
             </returns>
         </member>
-        <member name="M:BESSy.Json.Linq.JObject.OnPropertyChanged(System.String)">
-            <summary>
-            Raises the <see cref="E:BESSy.Json.Linq.JObject.PropertyChanged"/> event with the provided arguments.
-            </summary>
-            <param name="propertyName">Name of the property.</param>
-        </member>
-        <member name="M:BESSy.Json.Linq.JObject.OnPropertyChanging(System.String)">
-            <summary>
-            Raises the <see cref="E:BESSy.Json.Linq.JObject.PropertyChanging"/> event with the provided arguments.
-            </summary>
-            <param name="propertyName">Name of the property.</param>
-        </member>
         <member name="M:BESSy.Json.Linq.JObject.System#ComponentModel#ICustomTypeDescriptor#GetProperties">
             <summary>
             Returns the properties for this instance of a component.
@@ -6243,16 +6242,6 @@
             Gets the container's children tokens.
             </summary>
             <value>The container's children tokens.</value>
-        </member>
-        <member name="E:BESSy.Json.Linq.JObject.PropertyChanged">
-            <summary>
-            Occurs when a property value changes.
-            </summary>
-        </member>
-        <member name="E:BESSy.Json.Linq.JObject.PropertyChanging">
-            <summary>
-            Occurs when a property value is changing.
-            </summary>
         </member>
         <member name="P:BESSy.Json.Linq.JObject.Type">
             <summary>
