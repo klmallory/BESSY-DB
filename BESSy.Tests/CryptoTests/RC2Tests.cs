@@ -80,7 +80,7 @@ namespace BESSy.Tests.CryptoTests
 
                 var decrypted = _crypto.Decrypt(encrypted, _key);
 
-                var results = _bsonFormatter.UnformatObj<IList<MockClassA>>(decrypted);
+                var results = TestResourceFactory.CreateBsonFormatter().UnformatObj<IList<MockClassA>>(decrypted);
 
                 Assert.AreEqual(objs.Count, results.Count);
 
@@ -98,9 +98,11 @@ namespace BESSy.Tests.CryptoTests
         [Test]
         public void RC2EncryptsDecryptsBuffer()
         {
+            var formatter = TestResourceFactory.CreateBsonFormatter();
+
             var objs = TestResourceFactory.GetMockClassAObjects(50);
 
-            var bson = _bsonFormatter.FormatObj(objs);
+            var bson = formatter.FormatObj(objs);
 
             var input = new MemoryStream(bson).ToArray();
             
@@ -108,7 +110,7 @@ namespace BESSy.Tests.CryptoTests
 
             var decrypted = _crypto.Decrypt(encrypted, _key);
 
-            var results = _bsonFormatter.UnformatObj<IList<MockClassA>>(decrypted);
+            var results = formatter.UnformatObj<IList<MockClassA>>(decrypted);
 
             Assert.AreEqual(objs.Count, results.Count);
 

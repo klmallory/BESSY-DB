@@ -272,7 +272,7 @@ namespace BESSy.Transactions
                 containsKey = _transactionCache.ContainsKey(id);
             }
 
-            TransactionLock<IdType, EntityType> lck = default(TransactionLock<IdType, EntityType>);
+            var lck = default(TransactionLock<IdType, EntityType>);
 
             while ((allThreads && count > 0) || containsKey)
             {
